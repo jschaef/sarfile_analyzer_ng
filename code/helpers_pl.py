@@ -412,7 +412,7 @@ def create_start_end_time_list(start: pd.DatetimeIndex, end: pd.DatetimeIndex, c
     time_end_choice = pd.DataFrame(end_choice.strftime('%H:%M:%S'), index=end_choice)
     time_end_time  = col2.selectbox('End', time_end_choice, index=len(end_choice)-1, key=end_key)
     time_end_choice[1] = date_time_col
-    end_time = time_end_choice[time_end_choice[0]==time_end_time][1][0]
+    end_time = time_end_choice[time_end_choice[0]==time_end_time][1].iloc[0]
     return start_time, end_time
 
 def clean_session_state(*args):
