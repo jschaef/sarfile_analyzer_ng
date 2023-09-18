@@ -1,0 +1,13 @@
+[server]
+maxUploadSize = 600
+enableWebsocketCompression = false
+maxMessageSize = 1000
+[runner]
+fastReruns = false
+
+[theme]
+primaryColor="#6eb52f"
+backgroundColor="#FFFFFF"
+secondaryBackgroundColor="#F5FDFD"
+textColor="#262730"
+font="sans serif"

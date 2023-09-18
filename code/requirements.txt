@@ -1,0 +1,13 @@
+aiofiles
+altair
+altair_saver
+connectorx
+multiprocess
+pandas
+polars
+PyPDF4
+python-magic
+redis
+SQLAlchemy
+streamlit
+streamlit-option-menu
