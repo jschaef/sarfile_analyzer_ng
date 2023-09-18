@@ -354,7 +354,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         z_field = []
         df = data[0]
         property = data[1]
-        filename = df['file'][0]
+        filename = df['file'].iloc[0]
         for header in reboot_headers:
             if header[0]:
                 hostname = header[1].split()[2].strip("()")
