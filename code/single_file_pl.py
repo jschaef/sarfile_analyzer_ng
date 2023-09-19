@@ -36,18 +36,20 @@ def single_f(config_obj, username):
     if not aitem[selected] == 'CPU':
         df = pl_h2.get_data_frames_from__headers([selected], df_complete, "header")[0]
     else:
-        df_state = st.session_state.get('selected_df', [])
+        cache_obj = f"{sar_file.split('/')[-1]}_obj"
+        df_state = st.session_state.get(cache_obj, [])
         if df_state:
             if not df_state[1] == sar_file:
                 selected_df = pl_h2.get_data_frames_from__headers([selected],
                     df_complete, "header")[0]
-                helpers_pl.set_state_key('selected_df', value=selected_df, change_key=sar_file)
+                helpers_pl.set_state_key(cache_obj, value=selected_df, 
+                    change_key=sar_file)
             else:
-                selected_df = st.session_state.selected_df[0]
+                selected_df = st.session_state[cache_obj][0]
         else:
             selected_df = pl_h2.get_data_frames_from__headers([selected],
                 df_complete, "header")[0]
-            helpers_pl.set_state_key('selected_df', value=selected_df, change_key=sar_file)
+            helpers_pl.set_state_key(cache_obj, value=selected_df, change_key=sar_file)
         df = selected_df
     start = df['date'].min()
     end = df['date'].max()
