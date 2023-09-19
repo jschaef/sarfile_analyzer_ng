@@ -1,13 +1,20 @@
-# sar_file_analyzer
+# sarfile_analyzer_ng
 
+This project is a fork of my original project <https://github.com/jschaef/sar_file_analyzer> for graphical presentations of linux sar files.
 The app is using streamlit, altair, pandas, polars and other great
-python modules for graphical presentation of various metrics from ascii sar files.
+python modules.
+The newer code stream computes data frames from polars rather then from
+pandas due to polars more efficient handling of data frames.
+Pandas is still used for for better visualization in the streamlit web application.
 
 ## live demo
 
-you might have a look here:
+you might have a look here for a live demo:
 <https://share.streamlit.io/jschaef/sar_file_analyzer/main/code/first_st.py>.
-Create your own account and upload a sar file or use admin/password
+Create your own account or use the credentials <code>admin/password</code> for
+login. Afterwards upload an ascii sar file via the _"Manage Sar File"_ menu on the
+top menu. Change to the _"Analyze Data"_ menu. Investigate the diagrams and/or
+play with the other menus.
 
 ## requirements
 
@@ -20,13 +27,15 @@ Create your own account and upload a sar file or use admin/password
 
 ## build
 
-* <code>cd sar_file_analyzer/code</code>
-* <code>python3x -m venv venv, e.g. python3.11 -m venv venv</code> 
-* <code>source venv/bin/activate</code> 
-* <code>pip install -U pip</code>
-* <code>pip install -r requirements.txt</code>
-* <code>install nodejs-common via your package manager (you need the npm binary)</code>
-* <code>npm install vega-lite vega-cli canvas</code>
+```bash
+bash~: cd sar_file_analyzer/code
+bash~: python3x -m venv venv, e.g. python3.11 -m venv venv
+bash~: source venv/bin/activate
+bash~: pip install -U pip
+bash~: pip install -r requirements.txt
+bash~: install nodejs-common via your package manager (you need the npm binary)
+bash~: npm install vega-lite vega-cli canvas
+```
 
 ## configure
 
@@ -72,7 +81,7 @@ font="sans serif"
 
 ## run app behind nginx
 
-```
+```txt
 server {
     listen              443 ssl;
     server_name         <fqdn of your server>;
@@ -94,11 +103,9 @@ server {
 
 ## bugs
 
-In case the app is throwing an error about helpers.py line 381 <code>format(precision=4)</code>
-correct it to <code>set_precision(4)</code>.
-Depending on the pandas version the second one is deprecated but the first one still not known.
-
-In case altair saver is throwing an error when trying to download PDF's
+In case altair saver is throwing an error when trying to activate PDF' downloads
+there is an know issue, see:
 <https://github.com/anmol098/waka-readme-stats/issues/337>
-patch ./venv/lib/python3.11/site-packages/altair_saver/savers/_node.py altair_saver.patch
-If you are using a different python3 version adapt your changes in the patch file.
+To solve the problem use the patch as displayed below:
+<code>patch ./venv/lib/python3.11/site-packages/altair_saver/savers/_node.py altair_saver.patch</code>
+If you are using a python3 version different 3.11 adapt your version in the patch file.
