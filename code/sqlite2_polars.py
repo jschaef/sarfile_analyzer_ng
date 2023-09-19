@@ -101,8 +101,6 @@ def get_header_prop(header, property):
             else:
                 return org_header
 
-#print(get_header_prop("rxpck/s txpck/s rxkB/s txkB/s rxcmp/s txcmp/s rxmcst/s %ifutil bla", 'description'))
-
 @cache_data
 def get_header_from_alias(alias):
     headings_df = get_table_df('headingstable')
