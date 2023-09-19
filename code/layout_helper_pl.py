@@ -45,7 +45,8 @@ def pdf_download(file: str, chart: object,key=None, download_name=None):
     if not download_name:
        download_name = 'sar_chart.pdf' 
 
-    col1.download_button(label='Download PDF', file_name=download_name, data=create_pdf(file, chart)[0],
+    col1.download_button(label='Download PDF', file_name=download_name, 
+        data=create_pdf(file, chart)[0],
         mime='application/x-binary',key=dkey, disabled=disabled)
     try:
         fobject
