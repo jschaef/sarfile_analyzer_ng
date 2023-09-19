@@ -52,13 +52,13 @@ def df_reset_date(df: pl.DataFrame, os_details: str, column_name: str, alias: st
 
     if tformat != 'AM_PM':
         df = df.with_columns(
-            pl.col(alias).str.to_datetime(f"{format} %H:%M:%S",utc=False)
+            pl.col(alias).str.to_datetime(f"{format} %H:%M:%S",)
         ).with_columns(
             pl.col(column_name).str.replace(r'(^\d{2}:\d{2}:\d{2})', "")
         )
     else:
         df = df.with_columns(
-            pl.col(alias).str.to_datetime(f"{format} %I:%M:%S %p",utc=False)
+            pl.col(alias).str.to_datetime(f"{format} %I:%M:%S %p",)
         ).with_columns(
             pl.col(column_name).str.replace(r'(^\d{2}:\d{2}:\d{2}\s+(AM|PM\s+))', "")
         ).with_columns(

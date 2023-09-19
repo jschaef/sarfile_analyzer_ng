@@ -22,11 +22,13 @@ def draw_single_chart_v1(df, property, restart_headers, os_details, width, hight
         color_item = 'file'
 
     nearest = alt.selection_point(nearest=True, on='mouseover',
-                            fields=['date_utc'], empty=False)
+                            fields=['date_utc', ], empty=False)
 
     selectors = alt.Chart(df).mark_point().encode(
         alt.X('utchoursminutes(date_utc)', type='temporal'),
         opacity=alt.value(0),
+        tooltip=[alt.Tooltip(f'{property}:Q', format='.2f'),
+                 alt.Tooltip('date_utc', format='%Y-%m-%d %H:%M:%S'),],
     ).add_params(
         nearest
     )
