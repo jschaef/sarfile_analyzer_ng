@@ -100,7 +100,7 @@ def parse_sar_file(file_path: str, username:str, DEBUG: bool=False) -> pl.DataFr
     parquet_file = Path(f'{real_path}.parquet')
 
     reg_ignore = re.compile(
-        '^(\d{2}:\d{2}:\d{2}.*bus.*idvendor|.*intr.*intr/s|.*temp.*device)', re.IGNORECASE)
+        '^(\d{2}:\d{2}:\d{2}.*bus.*idvendor|.*intr.*intr/s|.*temp.*device|.*mhz)', re.IGNORECASE)
     reg_delete_us_time = re.compile(' AM | PM ', re.IGNORECASE)
     reg_replace_comma = re.compile('(\d+),(\d+)')
     reg_linux_restart = re.compile('LINUX RESTART')

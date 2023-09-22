@@ -122,6 +122,7 @@ def show_dia_overview(username: str, sar_file_col: st.columns):
             # differs since a new device occured after reboot (persistent
             # rules network device)
             date_df = pl_helpers.get_data_frames_from_header([entry], df)
+            date_df = date_df.sort('date').unique('date')
             hours = dff.translate_dates_into_list(date_df)
             if len(hours) >= df_len:
                 tmp_dict[df_len] = entry

@@ -4,7 +4,6 @@ altair_saver
 connectorx
 multiprocess
 pandas
-polars == 0.18.15
 PyPDF4
 python-magic
 redis
