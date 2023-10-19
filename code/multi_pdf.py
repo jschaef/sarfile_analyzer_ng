@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from PyPDF4 import PdfFileMerger
-from os import remove
+from os import remove, path
 
 def create_multi_pdf(pdf_field: list, outfile: str):
     rm_field = pdf_field.copy()
@@ -12,5 +12,6 @@ def create_multi_pdf(pdf_field: list, outfile: str):
     merger.write(output)
     output.close()
     for file in rm_field:
-        remove(file)
+        if path.exists(file):
+            remove(file)
     return outfile
