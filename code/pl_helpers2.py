@@ -93,6 +93,7 @@ def get_headers_to_clean() -> list:
         'CPU',
         'FCHOST',
         'TTY',
+        'FILESYSTEM',
     ]
     return headers_to_clean
 

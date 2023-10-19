@@ -79,7 +79,7 @@ def get_data_frame(file_name, user_name):
         df = parse_sar_file(parquet_file, user_name, DEBUG=False)
     return df
 
-def handle_fibre(line: str) -> str:
+def handle_fibre_and_fs(line: str) -> str:
     tmp_line = line.split()
     change_col = tmp_line[-1]
     if "AM" or "PM" in tmp_line[1]:
@@ -106,11 +106,13 @@ def parse_sar_file(file_path: str, username:str, DEBUG: bool=False) -> pl.DataFr
     reg_linux_restart = re.compile('LINUX RESTART')
     reg_time = re.compile('(^\d{2}:\d{2}:\d{2})')
     reg_fibre = re.compile( '^(\d{2}:\d{2}:\d{2}.*fch_.*FCHOST)', re.IGNORECASE)
+    reg_filesystem = re.compile('^\d{2}:\d{2}:\d{2}.*filesystem', re.IGNORECASE)
     empty_line = re.compile('^\s*$')
     header = False
     header_str = ""
     ignore_data = False
     fc_host = False
+    filesystem = False
     restart_field = []
     for line in content:
         if empty_line.search(line):
@@ -131,16 +133,19 @@ def parse_sar_file(file_path: str, username:str, DEBUG: bool=False) -> pl.DataFr
                 continue
             if reg_fibre.search(line):
                 fc_host = True
-                line = handle_fibre(line)
+                line = handle_fibre_and_fs(line)
             else:
                 fc_host = False
+            if reg_filesystem.search(line):
+                filesystem = True
+                line = handle_fibre_and_fs(line)
             header_str = " ".join(line.split()[1:])
             if not file_dict.get(header_str):
                 file_dict[header_str] = []
             header = False
         else:
-            if fc_host:
-                line = handle_fibre(line)
+            if fc_host or filesystem:
+                line = handle_fibre_and_fs(line)
             file_dict[header_str].append(line)
 
     for key in file_dict:
