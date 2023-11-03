@@ -44,7 +44,7 @@ bash~: npm install vega-lite vega-cli canvas
 
 ## run
 
-* <code>streamlit run start_sar_analyzer</code>
+* <code>streamlit run start_sar_analyzer.py</code>
 
 ## access
 
