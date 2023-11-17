@@ -9,7 +9,7 @@ def prepare_df_for_pandas(df: pl.DataFrame, start: pl.datetime, end: pl.datetime
         show_subheaders_for_all:bool=False) -> pl.DataFrame:
     df_field = []
     collect_field = []
-    soft_reg = re.compile(r'.*soft.*', re.IGNORECASE) 
+    soft_reg = re.compile(r'^SOFT.*', re.IGNORECASE) 
     header_pure = df.columns[1]
     header_tranlated = helpers.translate_headers([header_pure])
     alias = list(header_tranlated.values())[0]
@@ -20,7 +20,7 @@ def prepare_df_for_pandas(df: pl.DataFrame, start: pl.datetime, end: pl.datetime
 
     if 'sub_device' not in df.columns:
         df_field.append([df, 0])
-    elif alias == ('CPU' or soft_reg.search(alias)) and not show_subheaders_for_all:
+    elif (alias == 'CPU' or soft_reg.search(alias)) and not show_subheaders_for_all:
         device = 'all'
         device_df = pl_h2.get_df_from_sub_device(df, 'sub_device', device)
         device_num = len(pl_h2.get_sub_devices_from_df(df, 'sub_device')) -1
@@ -56,7 +56,7 @@ def prepare_single_device_for_pandas(df: pl.DataFrame, start: pl.datetime,
     title = alias
     sub_title = ""
     device_num = 1
-    cached_obj = f"{file_name}_obj"
+    cached_obj = f"{file_name}{alias}_obj"
     if st.session_state.get(cached_obj, []):
         df = st.session_state[cached_obj][0]
     else:

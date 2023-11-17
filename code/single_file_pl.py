@@ -3,6 +3,7 @@ import polars as pl
 import layout_helper_pl as lh
 import helpers_pl
 import alt
+import re
 import pl_helpers2 as pl_h2
 import parse_into_polars as parse_polars
 import dia_compute_pl as dia_compute
@@ -11,6 +12,7 @@ from config import Config
 file_chosen = ""
 df_complete = None
 def single_f(config_obj, username):
+    perf_intensive_metrics = re.compile(r'^CPU|SOfT.*', re.IGNORECASE)
     global file_chosen, df_complete
     upload_dir = config_obj['upload_dir']
     pdf_dir = f'{Config.upload_dir}/{username}/pdf'
@@ -33,10 +35,13 @@ def single_f(config_obj, username):
     selected, _ = helpers_pl.get_selected_header('Sar Headings', headers)
     aitem = helpers_pl.translate_headers([selected])
     # get dataframe for selected header, time consuming on big files
-    if not aitem[selected] == 'CPU':
+    if not perf_intensive_metrics.search(aitem[selected]):
         df = pl_h2.get_data_frames_from__headers([selected], df_complete, "header")[0]
     else:
-        cache_obj = f"{sar_file.split('/')[-1]}_obj"
+        header = aitem[selected]
+        if "SOFT" in header:
+            header = "SOFT"
+        cache_obj = f"{sar_file.split('/')[-1]}_{header}_obj"
         df_state = st.session_state.get(cache_obj, [])
         if df_state:
             if not df_state[1] == sar_file:
@@ -56,10 +61,14 @@ def single_f(config_obj, username):
     
     device_list = []
     # time consuming on big files
-    if aitem[selected] != 'CPU':
+    if not perf_intensive_metrics.search(aitem[selected]):
         df_list = dia_compute.prepare_df_for_pandas(df, start, end)
     else:
         device_list_state = st.session_state.get('device_list', [])
+        header = aitem[selected]
+        if "SOFT" in header:
+            header = "SOFT"
+        large_df_key = f"large_df_{header}_obj"
         if device_list_state:
             if not device_list_state[1] == sar_file:
                 large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
@@ -68,12 +77,16 @@ def single_f(config_obj, username):
                 if 'all' in device_list:
                     device_list.remove('all')
                 helpers_pl.set_state_key('device_list', value=device_list, change_key=sar_file)
-                helpers_pl.set_state_key('large_df', value=large_df, change_key=sar_file)
+                helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
             else:
                 device_list = st.session_state.device_list[0]
                 if 'all' in device_list:
                     device_list.remove('all')
-                large_df = st.session_state.large_df[0]
+                if st.session_state.get(large_df_key, []):
+                    large_df = st.session_state.get(large_df_key)[0]
+                else:
+                    large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
+                    helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
         else:
                 large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
                 device_list = pl_h2.get_sub_devices_from_df(large_df, 'sub_device')
@@ -81,13 +94,13 @@ def single_f(config_obj, username):
                 if 'all' in device_list:
                     device_list.remove('all')
                 helpers_pl.set_state_key('device_list', value=device_list, change_key=sar_file)
-                helpers_pl.set_state_key('large_df', value=large_df, change_key=sar_file)
+                helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
         device_list = [int(x) for x in device_list]
         device_list.sort()
         device_list.insert(0, 'all')
 
     sub_item = ''
-    if aitem[selected] != 'CPU':
+    if not perf_intensive_metrics.search(aitem[selected]):
         for index in df_list:
             df = index['df']
             device_list.append(index['sub_title'])
@@ -97,7 +110,7 @@ def single_f(config_obj, username):
     if selected_content == 'Details':
         if len(device_list) > 1:
             sub_item = st.sidebar.selectbox('Choose Devices', device_list)
-            if aitem[selected] == 'CPU':
+            if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
                 df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
@@ -152,7 +165,7 @@ def single_f(config_obj, username):
         col1, col2, col3, _ = st.columns(4)
         if len(device_list) > 1:
             sub_item = st.sidebar.selectbox('Choose Devices', device_list)
-            if aitem[selected] == 'CPU':
+            if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
                 df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')

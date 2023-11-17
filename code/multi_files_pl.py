@@ -6,19 +6,23 @@ import pl_helpers2 as pl_helpers
 import layout_helper_pl as lh
 import parse_into_polars as parse_polars
 import dia_compute_pl as dia_compute
+import re
 from os import path, listdir
 from config import Config
 
-def delete_session_state_df_obj(key: str):
-    key = f'{key}_obj'
-    if st.session_state.get(key, []):
-        st.session_state.pop(key, None)
+def delete_session_state_df_obj(skey: str):
+    keys_to_delete = []
+    for key in st.session_state:
+            if key.startswith(skey):
+                keys_to_delete.append(key)
+    helpers.clean_session_state(keys_to_delete)
 
 def single_multi(config_dict: dict, username: str):
     display_field = []
     upload_dir = config_dict['upload_dir']
     pdf_dir = f'{Config.upload_dir}/{username}/pdf'
     pdf_name = f'{pdf_dir}/{Config.pdf_name}'
+    cpu_aliases = re.compile(r'CPU|^soft.*', re.IGNORECASE)  
     st.subheader('Compare same metric on multiple Sar Files')
     sel_field = []
     sar_files = [ x for x in listdir(upload_dir) if path.isfile(f'{upload_dir}/{x}')]
@@ -77,7 +81,7 @@ def single_multi(config_dict: dict, username: str):
                     df_file, "header")[0]
                 start = df['date'].min()
                 end = df['date'].max()
-                if aitem[selected] != 'CPU':
+                if not cpu_aliases.search(aitem[selected]):
                     df_list = dia_compute.prepare_df_for_pandas(df, start, end)
                     for index in df_list:
                         if index['sub_title'] not in device_list_df:
@@ -101,7 +105,7 @@ def single_multi(config_dict: dict, username: str):
                 sub_item = None
                 header_add = ''
             # choose the first df for getting the metrics
-            if aitem[selected] != 'CPU':
+            if not cpu_aliases.search(aitem[selected]):
                 for index in range(len(df_list_header)):
                     file_name = path.basename(df_list_header[index][1])
                     delete_session_state_df_obj(file_name)
