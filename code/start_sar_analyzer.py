@@ -4,6 +4,7 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import os
 import time
+import datetime
 import sql_stuff
 from sqlite2_polars import get_table_df
 from config import Config
@@ -16,6 +17,7 @@ import redis_mng
 import help
 import info
 import self_service
+import handle_user_status
 
 st.set_page_config(
     page_title="Happy SAR Analyzer",
@@ -40,6 +42,8 @@ def icon(icon_name: str):
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 local_css(f"{cur_dir}/style.css")
 remote_css('https://fonts.googleapis.com/icon?family=Material+Icons')
+
+user_status_df = handle_user_status.load_df_from_file()
 
 def start():
     """Sar analyzeer App"""
@@ -83,14 +87,17 @@ def start():
             main_body(username, config_c)
         else:
             if ph_login.checkbox("Login", key='login'):
+                now = datetime.datetime.now()
                 if sql_stuff.login_user(username, password):
                     st.session_state.username = username
                     ph_username.empty()
                     ph_password.empty()
                     ph_login.empty()
+                    handle_user_status.add_record(username, now, True)
                     main_body(username, config_c)
                 else:
                     st.warning("You don't exist or your password does not match")
+                    handle_user_status.add_record(username, now, False)
             else:
                 st.markdown("## Please login to use this app")
     elif (choice) == "Signup":

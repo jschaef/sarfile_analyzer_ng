@@ -4,6 +4,7 @@ import streamlit as st
 import sql_stuff
 import pandas as pd
 import visual_funcs as visf
+import handle_user_status
 from config import Config
 
 def self_service(username):
@@ -28,12 +29,14 @@ def admin_service():
     cols = visf.create_columns(4, [0,1,1,1])
     col1 = cols[0]
     col1.header('User Management')
-    menu_items = ['Show Users', 'User Password Change', 'Roles Management', 'Delete User']
+    menu_items = ['Show Users', 'User Password Change', 'Roles Management', 
+        'Delete User', 'Login History']
     choice = col1.selectbox('Take your Choice',menu_items)
     if choice == 'Show Users':
          col1.write(pd.DataFrame(sql_stuff.view_all_users('show'), columns=["Username", "Role"]))    
     else:
-        user = col1.selectbox('Choose User', sql_stuff.view_all_users(kind=None))
+        user_ph = col1.empty()
+        user = user_ph.selectbox('Choose User', sql_stuff.view_all_users(kind=None))
     if choice == 'User Password Change':
         col1.subheader(f'Change Password of {user}')
         password = col1.text_input("Type the new password:", type='password')
@@ -60,5 +63,12 @@ def admin_service():
             if user in upload_dir:
                 os.system(f'rm -rf {upload_dir}')
             col1.info(f'User {user} has been deleted')
+    elif choice == 'Login History':
+        user_ph.empty()
+        col1.subheader('Show Login times for users')
+        df = handle_user_status.get_user_status_df()
+        df = df.to_pandas().set_index('login_time')
+        st.dataframe(df)
+        
 
         
