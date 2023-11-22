@@ -66,9 +66,20 @@ def admin_service():
     elif choice == 'Login History':
         user_ph.empty()
         col1.subheader('Show Login times for users')
-        df = handle_user_status.get_user_status_df()
-        df = df.to_pandas().set_index('login_time')
-        st.dataframe(df)
-        
-
-        
+        df_pl = handle_user_status.get_user_status_df()
+        df = df_pl.to_pandas().set_index('login_time')
+        col1.dataframe(df)
+        del_help = 'Delete all login times older than the chosen date'
+        if col1.checkbox('Delete Login Times', help=del_help):
+            delete_date = col1.date_input('Choose Date', value=None, min_value=None, max_value=None, key=None)
+            if col1.button('Delete'):
+                result = handle_user_status.remove_old_logins(df_pl, delete_date)
+                if not result.is_empty():
+                    handle_user_status.write_df_to_file(result)
+                    col1.info(f'''Records older than {delete_date} 
+                        have been deleted''')
+                    col1.write('Remaining Records:')
+                    col1.write(result.to_pandas().set_index('login_time'))
+                else:
+                    df_pl = handle_user_status.create_user_status_df()
+                    handle_user_status.write_df_to_file(df_pl)
