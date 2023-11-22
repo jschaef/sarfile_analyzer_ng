@@ -27,6 +27,7 @@ def single_f(config_obj, username):
     # parse data from file
     sar_file = f'{upload_dir}/{selection}'
     if sar_file != file_chosen:
+        lh.delete_large_obj()
         df_complete =parse_polars.get_data_frame(sar_file, username)
         file_chosen = sar_file
     os_details = pl_h2.get_os_details_from_df(df_complete)
@@ -66,9 +67,10 @@ def single_f(config_obj, username):
     else:
         device_list_state = st.session_state.get('device_list', [])
         header = aitem[selected]
+        file_name = sar_file.split('/')[-1]
         if "SOFT" in header:
             header = "SOFT"
-        large_df_key = f"large_df_{header}_obj"
+        large_df_key = f"large_df_{file_name}_{header}_obj"
         if device_list_state:
             if not device_list_state[1] == sar_file:
                 large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
@@ -160,7 +162,6 @@ def single_f(config_obj, username):
         with tab3:
             col1, col2 = st.columns(2)
             lh.show_metrics([prop], checkbox="off", col=col1)
-
     if selected_content == 'Summary':
         col1, col2, col3, _ = st.columns(4)
         if len(device_list) > 1:
