@@ -5,7 +5,6 @@ import os
 
 USER_DF_FILE = "user_df.parquet"
 
-
 def load_df_from_file(
     filename: str = USER_DF_FILE,
 ) -> pl.DataFrame:
@@ -16,7 +15,6 @@ def load_df_from_file(
     else:
         df = pl.read_parquet(filename)
     return df
-
 
 def write_df_to_file(df: pl.DataFrame, filename: str = USER_DF_FILE) -> None:
     df.write_parquet(filename)
@@ -32,11 +30,9 @@ def delete_records(df: pl.DataFrame, date: datetime.datetime) -> pl.DataFrame:
     """
     df = df.filter(df["login_time"] <= date)
     write_df_to_file(df)
-    st.session_state.user_status_df = df
-
 
 def create_user_status_df() -> pl.DataFrame:
-    """Creates an empty dataframe including metadata about
+    """Creates prefilled dataframe including metadata about
     user login times.
     Args:
         None
@@ -54,9 +50,12 @@ def create_user_status_df() -> pl.DataFrame:
         }
     )
 
-
-def add_record(user_name: str, login_time: datetime.datetime, 
-        success: bool, filename: str=USER_DF_FILE) -> pl.DataFrame:
+def add_record(
+    user_name: str,
+    login_time: datetime.datetime,
+    success: bool,
+    filename: str = USER_DF_FILE,
+) -> pl.DataFrame:
     """Adds a record to the dataframe.
     Args:
         df: The dataframe to add the record to
@@ -65,7 +64,7 @@ def add_record(user_name: str, login_time: datetime.datetime,
         success: could the user login
     """
     df = get_user_status_df()
-    df1 =   pl.DataFrame(
+    df1 = pl.DataFrame(
         {
             "user_name": [user_name],
             "login_time": [login_time],
@@ -74,8 +73,6 @@ def add_record(user_name: str, login_time: datetime.datetime,
     )
     df = df.vstack(df1)
     df.write_parquet(filename)
-    st.session_state.user_status_df = df
-
 
 def get_user_status_df() -> pl.DataFrame:
     """Gets the dataframe with the user status.
@@ -85,4 +82,8 @@ def get_user_status_df() -> pl.DataFrame:
         The dataframe with the user status
     """
     df = load_df_from_file()
+    return df
+
+def remove_old_logins(df: pl.DataFrame, date: datetime.date) -> pl.DataFrame:
+    df = df.filter(pl.col("login_time") > date)
     return df
