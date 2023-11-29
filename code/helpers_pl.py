@@ -248,7 +248,7 @@ def pdf_download(file, dia):
     with open(my_file, 'rb') as f:
         s = f.read()
     download_button_str = dow.download_button(
-        s, filename, f'Click here to download PDF')
+        s, filename, 'Click here to download PDF')
     st.markdown(download_button_str, unsafe_allow_html=True)
 
 def multi_pdf_download(file):
