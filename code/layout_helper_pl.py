@@ -202,3 +202,10 @@ def delete_large_obj():
     for item in st.session_state:
         if "_obj" in item:
             st.session_state.pop(item)
+
+def make_vspace(size: int, col: object) -> None:
+    col.write(f"{size * '#'}")
+
+def make_big_vspace(size:int, col: object) -> None:
+    for x in range(size):
+        make_vspace(1, col)
