@@ -247,7 +247,6 @@ def overview_v3(collect_field, reboot_headers, width, height, lsel, font_size,
                         z_fields.append([z_field, filename])
             
         b_df = pd.concat([b_df, df], ignore_index=False)
-
     nearest = alt.selection_point(nearest=True, on='mouseover',
                             fields=['date_utc'], empty=False)
 
@@ -458,30 +457,19 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         titleFontSize=font_size
     )
 
-def overview_v5(collect_field, reboot_headers, width, height, lsel, font_size, 
-        title=None):
+def overview_v5(b_df,property, filename, reboot_headers, width, height, lsel,
+        font_size, os_details, title=None):
     color_item = lsel
-    b_df = pd.DataFrame()
-    for data in collect_field:
-        z_field = []
-        df = data[0]
-        property = data[1]
-        filename = data[2]
-        for header in reboot_headers:
-            if header[0]:
-                hostname = header[1].split()[2].strip("()")
-                date = header[1].split()[3]
-                if hostname in filename and date in filename:
-                    rule_field, z_field, y_pos = create_reboot_rule(
-                        df, property, header[0], header[1], col=color_item, 
-                        col_value=filename)
+    z_field = []
+    rule_field = []
+    y_pos = ""
+    for header in reboot_headers:
+        rule_field, z_field, y_pos = create_reboot_rule(
+            b_df, property, header, os_details, col=color_item, 
+            col_value=filename)
 
-        b_df = pd.concat([b_df, df], ignore_index=False)
-
-    b_df['date'] = b_df.index
-    b_df['date_utc'] = b_df['date'].dt.tz_localize('UTC')
     nearest = alt.selection_point(nearest=True, on='mouseover',
-                            fields=['date_utc'], empty=False)
+                            fields=['date'], empty=False)
 
     selectors = alt.Chart(b_df).mark_point().encode(
         alt.X('utchoursminutes(date)', type='temporal'),
@@ -498,7 +486,7 @@ def overview_v5(collect_field, reboot_headers, width, height, lsel, font_size,
     opacity_x = alt.condition(selection, alt.value(1.0), alt.value(0))
 
     line = alt.Chart(b_df).mark_line(point=False, interpolate='natural').encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal', title='date'),
+        alt.X('utchoursminutes(date)', type='temporal', title='date'),
         alt.Y(f'{property}:Q'),
         opacity=opacity_x
     ).properties(
@@ -510,7 +498,7 @@ def overview_v5(collect_field, reboot_headers, width, height, lsel, font_size,
         color=color_x
     )
     rules = alt.Chart(b_df).mark_rule(color='gray').encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal'),
+        alt.X('utchoursminutes(date)', type='temporal'),
     ).transform_filter(
         nearest
     )
@@ -541,7 +529,6 @@ def overview_v5(collect_field, reboot_headers, width, height, lsel, font_size,
         opacity=alt.condition(selection, alt.value(1), alt.value(0)),
         color=color_x
     )
-
     if z_field:
         while rule_field:
             rule = rule_field.pop()

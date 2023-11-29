@@ -6,6 +6,7 @@ import multi_files_pl
 import dia_overview_pl
 import handle_metrics_pl
 import helpers_pl as helpers
+import display_multi
 
 def analyze(config_c: helpers.configuration, username: str):
     config = config_c.get_dict()
@@ -17,7 +18,8 @@ def analyze(config_c: helpers.configuration, username: str):
     # exclude pickle files
     with col1:
         single_multi = st.selectbox('Analyze/Compare', ['Graphical Overview',
-         'Detailed Metrics View', 'Multiple Sar Files', 'Compare Metrics'])
+         'Detailed Metrics View', 'Multiple Sar Files', 
+         'Metrics on many devices', 'Compare Metrics'])
 
     col1, _ = st.columns([0.3,0.7])
     col1.markdown('___')
@@ -43,3 +45,5 @@ def analyze(config_c: helpers.configuration, username: str):
 
         elif single_multi == 'Compare Metrics':
             handle_metrics_pl.do_metrics(config, username) 
+        elif single_multi == 'Metrics on many devices':
+            display_multi.show_multi(config, username)
