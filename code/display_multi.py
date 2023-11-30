@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import streamlit as st
-import re
 import polars as pl
 import helpers_pl
 import alt
@@ -8,7 +7,6 @@ import parse_into_polars as parse_polars
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
 import layout_helper_pl as lh
-import metric_page_helpers_pl as mph
 from config import Config
 
 
@@ -146,64 +144,67 @@ def show_multi(config_obj, username):
         col1, col2, col3, _ = st.columns([0.25, 0.25, 0.05, 0.4])
         start_df, end_df = helpers_pl.create_start_end_time_list(start, end, col1, col2)
         lh.make_vspace(1, col3)
-        present_df = pl_h2.filter_df_by_range(present_df, "date", start_df, "gt")
-        present_df = pl_h2.filter_df_by_range(present_df, "date", end_df, "lt")
-        lh.make_vspace(2, col1)
-        lh.make_vspace(2, col2)
-        col1 = st.columns(2)[0]
-        col1.caption(
-            """If you want to see a graphical presentation 
-            of some of these subdevices click on the select box beneath 
-            the device name or select all to see all devices""",
-        )
-        col1, col2, col3, _ = st.columns([0.25, 0.25, 0.05, 0.4])
-        # lh.make_big_vspace(1, col3)
-        # lh.make_big_vspace(1, col2)
-        # lh.make_big_vspace(1, col1)
-
-        col1.dataframe(present_df)
-        sub_devs_df = present_df.drop(["date", metric])
-        ph_col2 = col2.empty()
-        res_devlist = pl_h2.dataframe_editor(
-            sub_devs_df, ph_col2, 1, "Select for diagram"
-        )
-        if col3.checkbox("select all"):
-            res_devlist = pl_h2.dataframe_editor(
-                sub_devs_df, ph_col2, 1, "Select for diagram", True
+        if start_df and end_df:
+            present_df = pl_h2.filter_df_by_range(present_df, "date", start_df, "gt")
+            present_df = pl_h2.filter_df_by_range(present_df, "date", end_df, "lt")
+            lh.make_vspace(2, col1)
+            lh.make_vspace(2, col2)
+            col1 = st.columns(2)[0]
+            col1.caption(
+                """If you want to see a graphical presentation 
+                of some of these subdevices click on the select box beneath 
+                the device name or select all to see all devices""",
             )
-        dev_list = res_devlist[0]["sub_device"].to_list()
-        if dev_list:
-            if col1.checkbox("Show diagrams") and dev_list:
-                filtered_df = large_df.filter(pl.col("sub_device").is_in(dev_list))
-                filtered_df = pl_h2.create_metric_df2(filtered_df, headerline, metric)
+            col1, col2, col3, _ = st.columns([0.25, 0.25, 0.05, 0.4])
+            # lh.make_big_vspace(1, col3)
+            # lh.make_big_vspace(1, col2)
+            # lh.make_big_vspace(1, col1)
 
-                tab1, tab2 = st.tabs(["📈 Chart", " 📔 man page"])
-                with tab1:
-                    cols = st.columns(8)
-                    width, hight = helpers_pl.diagram_expander(
-                        "Diagram Width", "Diagram Hight", cols[0]
-                    )
-                    font_size = helpers_pl.font_expander(
-                        12, "Change Axis Font Size", "font size", cols[1]
-                    )
-                    chart = alt.overview_v5(
-                        filtered_df,
-                        metric,
-                        file_name,
-                        [restart_headers],
-                        width,
-                        hight,
-                        "sub_device",
-                        font_size,
-                        os_details,
-                        title=f"{selected} {metric}",
-                    )
-                    st.altair_chart(chart, use_container_width=True, theme=None)
-                    title = f"{file_name}_{selected}_{metric}"
-                    download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
-                    lh.pdf_download(pdf_name, chart, download_name=download_name)
-                with tab2:
-                    helpers_pl.metric_expander(metric, expand=False)
+            col1.dataframe(present_df)
+            sub_devs_df = present_df.drop(["date", metric])
+            ph_col2 = col2.empty()
+            res_devlist = pl_h2.dataframe_editor(
+                sub_devs_df, ph_col2, 1, "Select for diagram"
+            )
+            if col3.checkbox("select all"):
+                res_devlist = pl_h2.dataframe_editor(
+                    sub_devs_df, ph_col2, 1, "Select for diagram", True
+                )
+            dev_list = res_devlist[0]["sub_device"].to_list()
+            if dev_list:
+                if col1.checkbox("Show diagrams") and dev_list:
+                    filtered_df = large_df.filter(pl.col("sub_device").is_in(dev_list))
+                    filtered_df = pl_h2.create_metric_df2(filtered_df, headerline, metric)
+
+                    tab1, tab2 = st.tabs(["📈 Chart", " 📔 man page"])
+                    with tab1:
+                        cols = st.columns(8)
+                        width, hight = helpers_pl.diagram_expander(
+                            "Diagram Width", "Diagram Hight", cols[0]
+                        )
+                        font_size = helpers_pl.font_expander(
+                            12, "Change Axis Font Size", "font size", cols[1]
+                        )
+                        chart = alt.overview_v5(
+                            filtered_df,
+                            metric,
+                            file_name,
+                            [restart_headers],
+                            width,
+                            hight,
+                            "sub_device",
+                            font_size,
+                            os_details,
+                            title=f"{selected} {metric}",
+                        )
+                        st.altair_chart(chart, use_container_width=True, theme=None)
+                        title = f"{file_name}_{selected}_{metric}"
+                        download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
+                        lh.pdf_download(pdf_name, chart, download_name=download_name)
+                    with tab2:
+                        helpers_pl.metric_expander(metric, expand=False)
+        else:
+            col1.info("No data available for selected time frame")
 
 
     else:

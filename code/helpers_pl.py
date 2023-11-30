@@ -392,6 +392,8 @@ def get_df_from_start_end(df: pd.DataFrame, start: pd.Timestamp, end: pd.Timesta
     return df[start_index:end_index]
 
 def create_start_end_time_list(start: pd.DatetimeIndex, end: pd.DatetimeIndex, col1: object, col2: object):
+    if not start or not end:
+        return None, None
     start_d = start.replace(microsecond=0, second=0, minute=0)
     end_d = end.replace(microsecond=0, second=0, minute=0, hour=end.hour)
     x = pd.date_range(start_d, end_d, freq='H')
