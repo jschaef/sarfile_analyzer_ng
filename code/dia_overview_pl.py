@@ -137,7 +137,7 @@ def show_dia_overview(username: str, sar_file_col: st.columns):
                     index=time_len)
             break
         
-    with st.form(key='main_section'):
+    with st.form(key='main_section', border=False):
         st.markdown("**Customize Diagrams**")
         cols = st.columns(8)
         width, height = helpers_pl.diagram_expander('Diagram Width',
