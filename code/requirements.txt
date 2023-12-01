@@ -9,5 +9,5 @@ PyPDF4
 python-magic
 redis
 SQLAlchemy
-streamlit
+streamlit == 1.28.2
 streamlit-option-menu
