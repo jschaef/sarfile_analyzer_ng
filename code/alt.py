@@ -25,7 +25,8 @@ def draw_single_chart_v1(df, property, restart_headers, os_details, width, hight
                             fields=['date_utc', ], empty=False)
 
     selectors = alt.Chart(df).mark_point().encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal'),
+        alt.X('utchoursminutes(date_utc)', type='temporal',
+            scale=alt.Scale(type='utc')),
         opacity=alt.value(0),
         tooltip=[alt.Tooltip(f'{property}:Q', format='.2f'),
                  alt.Tooltip('date_utc', format='%Y-%m-%d %H:%M:%S'),],
@@ -162,7 +163,8 @@ def overview_v1(df, restart_headers, os_details, font_size=None, width=None,
                             fields=['date'], empty=False)
 
     selectors = alt.Chart(df).mark_point().encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal'),
+        alt.X('utchoursminutes(date_utc)', type='temporal',
+            scale=alt.Scale(type='utc')),
         opacity=alt.value(0),
     ).add_params(
         nearest
@@ -251,7 +253,8 @@ def overview_v3(collect_field, reboot_headers, width, height, lsel, font_size,
                             fields=['date_utc'], empty=False)
 
     selectors = alt.Chart(b_df).mark_point().encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal'),
+        alt.X('utchoursminutes(date_utc)', type='temporal',
+            scale=alt.Scale(type='utc')),
         opacity=alt.value(0),
     ).add_params(
         nearest
@@ -374,7 +377,8 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
                             fields=['date_utc'], empty=False)
 
     selectors = alt.Chart(b_df).mark_point().encode(
-        alt.X('utchoursminutes(date_utc)', type='temporal'),
+        alt.X('utchoursminutes(date_utc)', type='temporal',
+            scale=alt.Scale(type='utc')),
         opacity=alt.value(0),
     ).add_params(
         nearest
@@ -471,8 +475,10 @@ def overview_v5(b_df,property, filename, reboot_headers, width, height, lsel,
     nearest = alt.selection_point(nearest=True, on='mouseover',
                             fields=['date'], empty=False)
 
+    # here the wrong date (localtime) is used, but it is not visible
     selectors = alt.Chart(b_df).mark_point().encode(
-        alt.X('utchoursminutes(date)', type='temporal'),
+        alt.X('utchoursminutes(date)', type='temporal',
+            scale=alt.Scale(type='utc')),
         opacity=alt.value(0),
     ).add_params(
         nearest
