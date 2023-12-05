@@ -106,7 +106,7 @@ def show_dia_overview(username: str, sar_file_col: st.columns):
                         value = False
 
                     ph_sel = cols[x].empty()
-                    selected = ph_sel.checkbox(label, value=value)
+                    selected = ph_sel.checkbox(label, value=value, key=f"{label}_{x}")
                     if selected:
                         sel_field.append(label)
 
