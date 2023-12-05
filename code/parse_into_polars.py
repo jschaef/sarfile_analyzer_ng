@@ -178,7 +178,7 @@ def parse_sar_file(file_path: str, username:str, DEBUG: bool=False) -> pl.DataFr
 
     df = pl_helpers2.df_clean_data(df, "header")
     df = pl_helpers2.df_reset_date(df, os_details, "data", 'date', tformat=TIME_FORMAT)
-    df = pl_helpers2.clean_header(df, "header") 
+    df = pl_helpers2.clean_header(df, "header", TIME_FORMAT) 
     df = pl_helpers2.df_clean_spaces(df, "data")
     df.write_parquet(parquet_file)
     base_name = os.path.basename(parquet_file)
@@ -218,6 +218,5 @@ if __name__ == '__main__':
     # parquet file
     #my_file= "sar20230620.parquet"
     # ascii file
-    #my_file = "sar20230613"
 
     print('This should be started as module only')

@@ -52,6 +52,7 @@ def df_reset_date(
         )
     df = df.with_columns(date_column)
     date_column = df.select(pl.col(alias).str.replace(r"(^.*$)", f"{date_str} $1"))
+
     df = df.with_columns(date_column)
 
     if tformat != "AM_PM":
@@ -59,7 +60,7 @@ def df_reset_date(
             pl.col(alias).str.to_datetime(
                 f"{format} %H:%M:%S",
             )
-        ).with_columns(pl.col(column_name).str.replace(r"(^\d{2}:\d{2}:\d{2})", ""))
+        ).with_columns(pl.col(column_name).str.replace(r"(^\d{2}:\d{2}:\d{2})\s+", ""))
     else:
         df = (
             df.with_columns(
@@ -69,10 +70,9 @@ def df_reset_date(
             )
             .with_columns(
                 pl.col(column_name).str.replace(
-                    r"(^\d{2}:\d{2}:\d{2}\s+(AM|PM\s+))", ""
+                    r"(^\d{2}:\d{2}:\d{2}\s+(AM|PM)\s+)", ""
                 )
             )
-            .with_columns(pl.col("header").str.replace(r"(^(\s*AM|PM\s+)(.*))", "$3"))
         )
     return df
 
@@ -112,10 +112,14 @@ def get_headers_to_clean() -> list:
     return headers_to_clean
 
 
-def clean_header(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
+def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.DataFrame:
     clean_header = get_headers_to_clean()
     for item in clean_header:
-        df = df.with_columns(pl.col(column_name).str.replace(rf"^{item}\s*", ""))
+        df = df.with_columns(pl.col(column_name).str.replace(rf"^{item}\s+", ""))
+        if timeformat == "AM_PM":
+            df = df.with_columns(
+                pl.col(column_name).str.replace(r"^\s*(AM|PM)\s+", "")
+            )
     return df
 
 
