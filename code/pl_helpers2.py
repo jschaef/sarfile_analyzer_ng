@@ -115,11 +115,11 @@ def get_headers_to_clean() -> list:
 def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.DataFrame:
     clean_header = get_headers_to_clean()
     for item in clean_header:
-        df = df.with_columns(pl.col(column_name).str.replace(rf"^{item}\s+", ""))
         if timeformat == "AM_PM":
             df = df.with_columns(
                 pl.col(column_name).str.replace(r"^\s*(AM|PM)\s+", "")
             )
+        df = df.with_columns(pl.col(column_name).str.replace(rf"^\s*{item}\s+", ""))
     return df
 
 
