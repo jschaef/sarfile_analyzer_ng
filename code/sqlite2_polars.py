@@ -66,6 +66,12 @@ def ret_all_headers(df, kind: str = "return"):
             h_list.append(header)
     return h_list
 
+def ret_all_aliases(df):
+    a_list = []
+    df = df.select(pl.exclude("id"))
+    for alias in df.select("alias")["alias"].to_list():
+        a_list.append(alias)
+    return a_list
 
 @cache_data
 def get_header_prop(header, property):
