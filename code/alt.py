@@ -48,12 +48,9 @@ def draw_single_chart_v1(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
+                title="time:",
             ),
             opacity=alt.value(0),
-            tooltip=[
-                alt.Tooltip(f"{property}:Q", format=".2f"),
-                alt.Tooltip("date_utc", format="%Y-%m-%d %H:%M:%S"),
-            ],
         )
         .add_params(nearest)
     )
@@ -137,8 +134,14 @@ def draw_single_chart_v1(
 
 
 def create_reboot_rule(
-    df, property, restart_headers, os_details, col=None, col_value=None,
-        utc_type="utchoursminutes"):
+    df,
+    property,
+    restart_headers,
+    os_details,
+    col=None,
+    col_value=None,
+    utc_type="utchoursminutes",
+):
     y_pos = df[property].max() / 2
     rule_field = []
     z_field = []
@@ -156,8 +159,10 @@ def create_reboot_rule(
             .mark_rule(color="red")
             .encode(
                 x=alt.X(
-                    #"utcdayhoursminutes(x)", type="temporal", axis=alt.Axis(title="date")
-                    f"{utc_type}(x)", type="temporal", axis=alt.Axis(title="date")
+                    # "utcdayhoursminutes(x)", type="temporal", axis=alt.Axis(title="date")
+                    f"{utc_type}(x)",
+                    type="temporal",
+                    axis=alt.Axis(title="date"),
                 ),
                 size=alt.value(2),
                 strokeDash=(alt.value([5, 5])),
@@ -167,8 +172,10 @@ def create_reboot_rule(
         rule_field.append(rule)
     return rule_field, z_field, y_pos
 
-def return_reboot_text(z_field, y_pos, col=None, col_value=None,
-        utc_type="utchoursminutes"):
+
+def return_reboot_text(
+    z_field, y_pos, col=None, col_value=None, utc_type="utchoursminutes"
+):
     if z_field:
         mdf = pd.DataFrame({"date": z_field, "y": y_pos, col: col_value})
         reboot_text = (
@@ -232,6 +239,7 @@ def overview_v1(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
+                title="time:",
             ),
             opacity=alt.value(0),
         )
@@ -332,6 +340,7 @@ def overview_v3(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
+                title="time:",
             ),
             opacity=alt.value(0),
         )
@@ -490,6 +499,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
+                title="time:",
             ),
             opacity=alt.value(0),
         )
@@ -616,7 +626,8 @@ def overview_v5(
         .mark_point()
         .encode(
             alt.X(
-                "utchoursminutes(date)", type="temporal", scale=alt.Scale(type="utc")
+                "utchoursminutes(date)", type="temporal", scale=alt.Scale(type="utc"),
+                title="time:",
             ),
             opacity=alt.value(0),
         )
@@ -717,9 +728,7 @@ def overview_v5(
     )
 
 
-def overview_v6(
-    collect_field, reboot_headers, width, height, font_size, title=None
-):
+def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None):
     color_item = "date_short"
     b_df = pd.DataFrame()
     z_fields = []
@@ -753,7 +762,10 @@ def overview_v6(
         alt.Chart(b_df)
         .mark_point()
         .encode(
-            alt.X("utcdayhoursminutes(date)", type="temporal", scale=alt.Scale(type="utc")),
+            alt.X(
+                "utcdayhoursminutes(date)", type="temporal", scale=alt.Scale(type="utc",),
+                title="time:", 
+            ),
             opacity=alt.value(0),
         )
         .add_params(nearest)
@@ -810,7 +822,6 @@ def overview_v6(
         alt.Chart(b_df)
         .mark_rule(color="gray")
         .encode(
-            #alt.X("utchoursminutes(date_utc)", type="temporal"),
             alt.X("utcdayhoursminutes(date_utc)", type="temporal"),
         )
         .transform_filter(nearest)
@@ -858,8 +869,11 @@ def overview_v6(
             z_field = t_field[0]
             filename = t_field[1]
             reboot_text = return_reboot_text(
-                z_field, y_pos, col=color_item, col_value=filename,
-                utc_type="utcdayhoursminutes"
+                z_field,
+                y_pos,
+                col=color_item,
+                col_value=filename,
+                utc_type="utcdayhoursminutes",
             )
             reboot_text = reboot_text.encode(
                 opacity=alt.condition(selection, alt.value(1), alt.value(0)),
@@ -875,7 +889,10 @@ def overview_v6(
         ).interactive()
     else:
         mlayer = alt.layer(
-            final_img, selectors, rules, xpoints, tooltip_text
+            final_img,
+            selectors,
+            rules,
+            xpoints,  tooltip_text
         ).interactive()
     return (
         (mlayer | legend)
