@@ -2,7 +2,8 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
-npm install vega-lite vega-cli canvas
+
+sudo npm install vega-lite vega-cli canvas --prefix=/usr/local/lib
 
 in case tkinter is missing you need to install python3-tk,
 e.g. zypper in python310-tk (SUSE)
