@@ -34,7 +34,7 @@ bash~: source venv/bin/activate
 bash~: pip install -U pip
 bash~: pip install -r requirements.txt
 bash~: install nodejs-common via your package manager (you need the npm binary)
-bash~: npm install vega-lite vega-cli canvas
+bash~: sudo npm install vega-lite vega-cli canvas --prefix=/usr/local/lib
 ```
 
 ## configure
