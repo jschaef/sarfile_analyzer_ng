@@ -33,7 +33,6 @@ bash~: python3x -m venv venv, e.g. python3.11 -m venv venv
 bash~: source venv/bin/activate
 bash~: pip install -U pip
 bash~: pip install -r requirements.txt
-bash~: install nodejs-common via your package manager (you need the npm binary)
 ```
 
 ## configure
