@@ -3,7 +3,6 @@ import os
 import helpers_pl as helpers
 import pandas as pd
 from random import random
-from altair_saver import save
 
 global fobject
 
@@ -15,7 +14,7 @@ def create_pdf(file: str, chart: object) -> list:
     else:
         global fobject
         mimetype = "application/x-binary"
-        save(chart, file)
+        chart.save(file)
         fobject = open(file, "rb")
         st.session_state.download = False
         return [fobject, mimetype]

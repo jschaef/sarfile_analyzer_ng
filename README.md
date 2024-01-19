@@ -34,7 +34,6 @@ bash~: source venv/bin/activate
 bash~: pip install -U pip
 bash~: pip install -r requirements.txt
 bash~: install nodejs-common via your package manager (you need the npm binary)
-bash~: sudo npm install vega-lite vega-cli canvas --prefix=/usr/local/lib
 ```
 
 ## configure
@@ -102,10 +101,3 @@ server {
 ```
 
 ## bugs
-
-In case altair saver is throwing an error when trying to activate PDF' downloads
-there is an know issue, see:
-<https://github.com/anmol098/waka-readme-stats/issues/337>
-To solve the problem use the patch as displayed below:
-<code>patch ./venv/lib/python3.11/site-packages/altair_saver/savers/_node.py altair_saver.patch</code>
-If you are using a python3 version different 3.11 adapt your version in the patch file.

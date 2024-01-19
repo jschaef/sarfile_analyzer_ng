@@ -1,6 +1,5 @@
 aiofiles
 altair
-altair_saver
 connectorx
 multiprocess
 pandas
@@ -11,3 +10,4 @@ redis
 SQLAlchemy
 streamlit
 streamlit-option-menu
+vl-convert-python

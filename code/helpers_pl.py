@@ -10,7 +10,6 @@ import dataframe_funcs_pl as dff
 import layout_helper_pl as lh
 import sqlite2_polars
 from datetime import datetime
-from altair_saver import save
 from config import Config
 
 reg_linux_restart = re.compile('LINUX RESTART', re.IGNORECASE)
@@ -236,14 +235,13 @@ def rename_sar_file(file_path, col=None):
         col.warning(f'file {file_path} could not be renamed to {renamed_name}')
         col.warning(f'exception is {e}')
 
-# - not possible @st.experimental_memo
 def pdf_download(file, dia):
     my_file = file
     save_dir = os.path.dirname(file)
     if not os.path.exists(save_dir):
         os.system(f'mkdir -p {save_dir}')
     if not os.path.exists(my_file):
-        save(dia, my_file)
+        dia.save(my_file)
     filename = file.split('/')[-1]
     with open(my_file, 'rb') as f:
         s = f.read()
