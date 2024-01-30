@@ -48,7 +48,7 @@ def draw_single_chart_v1(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
-                title="time:",
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -63,7 +63,7 @@ def draw_single_chart_v1(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(zero=True),
-                axis=alt.Axis(domain=True, labelBaseline="line-top", title="date"),
+                axis=alt.Axis(domain=True, labelBaseline="line-top", title="time"),
             ),
             alt.Y(
                 property,
@@ -209,7 +209,7 @@ def overview_v1(
     line = (
         alt.Chart(df)
         .encode(
-            alt.X("utchoursminutes(date_utc)", type="temporal"),
+            alt.X("utchoursminutes(date_utc)", type="temporal", title="time"),
             alt.Y("y:Q"),
             opacity=opacity_x,
         )
@@ -239,7 +239,7 @@ def overview_v1(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
-                title="time:",
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -340,7 +340,7 @@ def overview_v3(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
-                title="time:",
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -367,7 +367,7 @@ def overview_v3(
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(zero=False),
-                axis=alt.Axis(domain=True, labelBaseline="line-top", title="date"),
+                axis=alt.Axis(domain=True, labelBaseline="line-top", title="time"),
             ),
             # alt.Y(property, type='quantitative', scale=alt.Scale(zero=False),
             alt.Y(
@@ -499,7 +499,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
                 "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
-                title="time:",
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -524,7 +524,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         alt.Chart(b_df)
         .mark_line(point=False, interpolate="natural")
         .encode(
-            alt.X("utchoursminutes(date_utc)", type="temporal", title="date"),
+            alt.X("utchoursminutes(date_utc)", type="temporal", title="time"),
             alt.Y("y:Q"),
             opacity=opacity_x,
         )
@@ -626,8 +626,10 @@ def overview_v5(
         .mark_point()
         .encode(
             alt.X(
-                "utchoursminutes(date)", type="temporal", scale=alt.Scale(type="utc"),
-                title="time:",
+                "utchoursminutes(date)",
+                type="temporal",
+                scale=alt.Scale(type="utc"),
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -651,7 +653,7 @@ def overview_v5(
         alt.Chart(b_df)
         .mark_line(point=False, interpolate="natural")
         .encode(
-            alt.X("utchoursminutes(date)", type="temporal", title="date"),
+            alt.X("utchoursminutes(date)", type="temporal", title="time"),
             alt.Y(f"{property}:Q"),
             opacity=opacity_x,
         )
@@ -763,8 +765,12 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         .mark_point()
         .encode(
             alt.X(
-                "utcdayhoursminutes(date)", type="temporal", scale=alt.Scale(type="utc",),
-                title="time:", 
+                "utcdayhoursminutes(date)",
+                type="temporal",
+                scale=alt.Scale(
+                    type="utc",
+                ),
+                title="",
             ),
             opacity=alt.value(0),
         )
@@ -798,7 +804,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
                 axis=alt.Axis(
                     domain=True,
                     labelBaseline="line-top",
-                    title="date",
+                    title="time",
                 ),
             ),
             # check this:
@@ -889,10 +895,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         ).interactive()
     else:
         mlayer = alt.layer(
-            final_img,
-            selectors,
-            rules,
-            xpoints,  tooltip_text
+            final_img, selectors, rules, xpoints, tooltip_text
         ).interactive()
     return (
         (mlayer | legend)
