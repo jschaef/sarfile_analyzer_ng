@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import streamlit as st
+from streamlit import button as st_button
 import redis
 import visual_funcs as visf
 from config import Config
@@ -31,7 +31,7 @@ def delete_redis_keys():
     col1 = cols[0]
     hash = col1.selectbox('Select hash', show_keys())
     hash_keys = col1.multiselect('Select n keys', show_hash_keys(hash))
-    if st.button('Submit'):
+    if st_button('Submit'):
         for hkey in hash_keys:
             rs.hdel(hash, hkey)
 

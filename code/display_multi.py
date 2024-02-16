@@ -156,10 +156,6 @@ def show_multi(config_obj, username):
                 the device name or select all to see all devices""",
             )
             col1, col2, col3, _ = st.columns([0.25, 0.25, 0.05, 0.4])
-            # lh.make_big_vspace(1, col3)
-            # lh.make_big_vspace(1, col2)
-            # lh.make_big_vspace(1, col1)
-
             col1.dataframe(present_df)
             sub_devs_df = present_df.drop(["date", metric])
             ph_col2 = col2.empty()

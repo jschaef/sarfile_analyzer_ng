@@ -1,4 +1,4 @@
-import streamlit as st
+from streamlit import columns as st_columns
 import re
 import polars as pl
 from sqlite2_polars import get_header_from_alias, get_sub_device_from_header
@@ -40,6 +40,7 @@ def df_reset_date(
     df: pl.DataFrame, os_details: str, column_name: str, alias: str, tformat: str = "24"
 ) -> pl.DataFrame:
     date_str, format = format_date(os_details)
+    # Extract the time portion from the column based on the tformat
     if tformat == "AM_PM":
         date_column = df.select(
             pl.col(column_name)
@@ -51,9 +52,7 @@ def df_reset_date(
             pl.col(column_name).str.extract(r"(^\d{2}:\d{2}:\d{2})\s+").alias(alias)
         )
     df = df.with_columns(date_column)
-    date_column = df.select(pl.col(alias).str.replace(r"(^.*$)", f"{date_str} $1"))
-
-    df = df.with_columns(date_column)
+    df = df.with_columns(pl.col(alias).str.replace(r"(^.*$)", f"{date_str} $1"))
 
     if tformat != "AM_PM":
         df = df.with_columns(
@@ -62,17 +61,12 @@ def df_reset_date(
             )
         ).with_columns(pl.col(column_name).str.replace(r"(^\d{2}:\d{2}:\d{2})\s+", ""))
     else:
-        df = (
-            df.with_columns(
-                pl.col(alias).str.to_datetime(
-                    f"{format} %I:%M:%S %p",
-                )
+        df = df.with_columns(
+            pl.col(alias).str.to_datetime(
+                f"{format} %I:%M:%S %p",
             )
-            .with_columns(
-                pl.col(column_name).str.replace(
-                    r"(^\d{2}:\d{2}:\d{2}\s+(AM|PM)\s+)", ""
-                )
-            )
+        ).with_columns(
+            pl.col(column_name).str.replace(r"(^\d{2}:\d{2}:\d{2}\s+(AM|PM)\s+)", "")
         )
     return df
 
@@ -82,9 +76,9 @@ def df_clean_data(
     column_name: str,
 ) -> pl.DataFrame:
     clean_header = get_unwanted_headers()
-    for item in clean_header:
-        df = df.filter(pl.col(column_name) != item)
-    return df
+    condition = ~pl.col(column_name).is_in(clean_header)
+    return df.filter(condition)
+    #return df
 
 
 def replace_comma_with_point(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
@@ -114,12 +108,10 @@ def get_headers_to_clean() -> list:
 
 def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.DataFrame:
     clean_header = get_headers_to_clean()
-    for item in clean_header:
-        if timeformat == "AM_PM":
-            df = df.with_columns(
-                pl.col(column_name).str.replace(r"^\s*(AM|PM)\s+", "")
-            )
-        df = df.with_columns(pl.col(column_name).str.replace(rf"^\s*{item}\s+", ""))
+    pattern = rf"^\s*({'|'.join(clean_header)})\s+"
+    df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
+    if timeformat == "AM_PM":
+        df = df.with_columns(pl.col(column_name).str.replace(r"^\s*(AM|PM)\s+", ""))
     return df
 
 
@@ -130,20 +122,20 @@ def df_clean_spaces(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
         .str.rstrip()
         .str.lstrip()
         .str.replace(r"\s+", " ")
-    )
+   )
     return df
 
 
 def get_metrics_from_df(df: pl.DataFrame, header: str, alias: str) -> list:
     header_in_db = get_header_from_alias(alias)
-    test_header = header
-    if header_in_db != header:
-        test_header = header_in_db
+    test_header = header if header_in_db == header else header_in_db
     df = df.with_columns(pl.col(header).str.split(" ").alias(header))
-    if get_sub_device_from_header(test_header):
+    sub_device = get_sub_device_from_header(test_header) 
+    if sub_device:
         df = df.with_columns(
-            pl.col(header).list.get(0).alias("sub_device")
-        ).with_columns(pl.col(header).list.slice(1, -1).alias(header))
+            pl.col(header).list.get(0).alias("sub_device"),
+            pl.col(header).list.slice(1, -1).alias(header)
+        )
     df = df.with_columns(
         pl.col(header).list.eval(
             pl.element().cast(pl.Float32, strict=False).drop_nulls()
@@ -251,8 +243,9 @@ def filter_df_by_range(
         return df.filter(pl.col(column) <= cval)
 
 
-def dataframe_editor(df: pl.DataFrame, col: object, index: int, colname: str,
-        checked: bool=False) -> (pl.DataFrame):
+def dataframe_editor(
+    df: pl.DataFrame, col: object, index: int, colname: str, checked: bool = False
+) -> pl.DataFrame:
     df = df.to_pandas()
     df_with_selections = df.copy()
     df_with_selections.drop_duplicates(inplace=True)
@@ -263,7 +256,7 @@ def dataframe_editor(df: pl.DataFrame, col: object, index: int, colname: str,
     edited_df = editor.data_editor(
         df_with_selections,
         hide_index=True,
-        column_config={colname: st.column_config.CheckboxColumn(required=True)},
+        column_config={colname: st_columns.column_config.CheckboxColumn(required=True)},
         disabled=df.columns,
     )
 
