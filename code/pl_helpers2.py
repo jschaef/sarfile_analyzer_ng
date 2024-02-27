@@ -5,10 +5,15 @@ from sqlite2_polars import get_header_from_alias, get_sub_device_from_header
 
 
 def extract_os_details_from_file(file):
+    reg_time = re.compile("^.*\d{2}/\d{2}/\d{2}.*$")
     with open(file, "r") as sar_file:
         for _, line in enumerate(sar_file):
             if "Linux" in line:
                 os_details = line.replace("[", "").replace("]", "")
+                if reg_time.search(os_details):
+                    print(os_details)
+                    os_details = re.sub(r'(\d{2}/\d{2}/\d{2,4})', 
+                        lambda x: x.group().replace('/', '-'), os_details)
                 return os_details
 
 
@@ -256,7 +261,6 @@ def dataframe_editor(
     edited_df = editor.data_editor(
         df_with_selections,
         hide_index=True,
-        column_config={colname: st_columns.column_config.CheckboxColumn(required=True)},
         disabled=df.columns,
     )
 
