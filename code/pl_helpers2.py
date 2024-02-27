@@ -11,7 +11,6 @@ def extract_os_details_from_file(file):
             if "Linux" in line:
                 os_details = line.replace("[", "").replace("]", "")
                 if reg_time.search(os_details):
-                    print(os_details)
                     os_details = re.sub(r'(\d{2}/\d{2}/\d{2,4})', 
                         lambda x: x.group().replace('/', '-'), os_details)
                 return os_details
