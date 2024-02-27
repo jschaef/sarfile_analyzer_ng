@@ -394,7 +394,7 @@ def create_start_end_time_list(start: pd.DatetimeIndex, end: pd.DatetimeIndex, c
         return None, None
     start_d = start.replace(microsecond=0, second=0, minute=0)
     end_d = end.replace(microsecond=0, second=0, minute=0, hour=end.hour)
-    x = pd.date_range(start_d, end_d, freq='H')
+    x = pd.date_range(start_d, end_d, freq='h')
     x = x.delete(0).insert(0,start).append(pd.date_range(pd.Timestamp(end), periods=1))
     y_start = pd.DataFrame(x.strftime('%H:%M:%S'), index=x)
     y_start.columns = ['time']
