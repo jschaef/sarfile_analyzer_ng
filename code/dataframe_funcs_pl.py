@@ -4,10 +4,11 @@ import re
 import pandas as pd
 import polars as pl
 from datetime import timedelta
-
+import streamlit as st
 def format_date(os_details):
     # presume format 2020-XX-XX for sar operating system details
     date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+    date_reg1 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{2}")
     date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2}$")
     date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4}")
     date_str = ""
@@ -15,6 +16,9 @@ def format_date(os_details):
         date_str = item
         if date_reg.search(item):
             format = "%Y-%m-%d"
+            break
+        elif date_reg1.search(item):
+            format = "%m-%d-%y %H:%M:%S"
             break
         elif date_reg2.search(item):
             format = "%m/%d/%y %H:%M:%S"
@@ -42,7 +46,7 @@ def translate_dates_into_list(df: pl.DataFrame):
 
 def insert_restarts_into_df(os_details, df, restart_headers):
     # date_str like 2020-09-17
-    date_str, format = format_date(os_details)
+    date_str, _ = format_date(os_details)
     new_rows = []
     for header in restart_headers:
         # restart_headers have time of restart appended as last string
