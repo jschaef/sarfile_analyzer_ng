@@ -17,10 +17,10 @@ def extract_os_details_from_file(file):
 
 def format_date(os_details: str) -> tuple:
     # presume format 2020-XX-XX for sar operating system details
-    date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
-    date_reg1 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{2}")
-    date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2}")
-    date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4}")
+    date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2} ")
+    date_reg1 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{2} ")
+    date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2} ")
+    date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4} ")
     date_str = ""
     for item in os_details.split():
         date_str = item
