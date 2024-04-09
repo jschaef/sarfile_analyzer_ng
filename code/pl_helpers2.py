@@ -17,24 +17,28 @@ def extract_os_details_from_file(file):
 
 def format_date(os_details: str) -> tuple:
     # presume format 2020-XX-XX for sar operating system details
-    date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2} ")
-    date_reg1 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{2} ")
-    date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2} ")
-    date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4} ")
+    date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+    date_reg1 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{2}")
+    date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2}")
+    date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4}")
+    date_reg4 = re.compile("[0-9]{2}-[0-9]{2}-[0-9]{4}")
     date_str = ""
     for item in os_details.split():
         date_str = item
         if date_reg.search(item):
             format = "%Y-%m-%d"
             break
+        elif date_reg3.search(item):
+            format = "%m/%d/%Y"
+            break
+        elif date_reg4.search(item):
+            format = "%m-%d-%Y"
+            break
         elif date_reg1.search(item):
             format = "%m-%d-%y"
             break
         elif date_reg2.search(item):
             format = "%m/%d/%y"
-            break
-        elif date_reg3.search(item):
-            format = "%m/%d/%Y"
             break
         else:
             # add fake item
@@ -115,10 +119,11 @@ def get_headers_to_clean() -> list:
 
 def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.DataFrame:
     clean_header = get_headers_to_clean()
-    pattern = rf"^\s*({'|'.join(clean_header)})\s+"
-    df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
     if timeformat == "AM_PM":
-        df = df.with_columns(pl.col(column_name).str.replace(r"^\s*(AM|PM)\s+", ""))
+        pattern = rf"^\s*(AM|PM)\s+({'|'.join(clean_header)})\s+"
+    else:
+        pattern = rf"^\s*({'|'.join(clean_header)})\s+"
+    df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
     return df
 
 
