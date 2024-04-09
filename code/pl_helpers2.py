@@ -121,9 +121,12 @@ def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.Data
     clean_header = get_headers_to_clean()
     if timeformat == "AM_PM":
         pattern = rf"^\s*(AM|PM)\s+({'|'.join(clean_header)})\s+"
+        df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
+        other_header_pattern = r"^\s*(AM|PM)\s*"
+        df = df.with_columns(pl.col(column_name).str.replace(other_header_pattern, ""))
     else:
         pattern = rf"^\s*({'|'.join(clean_header)})\s+"
-    df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
+        df = df.with_columns(pl.col(column_name).str.replace(pattern, ""))
     return df
 
 
