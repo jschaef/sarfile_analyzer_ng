@@ -104,7 +104,7 @@ def single_multi(config_dict: dict, username: str):
                     df_list_header.append([df, file])
             if device_list:
                 sub_items = helpers.merge_headers(device_list)
-            if len(sub_items) > 1:
+            if len(sub_items) >= 1:
                 sub_item = st.sidebar.selectbox(
                     "Choose devices", [key for key in sub_items], key="sub"
                 )
