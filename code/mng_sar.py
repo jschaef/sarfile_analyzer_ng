@@ -70,7 +70,7 @@ def file_mng(upload_dir: str, username:str):
                 'Choose your Files to delete', sar_files)
             if col1.button('Delete selected Files'):
                 for file in dfiles:
-                    r_item = f'{file}_parquet'
+                    r_item = f'{file.replace(".parquet","_parquet")}'
                     df_file = f'{upload_dir}/{file}.parquet'
                     fs_file = f'{upload_dir}/{file}'
                     os.system(f'rm -f {df_file}')

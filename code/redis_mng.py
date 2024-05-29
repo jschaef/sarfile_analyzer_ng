@@ -11,6 +11,7 @@ def get_redis_conn(decode=True):
         rs.ping()
         return rs
     except:
+        print('Could not connect to Redis server')
         return None
 
 rs = get_redis_conn()
