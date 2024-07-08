@@ -256,7 +256,7 @@ def show_dia_overview(username: str, sar_file_col: st.columns):
                                 tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page",
                                     " 📊 PDF",])
                             else:
-                                tab1, tab2, tab3, tab4 = st.tabs(["✌️", "📈 Chart",
+                                _, tab1, tab2, tab3, tab4 = st.tabs(["✌️", "📈 Chart",
                                     "🗃 Data", " 📔 man page", " 📊 PDF",])
                             with tab1:
                                 st.altair_chart(chart, theme=None)
