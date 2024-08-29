@@ -252,6 +252,7 @@ def get_complete_dataframe_from_headers(
 def filter_df_by_range(
     df: pl.DataFrame, column: str, cval: any, check: str = "lt"
 ) -> pl.DataFrame:
+    cval = cval.to_pydatetime()
     if check == "gt":
         return df.filter(pl.col(column) >= cval)
     else:
