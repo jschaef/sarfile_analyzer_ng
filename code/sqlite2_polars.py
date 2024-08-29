@@ -9,7 +9,7 @@ def get_table_df(table_name: str):
     data_db = sql_stuff.find_db()
     connection_uri = f"sqlite:///{data_db}"
     query = f"select * from {table_name}"
-    df = pl.read_database(query=query, connection=connection_uri)
+    df = pl.read_database_uri(query=query, uri=connection_uri)
     return df
 
 
