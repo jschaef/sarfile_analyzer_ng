@@ -134,8 +134,7 @@ def df_clean_spaces(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
     df = df.with_columns(
         pl.col(column_name)
         .str.replace(r"\s+", " ")
-        .str.rstrip()
-        .str.lstrip()
+        .str.strip_chars()
         .str.replace(r"\s+", " ")
    )
     return df
@@ -211,6 +210,7 @@ def get_headers(df: pl.DataFrame) -> list:
 
 
 def get_data_frames_from_header(header: str, df: pl.DataFrame) -> pl.DataFrame:
+    header = header[0]
     return df.filter(pl.col("header") == header)
 
 
