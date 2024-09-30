@@ -60,7 +60,7 @@ def usage():
         tasks from the in memory dataframe.""")
     
     st.markdown(f"""___Whom to contact in case of an error?___  
-        {Config.admin_email} via email or ping me on teams.""")
+        {Config.admin_email} via email or ping me on slack.""")
 
 def code():
     st.header("Code")
