@@ -87,6 +87,12 @@ def get_data_frame(file_name, user_name):
                 print(f"exception is {e}")
             else:
                 return df
+    elif os.path.exists(parquet_file):
+        try:
+            df = pl.read_parquet(parquet_file)
+        except Exception as e:
+            df = parse_sar_file(parquet_file, user_name, DEBUG=False)
+        return df
     else:
         df = parse_sar_file(parquet_file, user_name, DEBUG=False)
     return df
