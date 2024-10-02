@@ -2,7 +2,7 @@
 maxUploadSize = 600
 enableWebsocketCompression = false
 maxMessageSize = 1000
-enableCORS = false
+
 [runner]
 fastReruns = false
 
