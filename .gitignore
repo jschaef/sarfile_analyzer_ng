@@ -4,3 +4,5 @@ __pycache__/
 upload/
 .vscode*
 *.parquet
+node_modules/
+package*.json
