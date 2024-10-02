@@ -1,0 +1,14 @@
+copy Dockerfile into the the directory which has been checked out
+podman build -t streamlit -f Dockerfile
+podman images:
+...
+
+podman run -dt -p 8501:8501/tcp localhost/streamlit:latest
+
+podman exec -it interesting_galois /bin/bash
+
+podman login registry
+username: ...
+passwd:   ...
+
+podman push 0c87d9a8b1e6  <registry>/library/streamlit-sarfile-analyzer:v1
