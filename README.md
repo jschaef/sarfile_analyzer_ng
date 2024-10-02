@@ -99,3 +99,17 @@ server {
 }
 ```
 
+## run app inside kubernetes with reverse proxy
+In this case the options for _CORS_ (Cross Origin Resource Sharing) and
+_Xsrf_ (Cross-Site Request Forgery) Protection need to be disabled in config.toml.
+They should not be disabled by default because they are preventing for several
+attack vectors. However in a kubernetes environment this should rather be done by
+the proxy.
+
+```
+[server]
+    ...
+    enableXsrfProtection = false
+    enableCORS = false
+    ...
+```
