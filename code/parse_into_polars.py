@@ -56,7 +56,10 @@ def get_data_frame(file_name, user_name):
         r_item = f"{Config.Config.rkey_pref}:{user_name}"
         file_name_parquet = f"{basename}_parquet"
         parquet_obj = redis_mng.get_redis_val(r_item, property=file_name_parquet)
-        parquet_mem = io.BytesIO(parquet_obj)
+        if parquet_obj:
+            parquet_mem = io.BytesIO(parquet_obj)
+        else:
+            parquet_mem = io.BytesIO(b'')
         try:
             df = pl.read_parquet(parquet_mem)
             print(
@@ -64,7 +67,7 @@ def get_data_frame(file_name, user_name):
                 loaded from redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
             )
         except Exception as e:
-            print(e)
+            #print(e)
             try:
                 df = pl.read_parquet(parquet_file)
             except Exception as e:
@@ -99,7 +102,7 @@ def get_data_frame(file_name, user_name):
 
 
 def handle_fibre_and_fs(line: str) -> str:
-    am_pm_search = re.compile("AM|PM", re.IGNORECASE)
+    am_pm_search = re.compile(r"AM|PM", re.IGNORECASE)
     tmp_line = line.split()
     change_col = tmp_line[-1]
     if am_pm_search.search(tmp_line[1]):
@@ -121,16 +124,16 @@ def parse_sar_file(file_path: str, username: str, DEBUG: bool = False) -> pl.Dat
     parquet_file = Path(f"{real_path}.parquet")
 
     reg_ignore = re.compile(
-        "^(\d{2}:\d{2}:\d{2}.*bus.*idvendor|.*intr.*intr/s|.*temp.*device|.*mhz)",
+        r"^(\d{2}:\d{2}:\d{2}.*bus.*idvendor|.*intr.*intr/s|.*temp.*device|.*mhz)",
         re.IGNORECASE,
     )
-    reg_delete_us_time = re.compile(" AM | PM ", re.IGNORECASE)
-    reg_replace_comma = re.compile("(\d+),(\d+)")
+    reg_delete_us_time = re.compile(r" AM | PM ", re.IGNORECASE)
+    reg_replace_comma = re.compile(r"(\d+),(\d+)")
     reg_linux_restart = re.compile("LINUX RESTART")
-    reg_time = re.compile("(^\d{2}:\d{2}:\d{2})")
-    reg_fibre = re.compile("^(\d{2}:\d{2}:\d{2}.*fch_.*FCHOST)", re.IGNORECASE)
-    reg_filesystem = re.compile("^\d{2}:\d{2}:\d{2}.*filesystem", re.IGNORECASE)
-    empty_line = re.compile("^\s*$")
+    reg_time = re.compile(r"(^\d{2}:\d{2}:\d{2})")
+    reg_fibre = re.compile(r"^(\d{2}:\d{2}:\d{2}.*fch_.*FCHOST)", re.IGNORECASE)
+    reg_filesystem = re.compile(r"^\d{2}:\d{2}:\d{2}.*filesystem", re.IGNORECASE)
+    empty_line = re.compile(r"^\s*$")
     header = False
     header_str = ""
     ignore_data = False
