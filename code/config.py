@@ -6,6 +6,8 @@ class Config(object):
     upload_dir = os.getenv("UPLOAD_DIR", "upload")
     redis_host = os.getenv("REDIS_HOST", "localhost")
     redis_port = int(os.getenv("REDIS_PORT", 6379))
+    redis_user = os.getenv("REDIS_USER", "")
+    redis_password = os.getenv("REDIS_PASSWORD", "")
     rkey_pref = os.getenv("RKEY_PREF", "user")
     pdf_name = os.getenv("PDF_NAME", "sar_chart.pdf")
     admin_email = os.getenv("ADMIN_EMAIL", "admin@example-org.com")
