@@ -4,7 +4,7 @@ from sqlite2_polars import get_header_from_alias, get_sub_device_from_header
 
 
 def extract_os_details_from_file(file):
-    reg_time = re.compile("^.*\d{2}/\d{2}/\d{2}.*$")
+    reg_time = re.compile(r"^.*\d{2}/\d{2}/\d{2}.*$")
     with open(file, "r") as sar_file:
         for _, line in enumerate(sar_file):
             if "Linux" in line:

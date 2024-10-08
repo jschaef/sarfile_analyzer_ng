@@ -134,8 +134,8 @@ def get_selected_header(select_box_title, headers, col=None, key=None):
 
 @st.cache_resource
 def get_metric_desc_from_manpage():
-    metric_reg = re.compile('^\.IP\s+(.*$)')
-    content = re.compile('^[^\.].*$')
+    metric_reg = re.compile(r'^\.IP\s+(.*$)')
+    content = re.compile(r'^[^\.].*$')
 
     with open('sar.1', 'r') as mfile:
         mh_dict = {}
@@ -228,7 +228,7 @@ def rename_sar_file(file_path, col=None):
     renamed_name = f'{dir_name}/{rename_name}'
     try:
         os.system(f'mv {file_path} {dir_name}/{rename_name}')
-        col.info(f'{base_name} has been renamed to {rename_name}\n    \
+        col.info(fr'{base_name} has been renamed to {rename_name}\n    \
             which means: <date_of_upload>\_<hostname>\_<sar file creation date>')
         return rename_name
     except Exception as e:

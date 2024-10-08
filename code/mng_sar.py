@@ -16,7 +16,7 @@ def file_mng(upload_dir: str, username:str):
     sar_files = [ x for x in os.listdir(upload_dir) if os.path.isfile(f'{upload_dir}/{x}')]
     file_size = [os.path.getsize(f'{upload_dir}/{x}') for x in sar_files]
     sar_files_uploaded =[x for x in sar_files if not x.endswith(('.df'))]
-    sar_files = [x.rstrip('\.df') for x in sar_files if x.endswith(('.df'))]
+    sar_files = [x.rstrip(r'\.df') for x in sar_files if x.endswith(('.df'))]
     sar_files.extend(sar_files_uploaded)
 
     managef_options = col1.selectbox(

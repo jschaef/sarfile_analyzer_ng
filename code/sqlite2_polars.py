@@ -150,7 +150,7 @@ def get_possible_alias_from_filter(
     collect_dict = {}
     alias = ""
     for item in filter.split():
-        result_field = df[column].str.contains(f"^\s*{item}\>\s*|\s+\<{item}\>\s+|\s+\<{item}\>\s*$|{item}\>\s*").to_list()
+        result_field = df[column].str.contains(fr"^\s*{item}\>\s*|\s+\<{item}\>\s+|\s+\<{item}\>\s*$|{item}\>\s*").to_list()
         for index in range(len(result_field)):
             if result_field[index]:
                 res_df = df.slice(index, 1)
