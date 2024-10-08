@@ -5,14 +5,26 @@ import visual_funcs as visf
 from config import Config
 
 def get_redis_conn(decode=True):
+    connection_params = {
+        "host": Config.redis_host,
+        "port": Config.redis_port,
+        "encoding": "utf-8",
+        "decode_responses": decode,
+    }
+    if Config.redis_user:
+        connection_params["username"] = Config.redis_user
+    if Config.redis_password:
+        connection_params["password"] = Config.redis_password
     try:
-        rs = redis.StrictRedis(host=Config.redis_host, port=Config.redis_port,
-                               encoding="utf-8", decode_responses=decode)
+        rs = redis.StrictRedis(**connection_params)
         rs.ping()
         return rs
     except:
-        print(f'Could not connect to Redis server {Config.redis_host}:{Config.redis_port}')
+        print(
+            f"Could not connect to Redis server {Config.redis_host}:{Config.redis_port}"
+        )
         return None
+
 
 rs = get_redis_conn()
 # for pickled connections we need connect with decode False
