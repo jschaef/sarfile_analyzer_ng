@@ -8,6 +8,6 @@ PyPDF4
 python-magic
 redis
 SQLAlchemy
-streamlit==1.38.0
+streamlit
 streamlit-option-menu
 vl-convert-python
