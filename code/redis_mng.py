@@ -20,9 +20,9 @@ def get_redis_conn(decode=True):
         rs.ping()
         return rs
     except:
-        print(
-            f"Could not connect to Redis server {Config.redis_host}:{Config.redis_port}"
-        )
+        # print(
+        #     f"Could not connect to Redis server {Config.redis_host}:{Config.redis_port}"
+        # )
         return None
 
 
@@ -67,6 +67,8 @@ def redis_tasks(col):
 
 def get_redis_val(rkey, decode=False, property=None):
     rs = get_redis_conn(decode=decode)
+    if not rs:
+        return None
     if property:
         try:
             return rs.hget(rkey, property)
@@ -84,24 +86,28 @@ def set_redis_key(data, rkey, property=None, decode=False):
        key, e.g jschaef -> compounds to user:jschaef
        bytes -> None or something, sets decode to False
     """
-    cols = visf.create_columns(4,[0,1,1,1])
-    col1 = cols[0]
     rs = get_redis_conn(decode=decode)
+    if not rs:
+        return None
 
     try:
         t_dict = {property:data}
         rs.hmset(rkey ,t_dict) 
-    except:
-        col1.markdown(f'Could not write {rkey}')
-    
+    except Exception as e:
+        print(f'Could not write {rkey}, {e}')
 
 def del_redis_key_property(rkey, property, decode=False):
     rs = get_redis_conn(decode=decode)
+    if not rs:
+        return None
     if rs.exists(rkey, property):
         rs.hdel(rkey, property)
 
 def show_redis_hash_keys(rkey):
     rs = get_redis_conn()
+    if not rs:
+        return None
     return rs.hkeys(rkey)
 
-    
+def convert_df_for_redis(df):
+    return df.to_pandas().to_parquet()
