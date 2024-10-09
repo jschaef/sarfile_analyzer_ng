@@ -43,7 +43,7 @@ cur_dir = os.path.dirname(os.path.realpath(__file__))
 local_css(f"{cur_dir}/style.css")
 remote_css('https://fonts.googleapis.com/icon?family=Material+Icons')
 
-user_status_df = handle_user_status.load_df_from_file()
+user_status_df = handle_user_status.load_df_from_file()[0]
 
 def start():
     """Sar analyzeer App"""
