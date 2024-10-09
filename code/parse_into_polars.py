@@ -3,6 +3,7 @@ import io
 import subprocess
 import os.path
 from pathlib import Path
+from streamlit import cache_data
 from datetime import datetime
 import redis_mng
 import polars as pl
@@ -41,10 +42,10 @@ def check_file_type(file_path: str) -> str:
     else:
         assert False, f"file {abs_path} does not exist"
 
-
-def get_data_frame(file_name, user_name):
+@cache_data
+def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
     """
-    Load structure containing data frames from redis or pickle
+    Load structure containing data frames from redis or parquet file
     """
     # load from redis
     parquet_file = Path(f"{file_name}.parquet")
