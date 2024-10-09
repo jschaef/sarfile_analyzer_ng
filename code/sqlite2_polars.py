@@ -1,15 +1,32 @@
 import re
+import io
 import sql_stuff
 import polars as pl
 from streamlit import cache_data
+import redis_mng
 
 
 @cache_data
 def get_table_df(table_name: str):
-    data_db = sql_stuff.find_db()
-    connection_uri = f"sqlite:///{data_db}"
-    query = f"select * from {table_name}"
-    df = pl.read_database_uri(query=query, uri=connection_uri)
+    parquet_obj = redis_mng.get_redis_val(table_name, property=table_name)
+    if parquet_obj:
+        parquet_mem = io.BytesIO(parquet_obj)
+
+    else:
+        parquet_mem = io.BytesIO(b'')
+
+    try:
+        df = pl.read_parquet(parquet_mem)
+        print(
+        fr'{table_name} loaded from redis'
+        )
+    except Exception as e:
+        data_db = sql_stuff.find_db()
+        connection_uri = f"sqlite:///{data_db}"
+        query = f"select * from {table_name}"
+        df = pl.read_database_uri(query=query, uri=connection_uri)
+        redis_df = redis_mng.convert_df_for_redis(df)
+        redis_mng.set_redis_key(redis_df, table_name, property=table_name)
     return df
 
 
