@@ -190,7 +190,6 @@ def return_reboot_text(
         reboot_text = None
     return reboot_text
 
-
 def overview_v1(
     df, restart_headers, os_details, font_size=None, width=None, height=None, title=None
 ):

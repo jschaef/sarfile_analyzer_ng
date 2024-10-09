@@ -1,23 +1,26 @@
 import polars as pl
 import datetime
 import os
+from config import Config
 
-USER_DF_FILE = "user_df.parquet"
-
-def load_df_from_file(
-    filename: str = USER_DF_FILE,
-) -> pl.DataFrame:
+def load_df_from_file() -> pl.DataFrame:
+    upload_dir = Config.upload_dir
+    config_dir = os.path.join(upload_dir, "config")
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+    filename = os.path.join(config_dir,"user_df.parquet")
     df = pl.DataFrame()
     if not os.path.exists(filename):
         df = create_user_status_df()
         write_df_to_file(df, filename)
     else:
         df = pl.read_parquet(filename)
-    return df
+    return df, filename
 
-def write_df_to_file(df: pl.DataFrame, filename: str = USER_DF_FILE) -> None:
+def write_df_to_file(df: pl.DataFrame, filename: str = None) -> None:
+    if not filename:
+        filename = load_df_from_file()[1]
     df.write_parquet(filename)
-
 
 def delete_records(df: pl.DataFrame, date: datetime.datetime) -> pl.DataFrame:
     """Deletes records from the dataframe where login_time is greater than the provided date.
@@ -53,7 +56,6 @@ def add_record(
     user_name: str,
     login_time: datetime.datetime,
     success: bool,
-    filename: str = USER_DF_FILE,
 ) -> pl.DataFrame:
     """Adds a record to the dataframe.
     Args:
@@ -62,6 +64,7 @@ def add_record(
         login_time: When did the user login last time
         success: could the user login
     """
+    filename = load_df_from_file()[1]
     df = get_user_status_df()
     df1 = pl.DataFrame(
         {
@@ -80,7 +83,7 @@ def get_user_status_df() -> pl.DataFrame:
     Returns:
         The dataframe with the user status
     """
-    df = load_df_from_file()
+    df = load_df_from_file()[0]
     return df
 
 def remove_old_logins(df: pl.DataFrame, date: datetime.date) -> pl.DataFrame:
