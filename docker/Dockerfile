@@ -1,11 +1,11 @@
-FROM registry.suse.com/suse/sle15:15.5
+FROM registry.suse.com/suse/sle15:15.6
 
 RUN \
         zypper --gpg-auto-import-keys ref -s &&\
         zypper up -y &&\
         zypper -n in \
-                python311 \
-                python311-tk \
+                python312 \
+                python312-tk \
                 python3-urllib3 \
                 vim \
                 git-core \
@@ -17,7 +17,7 @@ RUN \
 COPY 	./code sarfile_analyzer_ng/code
 RUN \
         cd sarfile_analyzer_ng/code &&\
-        python3.11 -m venv venv &&\
+        python3.12 -m venv venv &&\
         source venv/bin/activate &&\
         pip install -U pip &&\
         pip install -r requirements.txt
