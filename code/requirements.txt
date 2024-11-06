@@ -3,11 +3,11 @@ altair
 connectorx
 multiprocess
 pandas
-polars
+polars == 1.9
 PyPDF4
 python-magic
 redis
 SQLAlchemy
-streamlit==1.38.0
+streamlit==1.38
 streamlit-option-menu
 vl-convert-python
