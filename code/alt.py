@@ -183,7 +183,6 @@ def return_reboot_text(
             .mark_text(text="RESTART", angle=90, color="black", fontSize=12)
             .encode(
                 alt.X(f"{utc_type}(date)", type="temporal"),
-                y=":Q",
             )
         )
     else:
