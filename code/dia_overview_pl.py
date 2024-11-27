@@ -14,7 +14,7 @@ from config import Config
 sar_structure = []
 os_details = ""
 file_chosen = ""
-def show_dia_overview(username: str, sar_file_col: st.columns):
+def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGenerator):
     # clear session state
     for item in st.session_state:
         if '_obj' in item:
