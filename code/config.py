@@ -15,3 +15,4 @@ class Config(object):
     cols_per_line = int(os.getenv("COLS_PER_LINE", 4))
     max_header_count = int(os.getenv("MAX_HEADER_COUNT", 6))
     file_type = os.getenv("FILE_TYPE", "parquet")
+    admin_communication = os.getenv("ADMIN_COMMUNICATION", "slack")
