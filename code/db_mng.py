@@ -26,13 +26,13 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                 m_content = metric_placeholder.text_input("metric name")
                 d_content = mdesc_placeholder.text_area("metric description")
         elif action == "Show":
-            col, _ = st.columns([0.7, 0.3])
+            col, _ = st.columns([0.8, 0.2])
             df = (
                 pd.DataFrame(
                     sqlite2_polars.view_all_metrics(), columns=["metric", "description"]
                 ),
             )
-            col.table(df[0])
+            col.dataframe(df[0], use_container_width=True)
         elif action == "Delete":
             metrics = sqlite2_polars.view_all_metrics()
             metrics = [x[0] for x in metrics]
@@ -55,11 +55,13 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             )
 
             if search_list:
-                col, _ = visf.create_columns(2, [0.7, 0.3])
-                col.table(
+                col, _ = visf.create_columns(2, [0.8, 0.3])
+                col.dataframe(
                     pd.DataFrame(
-                        sqlite2_polars.view_all_metrics(), columns=["metric", "description"]
-                    ).loc[lambda df: df["metric"].isin(search_list)]
+                        sqlite2_polars.view_all_metrics(),
+                        columns=["metric", "description"],
+                    ).loc[lambda df: df["metric"].isin(search_list)],
+                    use_container_width=True,
                 )
     elif widget == "headers":
         action = col.selectbox("Actions", ["Show", "Add", "Delete", "Update", "Search"])
@@ -95,8 +97,8 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
 
         elif action == "Show":
             col, _ = st.columns([0.7, 0.3])
-            col.table(pd.DataFrame(sqlite2_polars.ret_all_headers(headings_df, "show"),
-               columns=["header", "alias", "description","keyword"] ))
+            col.dataframe(pd.DataFrame(sqlite2_polars.ret_all_headers(headings_df, "show"),
+               columns=["header", "alias", "description","keyword"] ), use_container_width=True)
 
         elif action == "Update":
             a_sel_ph = col.empty()
@@ -166,6 +168,6 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                         [alias_header_fields, metric_headers], schema=["alias", "header"]
                     )
                 )
-            
+
             else:
                 col.warning(f"A header for {m_sel} does yet not exist")
