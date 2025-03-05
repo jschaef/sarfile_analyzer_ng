@@ -8,17 +8,11 @@ global fobject
 
 
 def create_pdf(file: str, chart: object) -> list:
-    if not st.session_state.get("download"):
-        mimetype = "text/plain"
-        return ["dummy", mimetype]
-    else:
-        global fobject
-        mimetype = "application/x-binary"
-        chart.save(file)
-        fobject = open(file, "rb")
-        st.session_state.download = False
-        return [fobject, mimetype]
-
+    global fobject
+    mimetype = "application/x-binary"
+    chart.save(file)
+    fobject = open(file, "rb")
+    return [fobject, mimetype]
 
 def pdf_download(file: str, chart: object, key=None, download_name=None):
     """creates a download button and a checkbox. Using function create_pdf()
@@ -29,30 +23,25 @@ def pdf_download(file: str, chart: object, key=None, download_name=None):
         chart (altair object): image/chart created from the altair library
         key (widget key, optional): widget key for streamlit api. Defaults to None.
     """
-    disabled = True
-    st.session_state.download = False
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     col2 = col2 if col2 else st
     save_dir = os.path.dirname(file)
     if not os.path.exists(save_dir):
         os.system(f"mkdir -p {save_dir}")
-    dkey = f"pdf_{random()}_d"
-    clicked = col2.checkbox("*Enable Download*", key=key)
-    if clicked:
-        st.session_state.download = True
-        disabled = False
 
     if not download_name:
         download_name = "sar_chart.pdf"
 
-    col1.download_button(
-        label="Download PDF",
-        file_name=download_name,
-        data=create_pdf(file, chart)[0],
-        mime="application/x-binary",
-        key=dkey,
-        disabled=disabled,
-    )
+    if col1.button("prepare PDF", key=key):
+        col1.download_button(
+            key = f"{key}_download",
+            label="Download PDF",
+            file_name=download_name,
+            data=create_pdf(file, chart)[0],
+            mime="application/x-binary",
+            on_click="ignore",
+            type="primary",
+        )
     try:
         fobject
     except NameError:
