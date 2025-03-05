@@ -232,7 +232,7 @@ def single_multi(config_dict: dict, username: str):
                             title = f"{title}_{metric}"
                             download_name = f"{helpers.validate_convert_names(title)}.pdf"
                             download_name = f"multi_files_{download_name}"
-                            lh.pdf_download(pdf_name, img, download_name=download_name)
+                            lh.pdf_download(pdf_name, img, download_name=download_name, key=download_name)
                     if not dia_type:
                         with tab2:
                             object_field = []
