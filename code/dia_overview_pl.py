@@ -154,7 +154,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         st.markdown("___")
         if submitted:
             sorted_df_dict = {}
-            with st.spinner(text='Please be patient until all graphs are constructed ...'):
+            with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
                 headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
                 header_list = list(headers_trdict.values())
                 df_list = pl_helpers.get_data_frames_from__headers(header_list, df,
