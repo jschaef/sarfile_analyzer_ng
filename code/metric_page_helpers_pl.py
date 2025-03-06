@@ -5,7 +5,9 @@ import layout_helper_pl as lh
 import polars as pl
 import pl_helpers2 as pl_h2
 from config import Config
-def create_metric_menu(cols: st.columns, df_complete: pl.DataFrame, 
+from streamlit.delta_generator import DeltaGenerator
+
+def create_metric_menu(cols: list[DeltaGenerator], df_complete: pl.DataFrame, 
     headers_dict, file_name, os_details, reboot_headers,):
     """ 
     Creates ...

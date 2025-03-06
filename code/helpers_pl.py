@@ -179,18 +179,19 @@ def measure_time(prop='start', start_time=None):
         end = time.perf_counter()
         st.write(f'process_time: {round(end-start_time, 4)}')
 
-def get_sar_files(user_name: str, col: st.columns=None, key: str=None):
+def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, key: str=None):
     sar_files = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
         if os.path.isfile(f'{Config.upload_dir}/{user_name}/{x}') ]
     sar_files_pre = [x for x in sar_files if not x.endswith('.parquet') ]
     sar_files = [x.replace(".parquet", "") for x in sar_files if x.endswith('.parquet')]
     sar_files.extend(sar_files_pre)
+    lh.make_vspace(1, col)
     if not col:
         col1, col2, col3 = st.columns([2,1, 1])
         col1.write(''), col3.write('')
-        selection = col2.selectbox('sar file', sar_files, key=key)
+        selection = col2.selectbox('**Choose your Sar File**', sar_files, key=key)
     else:
-        selection = col.selectbox('sar file', sar_files, key=key)
+        selection = col.selectbox('**Choose your Sar File**', sar_files, key=key)
     return selection
 
 def diagram_expander(text1, text2, col=None, key=None):

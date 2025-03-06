@@ -19,14 +19,17 @@ def delete_session_state_df_obj(skey: str):
     helpers.clean_session_state(keys_to_delete)
 
 
-def single_multi(config_dict: dict, username: str):
+def single_multi(config_dict: dict, username: str, ph_list: list):
     display_field = []
     upload_dir = config_dict["upload_dir"]
     pdf_dir = f"{Config.upload_dir}/{username}/pdf"
     pdf_name = f"{pdf_dir}/{Config.pdf_name}"
     cpu_aliases = re.compile(r"CPU|^soft.*", re.IGNORECASE)
     st.subheader("Compare same metric on multiple Sar Files")
+    lh.make_vspace(3, st)
     sel_field = []
+    for ph in ph_list:
+        ph.empty()
     sar_files = [x for x in listdir(upload_dir) if path.isfile(f"{upload_dir}/{x}")]
     # exclude parquet files
     sar_files_pre = [x for x in sar_files if not x.endswith(".parquet")]

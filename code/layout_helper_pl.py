@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import helpers_pl as helpers
 import pandas as pd
-from random import random
 
 global fobject
 
