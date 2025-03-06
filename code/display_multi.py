@@ -3,7 +3,6 @@ import streamlit as st
 import polars as pl
 import helpers_pl
 import alt
-import parse_into_polars as parse_polars
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
 import layout_helper_pl as lh
@@ -13,7 +12,7 @@ from config import Config
 file_chosen = ""
 
 
-def show_multi(config_obj, username):
+def show_multi(config_obj, username, selection, df, os_details):
     global file_chosen, df_complete
     pdf_dir = f"{Config.upload_dir}/{username}/pdf"
     upload_dir = config_obj["upload_dir"]
@@ -22,19 +21,18 @@ def show_multi(config_obj, username):
     description = """This page is for finding metrics which have been measured\
     on multiple devices. E.g. showing all CPU's where iowait is above 15.5 and\
     below 50.0. at a certain  time frame"""
-    st.write(f"##### {description}")
-    st.write("___")
+    col1, col2 = st.columns([0.7, 0.3])
+    col1.subheader(description)
+    lh.make_vspace(1, col1)
     col1, col2, col3, _ = st.columns([1, 1, 1, 1])
     col2.write("")
-    selection = helpers_pl.get_sar_files(username, col=col3)
     st.sidebar.markdown("---")
     # parse data from file
     sar_file = f"{upload_dir}/{selection}"
     if sar_file != file_chosen:
         lh.delete_large_obj()
-        df_complete = parse_polars.get_data_frame(sar_file, username)
         file_chosen = sar_file
-    os_details = pl_h2.get_os_details_from_df(df_complete)
+    df_complete = df
     headers = pl_h2.get_headers(df_complete)
     restart_headers = pl_h2.get_restart_headers(df_complete)
     alias_dict = helpers_pl.translate_headers(headers)
@@ -108,8 +106,6 @@ def show_multi(config_obj, username):
         device_list = [int(x) for x in device_list]
         device_list.insert(0, "all")
     device_list.sort()
-
-    col3.write(f"Operating System Details: {os_details}")
     metric = st.sidebar.selectbox("metric", headerline.split())
     metric_df = pl_h2.create_metric_df(large_df, headerline, metric)
     slider_max = round(metric_df[metric].max(), 2)
@@ -121,7 +117,6 @@ def show_multi(config_obj, username):
         options.append(round(start, 2))
         start += step
     options.append(slider_max)
-    st.write("___")
     col1, col2 = st.columns([1, 1])
     if slider_min != slider_max:
         metric_index = headerline.split().index(metric)

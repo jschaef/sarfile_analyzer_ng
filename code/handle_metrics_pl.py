@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import streamlit as st
 import alt
-import parse_into_polars as parse_polars
+import polars as pl
 import pl_helpers2 as pl_helpers
 import helpers_pl as helpers
 import metric_page_helpers_pl as mph
@@ -10,28 +10,18 @@ from config import Config
 from sqlite2_polars import get_sub_device_from_header
 
 
-def do_metrics(config_dict: dict, username: str) -> None:
+def do_metrics(config_dict: dict, username: str, sel_file: str, df: pl.DataFrame,
+        os_details: str) -> None:
     upload_dir = config_dict['upload_dir']
     pdf_dir = f'{Config.upload_dir}/{username}/pdf'
     pdf_name = f'{pdf_dir}/{Config.pdf_name}'
-    _, _, col3, col4 = lh.create_columns(4,[1,1,0,1])
-    sel_file = helpers.get_sar_files(username, col=col3)
-    os_field = []
-
-    col3, _ = st.columns(2)
-    op_ph = col3.empty()
-    op_ph1 = col3.empty()
-    st.markdown('___')
-
+    st.subheader("Compare different metrics")
+    lh.make_vspace(5, st)
     sar_file = f'{upload_dir}/{sel_file}'
+    df_complete = df
+    os_field = []
     filename = sar_file.split('/')[-1]
-    df_complete = parse_polars.get_data_frame(sar_file, username)
-    os_details = pl_helpers.get_os_details_from_df(df_complete)
-    op_ph.write('Operating System Details:')
-    op_ph1.write(os_details)
     os_field.append({sar_file: os_details})
-    col3, _ = st.columns(2)
-
     headers = pl_helpers.get_headers(df_complete)
     reboot_headers = helpers.extract_restart_header(headers)
     reboot_headers = pl_helpers.get_restart_headers(df_complete)
