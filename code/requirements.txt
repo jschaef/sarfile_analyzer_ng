@@ -1,7 +1,6 @@
 aiofiles
 altair
 connectorx
-multiprocess
 pandas
 polars
 PyPDF4
@@ -11,3 +10,4 @@ SQLAlchemy
 streamlit
 streamlit-option-menu
 vl-convert-python
+wfork-streamlit-profiler
