@@ -5,32 +5,29 @@ import helpers_pl
 import alt
 import re
 import pl_helpers2 as pl_h2
-import parse_into_polars as parse_polars
 import dia_compute_pl as dia_compute
 from config import Config
 
 file_chosen = ""
 df_complete = None
-def single_f(config_obj, username):
+def single_f(config_obj, username, selection, df, os_details):
     perf_intensive_metrics = re.compile(r'^CPU|SOfT.*', re.IGNORECASE)
     global file_chosen, df_complete
-    upload_dir = config_obj['upload_dir']
     pdf_dir = f'{Config.upload_dir}/{username}/pdf'
     pdf_name = f'{pdf_dir}/{Config.pdf_name}'
+    st.subheader("Show metrics for a single sar file")
     col1, col2, col3, _ = st.columns([1,1,1, 1])
+    lh.make_vspace(1, col1)
     des_text = 'Show a Summary of the chosen header or Details of the chosen metric in the left frame'
     selected_content = col1.selectbox(
             des_text, ['Details','Summary'], key='diagr')
     col2.write('')
-    selection = helpers_pl.get_sar_files(username, col=col3)
     st.sidebar.markdown('---')
-    # parse data from file
-    sar_file = f'{upload_dir}/{selection}'
+    sar_file = selection
     if sar_file != file_chosen:
         lh.delete_large_obj()
-        df_complete =parse_polars.get_data_frame(sar_file, username)
         file_chosen = sar_file
-    os_details = pl_h2.get_os_details_from_df(df_complete)
+    df_complete = df
     headers = pl_h2.get_headers(df_complete)
     restart_headers = pl_h2.get_restart_headers(df_complete)
     selected, _ = helpers_pl.get_selected_header('Sar Headings', headers)
@@ -106,8 +103,6 @@ def single_f(config_obj, username):
         for index in df_list:
             df = index['df']
             device_list.append(index['sub_title'])
-
-    col3.write(f"Operating System Details: {os_details}")
 
     if selected_content == 'Details':
         if len(device_list) > 1:
@@ -215,5 +210,3 @@ def single_f(config_obj, username):
         with tab3:
             metrics = df['metrics'].drop_duplicates().tolist()
             lh.show_metrics(metrics, checkbox="off")
-
-
