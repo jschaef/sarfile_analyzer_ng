@@ -383,6 +383,3 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                 keys_to_delete.append(key)
         helpers.clean_session_state("multi_start", "multi_end")
         helpers.clean_session_state(keys_to_delete)
-
-    # if st.button('back to top', on_click=goto_top, args=('show',False)):
-    #    st.experimental_rerun()
