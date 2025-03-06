@@ -7,22 +7,39 @@ import dia_overview_pl
 import handle_metrics_pl
 import helpers_pl as helpers
 import display_multi
+import layout_helper_pl as lh
+import helpers_pl
+import parse_into_polars as parse_polars
+import pl_helpers2 as pl_helpers
 
 def analyze(config_c: helpers.configuration, username: str):
     config = config_c.get_dict()
     upload_dir = config ['upload_dir']
-    col1, _, col3, _ = st.columns([1,2, 1, 1])
-    #present existing files, default latest uploaded
-    #TODO do sanity checks for size or number of files
+    lh.make_vspace(1, st)
+    col1, col2, col3, col4, _  = st.columns([1,0.2, 0.8, 1, 1])
+    ph1 = col1.empty()
+    ph3 = col3.empty()
+    ph4 = col4.empty()
+    # present existing files, default latest uploaded
+    # TODO do sanity checks for size or number of files
     sar_files = os.listdir(upload_dir)
     # exclude pickle files
-    with col1:
-        single_multi = st.selectbox('Analyze/Compare', ['Graphical Overview',
+    with ph1:
+        lh.make_vspace(1, ph1)
+        single_multi = st.selectbox('**Analyze/Compare**', ['Graphical Overview',
          'Detailed Metrics View', 'Multiple Sar Files', 
          'Metrics on many devices', 'Compare Metrics'])
 
-    col1, _ = st.columns([0.3,0.7])
-    col1.markdown('___')
+    sar_file = helpers_pl.get_sar_files(username, col=ph3, key="get_sarfiles")
+    sar_file_parm = sar_file
+    sar_file = f"{upload_dir}/{sar_file}"
+    df =parse_polars.get_data_frame(sar_file, username)
+    os_details = pl_helpers.get_os_details_from_df(df)
+    with ph4:
+        lh.make_vspace(6, ph4)
+        ph4.write(f"""Operating System Details: {os_details}""")
+
+    st.markdown('___')
 
     files_exists = 0
     for entry in sar_files:
@@ -35,15 +52,15 @@ def analyze(config_c: helpers.configuration, username: str):
                    Upload a file in the "Manage Sar Files" menu on the top bar')
     else:
         if single_multi == 'Graphical Overview':
-            dia_overview_pl.show_dia_overview(username, col3)
+            dia_overview_pl.show_dia_overview(username, ph4, sar_file_parm, df, os_details)
 
         elif single_multi == 'Detailed Metrics View':
-            single_file_pl.single_f(config, username)
+            single_file_pl.single_f(config, username, sar_file_parm, df, os_details)
 
         elif single_multi == 'Multiple Sar Files':
-            multi_files_pl.single_multi(config, username)
+            multi_files_pl.single_multi(config, username, [ph3, ph4])
 
         elif single_multi == 'Compare Metrics':
-            handle_metrics_pl.do_metrics(config, username) 
+            handle_metrics_pl.do_metrics(config, username, sar_file_parm, df, os_details) 
         elif single_multi == 'Metrics on many devices':
-            display_multi.show_multi(config, username)
+            display_multi.show_multi(config, username, sar_file_parm, df, os_details)
