@@ -107,6 +107,8 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
             df = df[~df.index.duplicated(keep='first')].copy()
         df_dis = helpers.restart_headers(
             df_display, os_details, restart_headers=restart_headers, display=False)
+    else:
+        df_dis = pl.DataFrame()
     helpers.restart_headers(
         df, os_details, restart_headers=restart_headers, display=False)
 
