@@ -171,13 +171,13 @@ def metric_expander(prop, expand=False, col=None):
         else:
             col.write(f'metric {prop} has no description at the moment')
 
-def measure_time(prop='start', start_time=None):
+def measure_time(col: st.delta_generator.DeltaGenerator, prop: str = 'start', start_time: float = None):
     if prop == 'start':
         start_time = time.perf_counter()
-        return(start_time)
+        return start_time
     else:
         end = time.perf_counter()
-        st.write(f'process_time: {round(end-start_time, 4)}')
+        col.write(f'process_time: {round(end-start_time, 4)}')
 
 def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, key: str=None):
     sar_files = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
