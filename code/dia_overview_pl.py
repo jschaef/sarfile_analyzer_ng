@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import altair as alt
 import streamlit as st
 import dataframe_funcs_pl as dff
 import pl_helpers2 as pl_helpers
@@ -10,7 +11,7 @@ import multi_pdf as mpdf
 import layout_helper_pl as lh
 from config import Config
 from concurrent.futures import ThreadPoolExecutor
-#from wfork_streamlit_profiler import Profiler
+# from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
 sar_structure = []
@@ -23,8 +24,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     for item in st.session_state:
         if '_obj' in item:
             st.session_state.pop(item)
-    collect_list = []
-    collect_list_pandas = []
     # global os_details, file_chosen
     file_chosen = ""
     st.subheader('Overview of important metrics from SAR data')
@@ -52,9 +51,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     if count_lines > 0:
         count_lines = int(count_lines + 1)
     show_manpages = 1
-    statistics = 0
-    def collect_results(result):
-        collect_list.append(result)
+    statistics = 1
 
     @st.fragment
     def metric_expander(initial_aliases: list, full_alias_l: list,
@@ -68,7 +65,8 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
             col5, col6 = st.columns(2)
             ph_col3 = col5.empty()
             ph_col4 = col6.empty()
-            if ph_col3.checkbox('Select All'):
+            if ph_col3.checkbox('Select All', help="""Be cautious with this option. It will select all metrics
+            and can lead to a large time delay since a lot of diagrams may be created"""):
                 fr_aliases = fr_full_alias[:]
             elif ph_col4.checkbox('Deselect All'):
                 fr_aliases = []
@@ -93,7 +91,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # pdfs,  pick time frame, diagram style
     @st.fragment
     def change_time_and_dia(df, headers):
-        lh.make_vspace(4,st)
+        lh.make_vspace(4, st)
         st.markdown("**Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
         this_container = col1.container(border=True)
@@ -151,7 +149,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         lh.make_vspace(6,col2)
         lh.make_vspace(6,col2)
         col1.markdown("###### Customize Diagrams")
-        #cols = this_container.columns(8)
+        # cols = this_container.columns(8)
         lh.make_vspace(4,col1)
         lh.make_vspace(4,col2)
         width, height = helpers_pl.diagram_expander('Diagram Width',
@@ -171,14 +169,31 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         with st.container(border=True):
             if submitted:
                 sorted_df_dict = {}
+                st_collect_list_pandas = st.session_state.get(
+                    f"{sar_file_name}_collect_list_pandas", []
+                )
+                collect_list = st.session_state.get(f"{sar_file_name}_st_collect_list", [])
+                def collect_results(result):
+                    collect_list.append(result)
+                title_list = [x[0]['title'] for x in collect_list] if st_collect_list_pandas else []
                 with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
                     headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
-                    header_list = list(headers_trdict.values())
+                    header_difference = [x for x in sel_field if x not in title_list]
+                    remove_list = [x for x in title_list if x not in sel_field]
+                    remove_set = set(remove_list)
+                    new_headers_trdict = {key: headers_trdict[key] for key in header_difference if key in headers_trdict}
+                    header_list = list(new_headers_trdict.values())
                     df_list = pl_helpers.get_data_frames_from__headers(header_list, df,
                         "header") 
                     for df in df_list:
                         df_result = dia_compute.prepare_df_for_pandas(df, start, end)
-                        collect_list_pandas.append(df_result)
+                        st_collect_list_pandas.append(df_result)
+                    collect_list_pandas = [
+                        item
+                        for item in st_collect_list_pandas
+                        if item[0]["title"] not in remove_set
+                    ]
+                    collect_list_titles = [item[0]['title'] for index, item in enumerate(collect_list)] if collect_list else []
                     with ThreadPoolExecutor() as executor:
                         futures = []
                         for outer_index in collect_list_pandas:
@@ -187,11 +202,14 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 header = inner_index['title']
                                 sub_title = inner_index['sub_title']
                                 device_num = inner_index['device_num']
-                                futures.append(executor.submit(dia_compute.final_results, df, header, statistics, os_details, restart_headers, font_size, width, height, show_manpages, device_num, sub_title))
+                                if header not in collect_list_titles: 
+                                    futures.append(executor.submit(dia_compute.final_results, df, header, statistics, os_details, 
+                                        restart_headers, font_size, width, height, show_manpages, device_num, sub_title,))
                         for future in futures:
                             collect_results(future.result())
+                    filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
                     counter = 0
-                    for item in collect_list:
+                    for item in filtered_collect_list:
                         header = item[0]['header']
                         title = item[0]['title']
                         if not sorted_df_dict.get(header):
@@ -227,7 +245,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 if statistics:
                                     col1, col2, col3, col4 = lh.create_columns(
                                         4, [0, 0, 1, 1])
-
                                     col1.markdown(f'###### Sar Data for {header}')
                                     st.write(df_stat)
                                     if dup_bool:
@@ -271,19 +288,17 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 # if show_diagrams:
                                 tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page",
                                         " 📊 PDF",])
-                                # else:
-                                #     _, tab1, tab2, tab3, tab4 = st.tabs(["✌️", "📈 Chart",
-                                        # "🗃 Data", " 📔 man page", " 📊 PDF",])
                                 with tab1:
                                     st.altair_chart(chart, theme=None)
                                 with tab2:
                                     if statistics:
                                         col1, col2, col3, col4 = lh.create_columns(
                                             4, [0, 0, 1, 1])
-                                        if not sub_title:
-                                            col1.markdown(f'###### Sar Data for {title}')
-                                        else:
-                                            col1.markdown(f'###### Sar Data for {sub_title}')
+                                        # if not sub_title:
+                                        #     col1.markdown(f'###### Sar Data for {title}')
+                                        col1.markdown(f'###### Sar Data for {title if not sub_title else sub_title}')
+                                        # else:
+                                        #     col1.markdown(f'###### Sar Data for {sub_title}')
                                         st.write(df_stat)
                                         if dup_bool:
                                             col1.warning(
@@ -314,6 +329,14 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
 
                                 counter +=1
                         # st.markdown("___")
+                    st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
+                    st.session_state[f'{sar_file_name}_st_collect_list'] = collect_list
+                    # cleanup old session state keys
+                    session_collect_keys = [key for key in st.session_state.keys() if 'collect_list' in key]
+                    for key in session_collect_keys:
+                        if sar_file_name not in key:
+                            st.session_state.pop(key)
+                    # st.write(st.session_state)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
                         pdf_file = f"{pdf_dir}/{download_name}"
