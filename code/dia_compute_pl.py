@@ -84,7 +84,7 @@ def get_device_list(df: pl.DataFrame) -> list:
 
 def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str, 
         restart_headers: list, font_size: int, width: int, height: int, 
-        show_metric: int, device_num: int, sub_title: str):
+        show_metric: int, device_num: int, sub_title: str,) -> list:
     collect_field = []
     title = header
     if sub_title:
@@ -121,5 +121,5 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
         'metrics' : metrics, 'header': header, 'device_num' : device_num, 
         'dup_bool': dup_bool, 'dup_check' : dup_check, 'df_describe' : 
         df_describe, 'df_stat' : df_dis, 'df_display' : df_display, 
-        'sub_title': sub_title })
+        'sub_title': sub_title,})
     return collect_field
