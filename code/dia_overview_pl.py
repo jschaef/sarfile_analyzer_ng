@@ -27,7 +27,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # global os_details, file_chosen
     file_chosen = ""
     st.subheader('Overview of important metrics from SAR data')
-    col1, col2, col3, col4 = lh.create_columns(4, [0.7, 0.1, 0.4, 0.4])
     multi_pdf_field = []
     col1, col2, col3, col4 = lh.create_columns(4, [0, 1, 1, 1])
     st.write("#")
@@ -149,7 +148,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         lh.make_vspace(6,col2)
         lh.make_vspace(6,col2)
         col1.markdown("###### Customize Diagrams")
-        # cols = this_container.columns(8)
         lh.make_vspace(4,col1)
         lh.make_vspace(4,col2)
         width, height = helpers_pl.diagram_expander('Diagram Width',
@@ -164,9 +162,10 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     submitted = col1.button('Show Diagrams')
     if col2.button('Clear'):
         st.rerun()
-    col1, col2, col3, col4 = lh.create_columns(4, [0, 0, 1, 1])
+    lh.make_vspace(1, st)
     if sel_field:
-        with st.container(border=True):
+        col1, _ = st.columns([0.8, 0.2])
+        with col1.container(border=True):
             if submitted:
                 sorted_df_dict = {}
                 st_collect_list_pandas = st.session_state.get(
@@ -230,10 +229,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                             df_stat  = sorted_df_dict[key][0][0]['df_stat']
                             metrics = sorted_df_dict[key][0][0]['metrics']
                             st.markdown(f'#### {header}')
-                            # if show_diagrams:
                             tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page", " 📊 PDF", ])
-                            # else:
-                            #     _, tab1, tab2, tab3, tab4 = st.tabs(["✌️", "📈 Chart", "🗃 Data", " 📔 man page", " 📊 PDF", ])
                             with tab1:
                                 if sub_title == 'all':
                                     st.markdown(f'###### all of {device_num}')
@@ -294,11 +290,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                     if statistics:
                                         col1, col2, col3, col4 = lh.create_columns(
                                             4, [0, 0, 1, 1])
-                                        # if not sub_title:
-                                        #     col1.markdown(f'###### Sar Data for {title}')
                                         col1.markdown(f'###### Sar Data for {title if not sub_title else sub_title}')
-                                        # else:
-                                        #     col1.markdown(f'###### Sar Data for {sub_title}')
                                         st.write(df_stat)
                                         if dup_bool:
                                             col1.warning(
@@ -336,7 +328,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                     for key in session_collect_keys:
                         if sar_file_name not in key:
                             st.session_state.pop(key)
-                    # st.write(st.session_state)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
                         pdf_file = f"{pdf_dir}/{download_name}"

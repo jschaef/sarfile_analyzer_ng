@@ -8,7 +8,6 @@ my_tz = time.tzname[0]
 # https://altair-viz.github.io/user_guide/faq.html#maxrowserror-how-can-i-plot-large-datasets
 alt.data_transformers.disable_max_rows()
 
-
 def draw_single_chart_v1(
     df,
     property,
