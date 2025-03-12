@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import altair as alt
 import streamlit as st
 import dataframe_funcs_pl as dff
 import pl_helpers2 as pl_helpers
@@ -28,7 +27,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     file_chosen = ""
     st.subheader('Overview of important metrics from SAR data')
     multi_pdf_field = []
-    col1, col2, col3, col4 = lh.create_columns(4, [0, 1, 1, 1])
+    col1, col2, *_ = lh.create_columns(4, [0, 1, 1, 1])
     st.write("#")
     if sar_file != file_chosen:
         file_chosen = sar_file
