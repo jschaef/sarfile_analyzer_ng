@@ -10,7 +10,7 @@ Pandas is still used for for better visualization in the streamlit web applicati
 ## live demo
 
 you might have a look here for a live demo:
-<https://share.streamlit.io/jschaef/sar_file_analyzer/main/code/first_st.py>.
+<https://jschaef-sarfile-analyzer-ng-codestart-sar-analyzer-q3qtsg.streamlit.app/>
 Create your own account or use the credentials <code>admin/password</code> for
 login. Afterwards upload an ascii sar file via the _"Manage Sar File"_ menu on the
 top menu. Change to the _"Analyze Data"_ menu. Investigate the diagrams and/or
