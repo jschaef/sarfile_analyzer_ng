@@ -32,15 +32,16 @@ def analyze(config_c: helpers.configuration, username: str):
          'Metrics on many devices', 'Compare Metrics'])
 
     sar_file = helpers_pl.get_sar_files(username, col=ph3, key="get_sarfiles")
-    sar_file_parm = sar_file
-    sar_file = f"{upload_dir}/{sar_file}"
-    df =parse_polars.get_data_frame(sar_file, username)
-    os_details = pl_helpers.get_os_details_from_df(df)
-    with ph4:
-        lh.make_vspace(6, ph4)
-        #ph4.markdown("**Operating System Details:**")
-        ph4.markdown("**Operating System Details:**")
-        ph41.write(os_details)
+    if sar_file:
+        sar_file_parm = sar_file
+        sar_file = f"{upload_dir}/{sar_file}"
+        df =parse_polars.get_data_frame(sar_file, username)
+        os_details = pl_helpers.get_os_details_from_df(df)
+        with ph4:
+            lh.make_vspace(6, ph4)
+            #ph4.markdown("**Operating System Details:**")
+            ph4.markdown("**Operating System Details:**")
+            ph41.write(os_details)
 
     st.markdown('___')
 
