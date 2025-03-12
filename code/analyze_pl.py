@@ -16,10 +16,11 @@ def analyze(config_c: helpers.configuration, username: str):
     config = config_c.get_dict()
     upload_dir = config ['upload_dir']
     lh.make_vspace(1, st)
-    col1, col2, col3, col4, _  = st.columns([1,0.2, 0.8, 1, 1])
+    col1, _, col3, col4, _  = st.columns([1,0.2, 0.8, 1.2, 1],gap="medium")
     ph1 = col1.empty()
     ph3 = col3.empty()
     ph4 = col4.empty()
+    ph41 = col4.empty()
     # present existing files, default latest uploaded
     # TODO do sanity checks for size or number of files
     sar_files = os.listdir(upload_dir)
@@ -37,7 +38,9 @@ def analyze(config_c: helpers.configuration, username: str):
     os_details = pl_helpers.get_os_details_from_df(df)
     with ph4:
         lh.make_vspace(6, ph4)
-        ph4.write(f"""Operating System Details: {os_details}""")
+        #ph4.markdown("**Operating System Details:**")
+        ph4.markdown("**Operating System Details:**")
+        ph41.write(os_details)
 
     st.markdown('___')
 
@@ -58,7 +61,7 @@ def analyze(config_c: helpers.configuration, username: str):
             single_file_pl.single_f(config, username, sar_file_parm, df, os_details)
 
         elif single_multi == 'Multiple Sar Files':
-            multi_files_pl.single_multi(config, username, [ph3, ph4])
+            multi_files_pl.single_multi(config, username, [ph3, ph4, ph41])
 
         elif single_multi == 'Compare Metrics':
             handle_metrics_pl.do_metrics(config, username, sar_file_parm, df, os_details) 

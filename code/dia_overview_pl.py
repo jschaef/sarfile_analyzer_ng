@@ -35,7 +35,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     sar_file_name = sar_file
     sar_file = f'{Config.upload_dir}/{username}/{sar_file}'
     pdf_dir = f'{Config.upload_dir}/{username}/pdf'
-    sar_file_col.text(f"Operating System Details: {os_details}")
     headers = pl_helpers.get_headers(df)
     restart_headers = pl_helpers.get_restart_headers(df)
     initial_aliases = ['CPU', 'Kernel tables', 'Load', 'Memory utilization',
