@@ -617,7 +617,6 @@ def overview_v5(
             header,
             os_details,
             col=color_item,
-            utc_type="utcdayhoursminutes",
             col_value=filename,
         )
 
