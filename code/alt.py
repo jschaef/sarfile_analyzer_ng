@@ -608,13 +608,21 @@ def overview_v5(
     z_field = []
     rule_field = []
     y_pos = ""
+    b_df = b_df.with_columns(date_utc=b_df["date"].dt.convert_time_zone(time_zone='UTC'))
+
     for header in reboot_headers:
         rule_field, z_field, y_pos = create_reboot_rule(
-            b_df, property, header, os_details, col=color_item, col_value=filename
+            b_df,
+            property,
+            header,
+            os_details,
+            col=color_item,
+            utc_type="utcdayhoursminutes",
+            col_value=filename,
         )
 
     nearest = alt.selection_point(
-        nearest=True, on="mouseover", fields=["date"], empty=False
+        nearest=True, on="mouseover", fields=["date_utc"], empty=False
     )
 
     # here the wrong date (localtime) is used, but it is not visible
@@ -623,7 +631,7 @@ def overview_v5(
         .mark_point()
         .encode(
             alt.X(
-                "utchoursminutes(date)",
+                "utchoursminutes(date_utc)",
                 type="temporal",
                 scale=alt.Scale(type="utc"),
                 title="",
@@ -650,7 +658,16 @@ def overview_v5(
         alt.Chart(b_df)
         .mark_line(point=False, interpolate="natural")
         .encode(
-            alt.X("utchoursminutes(date)", type="temporal", title="time"),
+            alt.X(
+                "utchoursminutes(date_utc)",
+                type="temporal",
+                title="time",
+                scale=alt.Scale(
+                    zero=False,
+                    nice=True,
+                    type="utc",
+                ),
+            ),
             alt.Y(f"{property}:Q"),
             opacity=opacity_x,
         )
@@ -668,7 +685,7 @@ def overview_v5(
         alt.Chart(b_df)
         .mark_rule(color="gray")
         .encode(
-            alt.X("utchoursminutes(date)", type="temporal"),
+            alt.X("utchoursminutes(date_utc)", type="temporal"),
         )
         .transform_filter(nearest)
     )
