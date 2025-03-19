@@ -348,6 +348,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 download_name=download_name,
                                 key=dia_key,
                             )
+                            st.markdown("#####")
                         with tab2:
                             for entry in display_field:
                                 if entry[0] == key:
@@ -364,10 +365,12 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                         os_details,
                                         restart_headers=restart_headers,
                                     )
-                                    st.markdown(
+                                    col1, col2 = st.columns(2)
+                                    col1.markdown(
                                         f"###### Statistics for {aitem[selected]} {header_add}"
                                     )
-                                    st.write(ds)
+                                    col1.write(ds)
+                                    st.markdown("#####")
                         with tab3:
                             for entry in display_field:
                                 if entry[0] == key:

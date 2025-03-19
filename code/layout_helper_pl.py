@@ -90,7 +90,7 @@ def arrange_grid_entries(object_field, cols_per_line):
     if even_lines == 0:
         even_lines = 1
         remaining_cols = 0
-    st.markdown("___")
+    st.markdown("######")
     pcols = st.columns(cols_per_line)
 
     for _ in range(even_lines):
@@ -108,6 +108,7 @@ def arrange_grid_entries(object_field, cols_per_line):
                 if header:
                     pcols[index].markdown(f"###### {header}")
                 pcols[index].write(object)
+                pcols[index].markdown("###")
                 pcols[index].markdown("###### statistics")
                 pcols[index].write(stats)
 
@@ -127,6 +128,7 @@ def arrange_grid_entries(object_field, cols_per_line):
                         nindex = cols_per_line - nindex
                         pcols[nindex].write("")
                 pcols[index].write(object)
+                pcols[index].markdown("###")
                 pcols[index].markdown("###### statistics")
                 pcols[index].write(stats)
 
@@ -142,12 +144,10 @@ def arrange_grid_entries(object_field, cols_per_line):
             stats = collect_field[index][1]
             header = collect_field[index][2]
             if header:
-                pcols[index].markdown("___")
+                pcols[index].markdown("###")
                 pcols[index].markdown(f"###### {header}")
-                for nindex in range(1, rcols + 1):
-                    nindex = cols_per_line - nindex
-                    pcols[nindex].write("")
             pcols[index].write(object)
+            pcols[index].markdown("###")
             pcols[index].markdown("###### statistics")
             pcols[index].write(stats)
 

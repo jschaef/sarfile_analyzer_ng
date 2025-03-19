@@ -327,6 +327,8 @@ def extract_restart_header(headers):
 def restart_headers(df, os_details, restart_headers=None, display=True):
     # check and remove duplicates
     dup_check = df[df.index.duplicated()]
+    cols = st.columns(2)
+    col1, col2 = cols
     if not dup_check.empty:
         df = df[~df.index.duplicated(keep='first')].copy()
     if restart_headers:
@@ -334,7 +336,7 @@ def restart_headers(df, os_details, restart_headers=None, display=True):
         rdf, new_rows = dff.insert_restarts_into_df(os_details, rdf,
             restart_headers)
         if display:
-            st.write(set_stile(rdf, restart_rows=new_rows))
+            col1.write(set_stile(rdf, restart_rows=new_rows))
             col1, *_ = lh.create_columns(6, [1, 1, 0, 0,0,0])
             code1 = '''max:\tlightblue\nmin:\tyellow'''
             code2 = f'''\nreboot:\t{" ,".join([restart.split()[-1] for restart in restart_headers])}'''
@@ -343,7 +345,7 @@ def restart_headers(df, os_details, restart_headers=None, display=True):
             return(set_stile(rdf, restart_rows=new_rows))
     else:
         if display:
-            st.write(set_stile(df))
+            col1.write(set_stile(df))
             code2 = ""
             code1 = '''max:\tlightblue\nmin:\tyellow'''
             col1, *_ = lh.create_columns(6, [1, 1, 0, 0,0,0])

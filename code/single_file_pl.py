@@ -150,10 +150,15 @@ def single_f(config_obj, username, selection, df, os_details):
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
             lh.pdf_download(pdf_name, chart, download_name=download_name)
         with tab2:
+            cols = st.columns(2)
+            col1, col2 = cols
+            col1.markdown("#####")
             st.markdown(f'###### Dataset for {aitem[selected]} {header_add} {prop}')
             helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers)
             st.markdown(f'###### Statistics for {aitem[selected]} {header_add} {prop}')
-            st.dataframe(df_displ.describe())
+            cols = st.columns(2)
+            col1, col2 = cols
+            col1.dataframe(df_displ.describe())
         with tab3:
             col1, col2 = st.columns(2)
             lh.show_metrics([prop], checkbox="off", col=col1)
@@ -202,11 +207,16 @@ def single_f(config_obj, username, selection, df, os_details):
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
             lh.pdf_download(pdf_name, chart, download_name=download_name)
         with tab2:
-            st.markdown(f'###### Dataset for {aitem[selected]} {header_add}')
+            cols = st.columns(2)
+            col1, col2 = cols
+            col1.markdown("#####")
+            col1.markdown(f'###### Dataset for {aitem[selected]} {header_add}')
             helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers)
-            st.markdown(f'###### Statistics for {aitem[selected]} {header_add}')
-            st.text('')
-            st.write(df_displ.describe())
+            cols = st.columns(2)
+            col1, col2 = cols
+            col1.markdown(f'###### Statistics for {aitem[selected]} {header_add}')
+            col1.text('')
+            col1.write(df_displ.describe())
         with tab3:
             metrics = df['metrics'].drop_duplicates().tolist()
             lh.show_metrics(metrics, checkbox="off")
