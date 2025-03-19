@@ -227,7 +227,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                             df_stat  = sorted_df_dict[key][0][0]['df_stat']
                             metrics = sorted_df_dict[key][0][0]['metrics']
                             st.markdown(f'#### {header}')
-                            tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page", " 📊 PDF", ])
+                            tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man pages", " 📊 PDF", ])
                             with tab1:
                                 if sub_title == 'all':
                                     st.markdown(f'###### all of {device_num}')
@@ -249,8 +249,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                     st.write(df_describe)
                             with tab3:
                                 if show_manpages:
-                                    for metric in metrics:
-                                        helpers_pl.metric_expander(metric)
+                                    helpers_pl.metric_popover(metrics)
                             with tab4:
                                 if enable_pdf:
                                     pdf_name = f'{pdf_dir}/{sar_file_name}_{header.replace(" ", "_")}.pdf'
@@ -303,8 +302,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 with tab3:
                                     if show_manpages:
                                         metrics =  subitem_dict['metrics']
-                                        for metric in metrics:
-                                            helpers_pl.metric_expander(metric)
+                                        helpers_pl.metric_popover(metrics)
                                 with tab4:
                                     if enable_pdf:
                                         pdf_name = f'{pdf_dir}/{sar_file_name}_{sub_title.replace(" ", "_")}.pdf'

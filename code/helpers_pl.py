@@ -160,9 +160,10 @@ def get_metric_desc_from_manpage():
 
 def metric_expander(prop, expand=False, col=None):
     col = col if col else st
+    col1 = col.columns([1, 1])[0]
     description = sqlite2_polars.ret_metric_description(prop)
     exp_desc = f"{prop}"
-    ph_expander = st.empty()
+    ph_expander = col1.empty()
     my_expander = ph_expander.expander(
         exp_desc, expanded=expand)
     with my_expander:
@@ -170,6 +171,20 @@ def metric_expander(prop, expand=False, col=None):
             col.write(description)
         else:
             col.write(f'metric {prop} has no description at the moment')
+
+def metric_popover(prop_list, col=None, key=None):
+    col = col if col else st
+    number_cols = len(prop_list)
+    cols = col.columns(number_cols)
+    for index, prop in enumerate(prop_list):
+        description = sqlite2_polars.ret_metric_description(prop)
+        col = cols[index]
+        with col.popover(f'{prop}',disabled=False):
+            if description:
+                st.text(description)
+            else:
+                st.text(f'metric {prop} has no description at the moment')
+    st.markdown("######")
 
 def measure_time(col: st.delta_generator.DeltaGenerator, prop: str = 'start', start_time: float = None):
     if prop == 'start':
