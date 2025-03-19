@@ -151,13 +151,11 @@ def single_f(config_obj, username, selection, df, os_details):
             lh.pdf_download(pdf_name, chart, download_name=download_name)
         with tab2:
             cols = st.columns(2)
-            col1, col2 = cols
+            col1, _ = cols
             col1.markdown("#####")
-            st.markdown(f'###### Dataset for {aitem[selected]} {header_add} {prop}')
-            helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers)
-            st.markdown(f'###### Statistics for {aitem[selected]} {header_add} {prop}')
-            cols = st.columns(2)
-            col1, col2 = cols
+            col1.markdown(f'###### Dataset for {aitem[selected]} {header_add} {prop}')
+            helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers, col=col1)
+            col1.markdown(f'###### Statistics for {aitem[selected]} {header_add} {prop}')
             col1.dataframe(df_displ.describe())
         with tab3:
             col1, col2 = st.columns(2)
@@ -208,12 +206,10 @@ def single_f(config_obj, username, selection, df, os_details):
             lh.pdf_download(pdf_name, chart, download_name=download_name)
         with tab2:
             cols = st.columns(2)
-            col1, col2 = cols
+            col1, _ = cols
             col1.markdown("#####")
             col1.markdown(f'###### Dataset for {aitem[selected]} {header_add}')
-            helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers)
-            cols = st.columns(2)
-            col1, col2 = cols
+            helpers_pl.restart_headers(df_displ, os_details, restart_headers=restart_headers, col=col1)
             col1.markdown(f'###### Statistics for {aitem[selected]} {header_add}')
             col1.text('')
             col1.write(df_displ.describe())

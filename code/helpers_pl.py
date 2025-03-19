@@ -324,11 +324,12 @@ def extract_restart_header(headers):
     return [header for header in headers if reg_linux_restart.search(
         header) ]
 
-def restart_headers(df, os_details, restart_headers=None, display=True):
+def restart_headers(df, os_details, restart_headers=None, display=True, 
+        col: st.delta_generator.DeltaGenerator=None):
     # check and remove duplicates
+    if not col:
+        col = st
     dup_check = df[df.index.duplicated()]
-    cols = st.columns(2)
-    col1, col2 = cols
     if not dup_check.empty:
         df = df[~df.index.duplicated(keep='first')].copy()
     if restart_headers:
@@ -336,22 +337,20 @@ def restart_headers(df, os_details, restart_headers=None, display=True):
         rdf, new_rows = dff.insert_restarts_into_df(os_details, rdf,
             restart_headers)
         if display:
-            col1.write(set_stile(rdf, restart_rows=new_rows))
-            col1, *_ = lh.create_columns(6, [1, 1, 0, 0,0,0])
+            col.write(set_stile(rdf, restart_rows=new_rows))
             code1 = '''max:\tlightblue\nmin:\tyellow'''
             code2 = f'''\nreboot:\t{" ,".join([restart.split()[-1] for restart in restart_headers])}'''
-            col1.code(code1 + code2)
+            col.code(code1 + code2)
         else:
             return(set_stile(rdf, restart_rows=new_rows))
     else:
         if display:
-            col1.write(set_stile(df))
+            col.write(set_stile(df))
             code2 = ""
             code1 = '''max:\tlightblue\nmin:\tyellow'''
-            col1, *_ = lh.create_columns(6, [1, 1, 0, 0,0,0])
-            col1.code(code1 + code2)
-            col1.text('')
-            col1.text('')
+            col.code(code1 + code2)
+            col.text('')
+            col.text('')
         else:
             return(set_stile(df))
 
