@@ -214,5 +214,7 @@ def single_f(config_obj, username, selection, df, os_details):
             col1.text('')
             col1.write(df_displ.describe())
         with tab3:
+            cols = st.columns([0.6, 0.4])
+            col1, _ = cols
             metrics = df['metrics'].drop_duplicates().tolist()
-            lh.show_metrics(metrics, checkbox="off")
+            helpers_pl.metric_popover(metrics, col=col1)

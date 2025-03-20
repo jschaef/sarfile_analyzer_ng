@@ -6,6 +6,7 @@ import alt
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
 import layout_helper_pl as lh
+import sqlite2_polars
 from config import Config
 
 
@@ -193,7 +194,10 @@ def show_multi(config_obj, username, selection, df, os_details):
                         download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
                         lh.pdf_download(pdf_name, chart, download_name=download_name)
                     with tab2:
-                        helpers_pl.metric_expander(metric, expand=False)
+                        cols = st.columns([0.55, 0.45])
+                        col1, _ = cols
+                        description = sqlite2_polars.ret_metric_description(metric)
+                        col1.markdown(description)
         else:
             col1.info("No data available for selected time frame")
 

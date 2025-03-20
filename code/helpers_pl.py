@@ -173,17 +173,30 @@ def metric_expander(prop, expand=False, col=None):
             col.write(f'metric {prop} has no description at the moment')
 
 def metric_popover(prop_list, col=None, key=None):
+    max_entries = 8
     col = col if col else st
-    number_cols = len(prop_list)
-    cols = col.columns(number_cols)
-    for index, prop in enumerate(prop_list):
-        description = sqlite2_polars.ret_metric_description(prop)
-        col = cols[index]
-        with col.popover(f'{prop}',disabled=False):
-            if description:
-                st.text(description)
-            else:
-                st.text(f'metric {prop} has no description at the moment')
+    
+    # Calculate how many rows of popovers we need
+    total_props = len(prop_list)
+    for i in range(0, total_props, max_entries):
+        # Get the current slice of properties
+        current_slice = prop_list[i:i+max_entries]
+        number_cols = max_entries
+        cols = col.columns(number_cols)
+        
+        for index, prop in enumerate(current_slice):
+            description = sqlite2_polars.ret_metric_description(prop)
+            current_col = cols[index]
+            with current_col.popover(f'{prop}', disabled=False,):
+                if description:
+                    st.text(description)
+                else:
+                    st.text(f'metric {prop} has no description at the moment')
+        
+        # Add spacing between rows if not the last row
+        if i + max_entries < total_props:
+            st.markdown("######")
+    
     st.markdown("######")
 
 def measure_time(col: st.delta_generator.DeltaGenerator, prop: str = 'start', start_time: float = None):

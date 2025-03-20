@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# handle_metrics compares different metrics
 import streamlit as st
 import alt
 import polars as pl
@@ -67,6 +68,9 @@ def do_metrics(config_dict: dict, username: str, sel_file: str, df: pl.DataFrame
     with tab2:
         mph.display_stats_data(collect_field)
     with tab3:
+        metrics = []
         for field in collect_field:
-            metric = field[2]
-            helpers.metric_expander(metric, expand=False)
+            metrics.append(field[2])
+        cols = st.columns([0.6, 0.4])
+        col1, _ = cols
+        helpers.metric_popover(metrics, col=col1)

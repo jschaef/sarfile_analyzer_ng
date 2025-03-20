@@ -378,10 +378,10 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                             for entry in display_field:
                                 if entry[0] == key:
                                     df_display = entry[1]
-                                    lh.show_metrics(
-                                        list(df_display.columns), checkbox="off"
-                                    )
-
+                                    cols = st.columns([0.6, 0.4])
+                                    col1, _ = cols
+                                    metrics = df_display.columns.to_list()
+                                    helpers.metric_popover(metrics, col=col1)
     else:
         keys_to_delete = []
         for key in st.session_state:
