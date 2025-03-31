@@ -805,8 +805,6 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         alt.Chart(b_df)
         .mark_line(point=False, interpolate="natural")
         .encode(
-            # alt.X('utchoursminutes(date_utc)', type='temporal',
-            # alt.X('utchoursminutes(date)', type='temporal',
             alt.X(
                 "utcdayhoursminutes(date):T",
                 scale=alt.Scale(
@@ -817,7 +815,6 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
                 axis=alt.Axis(
                     domain=True,
                     labelBaseline="line-top",
-                    title="time",
                 ),
             ),
             # check this:
