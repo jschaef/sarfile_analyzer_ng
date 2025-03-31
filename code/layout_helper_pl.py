@@ -196,3 +196,24 @@ def make_vspace(size: int, col: object) -> None:
 def make_big_vspace(size:int, col: object) -> None:
     for x in range(size):
         make_vspace(1, col)
+
+def display_timezone_chooser(col: st.delta_generator.DeltaGenerator):
+    tz_choose = col.toggle("Display data for a Time Zone different from UTC",)
+    if tz_choose:
+        user_tz = st.context.timezone
+        if '/' in user_tz:
+            user_pre_tz = user_tz.split('/')[0]
+        else:
+            user_pre_tz = user_tz
+        tz_prefixes = helpers.get_time_zone_prefixs()
+        tz_index = tz_prefixes.index(user_pre_tz)
+        tz_pr_choose = col.selectbox("Choose Region", 
+            tz_prefixes, index=tz_index, key="tz_choose")
+        # tz_suffixes_index = helpers.get_time_zone_suffixs(tz_pr_choose).index(tz_pr_choose)
+        if tz_pr_choose in user_tz:
+            tz_suffixes_index = helpers.get_time_zone_suffixs(tz_pr_choose).index(user_tz)
+        else:
+            tz_suffixes_index = 0
+        return col.selectbox("Choose Time Zone",
+            helpers.get_time_zone_suffixs(tz_pr_choose), index=tz_suffixes_index, key="tz_suffix_choose")
+    return None
