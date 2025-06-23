@@ -475,7 +475,7 @@ def get_time_zone_suffixs(prefix):
 
     sub_tz_list_multi = set(
         [
-            f"{prefix}/{x.split("/")[1]}"
+            f"{prefix}/{x.split('/')[1]}"
             for x in all_tz
             if x.startswith(prefix) and len(x.split("/")) > 1
         ]
