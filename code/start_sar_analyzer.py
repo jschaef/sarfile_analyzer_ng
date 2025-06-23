@@ -86,7 +86,7 @@ def start():
             ph_password.empty()
             main_body(username, config_c)
         else:
-            if ph_login.checkbox("Login", key='login'):
+            if ph_login.button("Login"):
                 now = datetime.datetime.now()
                 if sql_stuff.login_user(username, password):
                     st.session_state.username = username
