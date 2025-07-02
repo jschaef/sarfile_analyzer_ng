@@ -56,7 +56,7 @@ def single_f(config_obj, username, selection, df, os_details):
         df = selected_df
     start = df['date'].min()
     end = df['date'].max()
-    
+
     device_list = []
     # time consuming on big files
     if not perf_intensive_metrics.search(aitem[selected]):
@@ -87,13 +87,13 @@ def single_f(config_obj, username, selection, df, os_details):
                     large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
                     helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
         else:
-                large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
-                device_list = pl_h2.get_sub_devices_from_df(large_df, 'sub_device')
-                device_list.sort()
-                if 'all' in device_list:
-                    device_list.remove('all')
-                helpers_pl.set_state_key('device_list', value=device_list, change_key=sar_file)
-                helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
+            large_df = pl_h2.get_metrics_from_df(df, selected, aitem[selected])
+            device_list = pl_h2.get_sub_devices_from_df(large_df, 'sub_device')
+            device_list.sort()
+            if 'all' in device_list:
+                device_list.remove('all')
+            helpers_pl.set_state_key('device_list', value=device_list, change_key=sar_file)
+            helpers_pl.set_state_key(large_df_key, value=large_df, change_key=sar_file)
         device_list = [int(x) for x in device_list]
         device_list.sort()
         device_list.insert(0, 'all')
@@ -140,12 +140,14 @@ def single_f(config_obj, username, selection, df, os_details):
 
         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
         with tab1:
+            chart_placeholder = st.empty()
             cols = st.columns(8)
             width, hight = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
             chart = alt.draw_single_chart_v1(
                 df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
-            st.altair_chart(chart, theme=None)
+            with chart_placeholder.container():
+                st.altair_chart(chart, theme=None)
             title = f"{title}_{prop}"
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
             lh.pdf_download(pdf_name, chart, download_name=download_name)
@@ -196,12 +198,14 @@ def single_f(config_obj, username, selection, df, os_details):
         df = df.reset_index().melt('date', var_name='metrics', value_name='y')
         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
         with tab1:
+            chart_placeholder = st.empty()
             cols = st.columns(8)
             width, height = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
             chart = alt.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
                 height=height, title=title)
-            st.altair_chart(chart, theme=None)
+            with chart_placeholder.container():
+                st.altair_chart(chart, theme=None)
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
             lh.pdf_download(pdf_name, chart, download_name=download_name)
         with tab2:

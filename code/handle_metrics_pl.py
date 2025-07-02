@@ -48,6 +48,7 @@ def do_metrics(config_dict: dict, username: str, sel_file: str, df: pl.DataFrame
     cols[7].write("\n")
     tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
     with tab1:
+        chart_placeholder = st.empty()
         cols = st.columns(8)
         metrics_string = ''
         width, hight = helpers.diagram_expander('Diagram Width',
@@ -55,7 +56,8 @@ def do_metrics(config_dict: dict, username: str, sel_file: str, df: pl.DataFrame
         font_size = helpers.font_expander(12, "Change Axis Font Size", "font size", cols[1])
         chart = alt.overview_v4(chart_field, restart_headers, width, hight, font_size )
         st.markdown(f'###### {filename}')
-        st.altair_chart(chart, theme=None)
+        with chart_placeholder:
+            st.altair_chart(chart, theme=None)
         for field in collect_field:
             metric = field[2]
             if metrics_string:

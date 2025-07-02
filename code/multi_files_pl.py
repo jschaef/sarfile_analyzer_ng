@@ -230,7 +230,10 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 title=title,
                             )
                         img = img.configure_axisY(labelLimit=400)
-                        st.altair_chart(img, theme=None)
+
+                        chart_placeholder = st.empty()
+                        with chart_placeholder:
+                            st.altair_chart(img, theme=None)
                         if not dia_type:
                             metric = chart_field[0][1]
                             title = f"{title}_{metric}"
@@ -318,6 +321,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
 
                         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
                         with tab1:
+                            chart_placeholder = st.empty()
                             cols = st.columns(8)
                             width, height = helpers.diagram_expander(
                                 "Diagram Width", "Diagram Hight", col=cols[0], key=key
@@ -338,7 +342,8 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 height=height,
                                 title=title,
                             )
-                            st.altair_chart(chart, theme=None)
+                            with chart_placeholder:
+                                st.altair_chart(chart, theme=None)
                             dia_key = f"dia_{collect_field.index(data)}"
                             download_name = (
                                 f"{key}_{helpers.validate_convert_names(title)}.pdf"

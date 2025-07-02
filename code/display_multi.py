@@ -170,6 +170,7 @@ def show_multi(config_obj, username, selection, df, os_details):
 
                     tab1, tab2 = st.tabs(["📈 Chart", " 📔 man page"])
                     with tab1:
+                        chart_placeholder = st.empty()
                         cols = st.columns(8)
                         width, hight = helpers_pl.diagram_expander(
                             "Diagram Width", "Diagram Hight", cols[0]
@@ -189,7 +190,8 @@ def show_multi(config_obj, username, selection, df, os_details):
                             os_details,
                             title=f"{selected} {metric}",
                         )
-                        st.altair_chart(chart, use_container_width=True, theme=None)
+                        with chart_placeholder:
+                            st.altair_chart(chart, use_container_width=True, theme=None)
                         title = f"{file_name}_{selected}_{metric}"
                         download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
                         lh.pdf_download(pdf_name, chart, download_name=download_name)
