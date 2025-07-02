@@ -56,7 +56,7 @@ def draw_single_chart_v1(
 
     c = (
         alt.Chart(df)
-        .mark_line(point=False, interpolate="natural")
+        .mark_line(point=False, interpolate="linear")
         .encode(
             alt.X(
                 "utchoursminutes(date_utc)",
@@ -66,7 +66,7 @@ def draw_single_chart_v1(
             ),
             alt.Y(
                 property,
-                scale=alt.Scale(zero=False),
+                scale=alt.Scale(zero=True),
                 axis=alt.Axis(
                     labelPadding=ylabelpadd,
                     titlePadding=5,
@@ -81,7 +81,7 @@ def draw_single_chart_v1(
         alt.Chart(df)
         .mark_point()
         .encode(
-            y=alt.Y(f"{color_item}:N", axis=alt.Axis(orient="right")),
+            y=alt.Y(f"{color_item}:N", axis=alt.Axis(orient="right"), ),
             color=alt.Color(
                 f"{color_item}:N",
             ),
@@ -90,7 +90,7 @@ def draw_single_chart_v1(
 
     rules = (
         alt.Chart(df)
-        .mark_rule(color="gray")
+        .mark_rule(color="gray", interpolate="linear")
         .encode(
             alt.X("utchoursminutes(date_utc)", type="temporal"),
         )
@@ -138,7 +138,7 @@ def create_reboot_rule(
     restart_headers,
     os_details,
     col=None,
-    col_value=None,
+    col_value=12,
     utc_type="utchoursminutes",
 ):
     y_pos = df[property].max() / 2
@@ -146,7 +146,7 @@ def create_reboot_rule(
     z_field = []
     for header in restart_headers:
         xval = header.split()[-1]
-        date_str, format = ddf.format_date(os_details)
+        date_str, _ = ddf.format_date(os_details)
         z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
         z = z.tz_localize("UTC")
         z_field.append(z)
@@ -155,16 +155,17 @@ def create_reboot_rule(
         mdf = pd.DataFrame({"x": [z], col: col_value})
         rule = (
             alt.Chart(mdf)
-            .mark_rule(color="red")
+            .mark_rule(color="orange", strokeWidth=1, strokeDash=[5, 5], interpolate="linear")
             .encode(
                 x=alt.X(
                     # "utcdayhoursminutes(x)", type="temporal", axis=alt.Axis(title="date")
                     f"{utc_type}(x)",
                     type="temporal",
-                    axis=alt.Axis(title="date"),
+                    axis=alt.Axis(),
+                    stack=False
                 ),
-                size=alt.value(2),
-                strokeDash=(alt.value([5, 5])),
+                # size=alt.value(2),
+                # strokeDash=(alt.value([5, 5])),
             )
         )
 
