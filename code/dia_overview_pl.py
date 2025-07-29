@@ -163,8 +163,8 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     lh.make_vspace(1, st)
     if sel_field:
         col1, _ = st.columns([0.8, 0.2])
-        with col1.container(border=True):
-            if submitted:
+        if submitted:
+            with col1.container(border=True):
                 sorted_df_dict = {}
                 st_collect_list_pandas = st.session_state.get(
                     f"{sar_file_name}_collect_list_pandas", []
