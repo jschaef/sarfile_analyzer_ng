@@ -34,7 +34,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
     sar_files = [x for x in listdir(upload_dir) if path.isfile(f"{upload_dir}/{x}")]
     # exclude parquet files
     sar_files_pre = [x for x in sar_files if not x.endswith(".parquet")]
-    sar_files = [x.rstrip(".parquet") for x in sar_files if x.endswith(".parquet")]
+    sar_files = [x.replace(".parquet", "") for x in sar_files if x.endswith(".parquet")]
     sar_files.extend(sar_files_pre)
 
     sel_all = st.checkbox("***Select All***", key="select_all")
