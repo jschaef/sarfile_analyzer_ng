@@ -28,10 +28,18 @@ class configuration(object):
         return self.conf_d
 
 def extract_os_details(file):
+    """Extract OS details from SAR file - improved version to match pl_helpers2"""
+    import re
+    reg_time = re.compile(r"^.*\d{2}/\d{2}/\d{2}.*$")
     with open(file, 'r') as sar_file:
         for _, line in enumerate(sar_file):
             if "Linux" in line:
-                return line.split()
+                os_details = line.replace("[", "").replace("]", "")
+                if reg_time.search(os_details):
+                    # Convert MM/DD/YY or MM/DD/YYYY to YYYY-MM-DD format
+                    os_details = re.sub(r'(\d{2}/\d{2}/\d{2,4})', 
+                        lambda x: x.group().replace('/', '-'), os_details)
+                return os_details.split()
 
 def merge_headers(header_field):
     # initialize with first field
@@ -246,11 +254,28 @@ def font_expander(default_size, title, description, col=None, key=None):
         return size
 
 def rename_sar_file(file_path, col=None):
+    import re
     col = col if col else st
     os_details = extract_os_details(file_path)
     hostname = os_details[2].strip("(|)")
     date = os_details[3]
-    date = date.replace('/','-')
+    
+    # Normalize date format to YYYY-MM-DD
+    date = date.replace('/','-')  # Handle any remaining slashes
+    
+    # Handle different date formats
+    date_patterns = [
+        (r'^(\d{2})-(\d{2})-(\d{2})$', lambda m: f"20{m.group(3)}-{m.group(1)}-{m.group(2)}"),  # MM-DD-YY
+        (r'^(\d{2})-(\d{2})-(\d{4})$', lambda m: f"{m.group(3)}-{m.group(1)}-{m.group(2)}"),     # MM-DD-YYYY
+        (r'^(\d{4})-(\d{2})-(\d{2})$', lambda m: m.group(0)),  # YYYY-MM-DD (already correct)
+    ]
+    
+    for pattern, formatter in date_patterns:
+        match = re.match(pattern, date)
+        if match:
+            date = formatter(match)
+            break
+    
     today = datetime.today().strftime("%Y-%m-%d")
     base_name = os.path.basename(file_path)
     dir_name = os.path.dirname(file_path)
@@ -258,7 +283,7 @@ def rename_sar_file(file_path, col=None):
     renamed_name = f'{dir_name}/{rename_name}'
     try:
         os.system(f'mv {file_path} {dir_name}/{rename_name}')
-        col.info(fr'{base_name} has been renamed to {rename_name}\n    \
+        col.info(fr'{base_name} has been renamed to {rename_name}\
             which means: <date_of_upload>\_<hostname>\_<sar file creation date>')
         return rename_name
     except Exception as e:
