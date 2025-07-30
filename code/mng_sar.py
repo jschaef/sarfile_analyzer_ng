@@ -25,7 +25,7 @@ def file_mng(upload_dir: str, username:str):
     st.markdown('___')
     if managef_options == 'Add Sar Files':
         upload_hint = "SAR files must be in Posix format, decimal seperator has to be '.'"
-        convert_cmd = "```sar -A -t -f <binary_file> > <ascii_file>```"
+        convert_cmd = "```unset LANG; sar -A -t -f <binary_file> > <ascii_file>```"
         sar_convert_hint = f"""{upload_hint} \
         \n Convert binary SAR files to ASCII format before uploading them with the command: {convert_cmd}"""
         sar_files = [col1.file_uploader(
