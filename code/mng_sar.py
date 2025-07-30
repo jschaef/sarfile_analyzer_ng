@@ -43,7 +43,9 @@ def file_mng(upload_dir: str, username:str):
                             res = f_check.from_buffer(bytes_data)
                             if "ASCII text" not in res:
                                 col1.warning(
-                                    f'File is not a valid sar ASCII data file. Instead {res}')
+                                    f"""File is not a valid sar ASCII data file. Instead {res}.
+                                    If you attempted to upload a binary sar file, please convert it to ASCII format first with the command:\
+                                    {convert_cmd}""")
                                 continue
                             else:
                                 #TODO check if Linux Header is present and if sar 
