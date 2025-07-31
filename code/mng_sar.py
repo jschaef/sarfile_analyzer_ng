@@ -12,6 +12,72 @@ from config import Config
 import visual_funcs as visf
 
 
+def is_sar_binary_file(file_content: bytes, filename: str) -> bool:
+    """
+    Detect if a file is a binary SAR file using multiple methods.
+    
+    Args:
+        file_content: Raw bytes of the file
+        filename: Original filename
+    
+    Returns:
+        bool: True if detected as binary SAR file
+    """
+    if len(file_content) < 50:
+        return False
+    
+    # Method 1: Check filename patterns (SAR files often start with 'sa' followed by date)
+    filename_lower = filename.lower()
+    has_sar_filename = (
+        filename_lower.startswith('sa') and 
+        len(filename) >= 10 and 
+        filename[2:].isdigit()  # sa followed by digits (date)
+    )
+    
+    # Method 2: Check for binary characteristics
+    first_100 = file_content[:100]
+    
+    # Count non-printable characters (excluding common whitespace)
+    non_printable_count = sum(1 for b in first_100 
+                             if b < 32 and b not in [9, 10, 13])  # exclude tab, LF, CR
+    
+    # If more than 20% of first 100 bytes are non-printable, likely binary
+    is_mostly_binary = non_printable_count > 20
+    
+    # Method 3: Check for common SAR binary patterns
+    has_binary_patterns = (
+        file_content[:4] == b'\x00\x00\x00\x00' or  # Common null pattern
+        file_content[0:1] in [b'\x00', b'\x01', b'\x02', b'\x03'] or  # Binary start bytes
+        b'\x00\x00' in file_content[:50] or  # Embedded nulls
+        all(b != 0 and (b < 32 or b > 126) for b in file_content[10:30])  # Non-ASCII range
+    )
+    
+    # Method 4: Try to decode as text - if it fails, likely binary
+    try:
+        file_content[:200].decode('utf-8')
+        is_decodable = True
+    except UnicodeDecodeError:
+        is_decodable = False
+    
+    # Method 5: Check for SAR-specific signatures (additional indicator)
+    has_sar_signatures = (
+        b'SYSSTAT' in file_content[:500] or
+        b'Linux' in file_content[:200]
+    )
+    
+    # Decision logic: combine multiple indicators
+    binary_indicators = sum([
+        has_sar_filename,
+        is_mostly_binary,
+        has_binary_patterns,
+        not is_decodable,
+        has_sar_signatures,  # Added this to the decision
+    ])
+    
+    # If we have 2 or more strong indicators, treat as binary SAR
+    return binary_indicators >= 2
+
+
 def convert_openpgp_sar_file(file_content: bytes, original_filename: str) -> tuple[bytes, str]:
     """
     Convert OpenPGP Secret Key SAR file to ASCII format using sar command.
@@ -103,9 +169,20 @@ def file_mng(upload_dir: str, username:str):
                             #stringio = io.StringIO(sar_file.decode("utf-8"))
                             bytes_data = u_file.read()
                             res = f_check.from_buffer(bytes_data)
-                            # Check if it's an OpenPGP Secret Key file that needs conversion
-                            if "OpenPGP Secret Key" in res:
-                                col1.info(f"Detected OpenPGP Secret Key file: {u_file.name}. Converting to ASCII format...")
+                            
+                            # Enhanced detection: check both magic result and binary patterns
+                            is_openpgp_detected = "OpenPGP Secret Key" in res
+                            is_generic_data = "data" in res.lower()
+                            is_binary_sar = is_sar_binary_file(bytes_data, u_file.name)
+                            
+                            print(f"File: {u_file.name}")
+                            print(f"Magic result: '{res}'")
+                            print(f"Binary SAR detection: {is_binary_sar}")
+                            
+                            # Check if it's a binary SAR file that needs conversion
+                            if is_openpgp_detected or (is_generic_data and is_binary_sar):
+                                conversion_reason = "OpenPGP Secret Key" if is_openpgp_detected else "Binary SAR file"
+                                col1.info(f"Detected {conversion_reason}: {u_file.name}. Converting to ASCII format...")
                                 converted_data, new_filename = convert_openpgp_sar_file(bytes_data, u_file.name)
                                 
                                 if converted_data is not None:
@@ -116,6 +193,7 @@ def file_mng(upload_dir: str, username:str):
                                     
                                     # Re-check the converted file
                                     res = f_check.from_buffer(bytes_data)
+                                    print(f"After conversion: '{res}'")
                                 else:
                                     col1.error(f"Failed to convert {u_file.name}. Skipping file.")
                                     continue
