@@ -96,13 +96,10 @@ def convert_openpgp_sar_file(file_content: bytes, original_filename: str) -> tup
         else:
             new_filename = f"sar_{original_filename}"
         
-        # Create temporary files for input and output
+        # Create temporary file for input
         with tempfile.NamedTemporaryFile(delete=False, suffix='_input') as temp_input:
             temp_input.write(file_content)
             temp_input_path = temp_input.name
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='_output') as temp_output:
-            temp_output_path = temp_output.name
         
         # Run the sar conversion command
         # Use shell=True to handle the unset LANG part properly
@@ -119,15 +116,13 @@ def convert_openpgp_sar_file(file_content: bytes, original_filename: str) -> tup
             # Read the converted output as bytes
             converted_data = result.stdout
             
-            # Clean up temporary files
+            # Clean up temporary file
             os.unlink(temp_input_path)
-            os.unlink(temp_output_path)
             
             return converted_data, new_filename
         else:
-            # Clean up temporary files on error
+            # Clean up temporary file on error
             os.unlink(temp_input_path)
-            os.unlink(temp_output_path)
             
             print(f"SAR conversion failed: {result.stderr.decode()}")
             return None, None
@@ -155,7 +150,7 @@ def file_mng(upload_dir: str, username:str):
         upload_hint = "SAR files must be in Posix format, decimal seperator has to be '.'. OpenPGP Secret Key files (binary SAR files) will be automatically converted."
         convert_cmd = "```unset LANG; sar -A -t -f <binary_file> > <ascii_file>```"
         sar_convert_hint = f"""{upload_hint} \
-        \n Binary SAR files detected as OpenPGP Secret Key will be automatically converted. Manual conversion command: {convert_cmd}"""
+        \nManual conversion command: {convert_cmd}"""
         sar_files = [col1.file_uploader(
             "Please upload your SAR files", key='sar_uploader',
             accept_multiple_files=True, help=sar_convert_hint,)]
