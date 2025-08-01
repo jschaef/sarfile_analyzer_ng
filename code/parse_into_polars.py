@@ -62,10 +62,10 @@ def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
             parquet_mem = io.BytesIO(b'')
         try:
             df = pl.read_parquet(parquet_mem)
-            print(
-                f'{r_item}, {file_name_parquet} \
-                loaded from redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
-            )
+            # print(
+            #     f'{r_item}, {file_name_parquet} \
+            #     loaded from redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
+            # )
         except Exception as e:
             #print(e)
             try:
