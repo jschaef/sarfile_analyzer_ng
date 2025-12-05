@@ -32,7 +32,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                     sqlite2_polars.view_all_metrics(), columns=["metric", "description"]
                 ),
             )
-            col.dataframe(df[0], use_container_width=True)
+            col.dataframe(df[0], width='stretch')
         elif action == "Delete":
             metrics = sqlite2_polars.view_all_metrics()
             metrics = [x[0] for x in metrics]
@@ -61,7 +61,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                         sqlite2_polars.view_all_metrics(),
                         columns=["metric", "description"],
                     ).loc[lambda df: df["metric"].isin(search_list)],
-                    use_container_width=True,
+                    width='stretch',
                 )
     elif widget == "headers":
         action = col.selectbox("Actions", ["Show", "Add", "Delete", "Update", "Search"])
@@ -98,7 +98,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
         elif action == "Show":
             col, _ = st.columns([0.7, 0.3])
             col.dataframe(pd.DataFrame(sqlite2_polars.ret_all_headers(headings_df, "show"),
-               columns=["header", "alias", "description","keyword"] ), use_container_width=True)
+               columns=["header", "alias", "description","keyword"] ), width='stretch')
 
         elif action == "Update":
             a_sel_ph = col.empty()

@@ -191,7 +191,7 @@ def show_multi(config_obj, username, selection, df, os_details):
                             title=f"{selected} {metric}",
                         )
                         with chart_placeholder:
-                            st.altair_chart(chart, use_container_width=True, theme=None)
+                            st.altair_chart(chart, width='stretch', theme=None)
                         title = f"{file_name}_{selected}_{metric}"
                         download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
                         lh.pdf_download(pdf_name, chart, download_name=download_name)
