@@ -78,7 +78,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                         else:
                             value = False
                         ph_sel = cols[x].empty()
-                        selected = ph_sel.checkbox(label, value=value, key=f"{label}_{x}")
+                        selected = ph_sel.checkbox(label, value=value)
                         if selected:
                             sel_field.append(label)
         return sel_field

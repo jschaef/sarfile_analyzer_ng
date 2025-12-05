@@ -41,10 +41,10 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
     st.write("\n")
     has_clicked = True if sel_all else False
     for file in sar_files:
-        key = f"sel_{sar_files.index(file)}_{file}"
+        #key = f"sel_{sar_files.index(file)}_{file}"
         sel = st.checkbox(
             sar_files[sar_files.index(file)],
-            key=key,
+            #key=key,
             value=has_clicked,
             on_change=delete_session_state_df_obj,
             args=([file]),
