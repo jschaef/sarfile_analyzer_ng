@@ -198,7 +198,9 @@ def overview_v1(
         df, "y", restart_headers, os_details
     )
 
+    # Create selections with unique names
     selection_new = alt.selection_point(name="selection_overview_v1", fields=["metrics"])
+    pan_zoom = alt.selection_interval(name="pan_zoom_v1", bind='scales')
 
     color_x = alt.condition(
         selection_new, alt.Color("metrics:N", legend=None), alt.value("")
@@ -216,14 +218,13 @@ def overview_v1(
     )
 
     final_line = (
-        line.mark_line(strokeWidth=2).add_params(selection_new).encode(color=color_x)
+        line.mark_line(strokeWidth=2).add_params(selection_new, pan_zoom).encode(color=color_x)
     )
 
     legend = (
         alt.Chart(df)
         .mark_point()
         .encode(y=alt.Y("metrics:N", axis=alt.Axis(orient="right")), color=color_x)
-        .add_params(selection_new)
     )
 
     nearest = alt.selection_point(
@@ -290,7 +291,7 @@ def overview_v1(
 
         final_line += reboot_text
 
-    mlayer = alt.layer(final_line, selectors, rules, tooltip_text).interactive()
+    mlayer = alt.layer(final_line, selectors, rules, tooltip_text)
     # mlayer = mlayer|legend
     mlayer = alt.hconcat(mlayer, legend).configure_concat(spacing=50)
     return mlayer.configure_axis(
@@ -516,6 +517,8 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         name="selection_v4",
         fields=["metrics"],
     )
+    pan_zoom = alt.selection_interval(name="pan_zoom_v4", bind='scales')
+    
     color_x = alt.condition(
         selection,
         alt.Color("metrics:N", legend=None),
@@ -539,7 +542,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
     )
 
     final_line = (
-        line.mark_line(strokeWidth=2).add_params(selection).encode(color=color_x)
+        line.mark_line(strokeWidth=2).add_params(selection, pan_zoom).encode(color=color_x)
     )
 
     rules = (
@@ -555,7 +558,6 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         alt.Chart(b_df)
         .mark_point()
         .encode(y=alt.Y("metrics:N", axis=alt.Axis(orient="right")), color=color_x)
-        .add_params(selection)
     )
 
     xpoints = line.mark_point().encode(
@@ -597,7 +599,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         mlayer = alt.layer(
             final_line, selectors, rules, xpoints, tooltip_text
         )
-    return (mlayer | legend).interactive().configure_axis(
+    return (mlayer | legend).configure_axis(
         labelFontSize=font_size, titleFontSize=font_size
     )
 
@@ -655,6 +657,8 @@ def overview_v5(
         name="selection_v5",
         fields=[lsel],
     )
+    pan_zoom = alt.selection_interval(name="pan_zoom_v5", bind='scales')
+    
     color_x = alt.condition(
         selection,
         alt.Color(f"{lsel}:N", legend=None),
@@ -690,7 +694,7 @@ def overview_v5(
     )
 
     final_line = (
-        line.mark_line(strokeWidth=2).add_params(selection).encode(color=color_x)
+        line.mark_line(strokeWidth=2).add_params(selection, pan_zoom).encode(color=color_x)
     )
     rules = (
         alt.Chart(b_df)
@@ -707,7 +711,6 @@ def overview_v5(
         .encode(
             y=alt.Y(f"{color_item}:N", axis=alt.Axis(orient="right")), color=color_x
         )
-        .add_params(selection)
     )
 
     xpoints = line.mark_point().encode(
@@ -749,7 +752,7 @@ def overview_v5(
             final_line, selectors, rules, xpoints, tooltip_text
         )
     return (
-        (mlayer | legend).interactive()
+        (mlayer | legend)
         .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
         .configure_title(fontSize=font_size)
     )
