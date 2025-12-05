@@ -31,6 +31,7 @@ def draw_single_chart_v1(
         color_item = "file"
 
     nearest = alt.selection_point(
+        name="nearest_single_v1",
         nearest=True,
         on="mouseover",
         fields=[
@@ -197,7 +198,7 @@ def overview_v1(
         df, "y", restart_headers, os_details
     )
 
-    selection_new = alt.selection_point(fields=["metrics"])
+    selection_new = alt.selection_point(name="selection_overview_v1", fields=["metrics"])
 
     color_x = alt.condition(
         selection_new, alt.Color("metrics:N", legend=None), alt.value("")
@@ -226,6 +227,7 @@ def overview_v1(
     )
 
     nearest = alt.selection_point(
+        name="nearest_overview_v1",
         nearest=True, on="mouseover", fields=["date"], empty=False
     )
 
@@ -326,7 +328,12 @@ def overview_v3(
                         z_fields.append([z_field, filename])
 
         b_df = pd.concat([b_df, df], ignore_index=False)
+    
+    # Create pan/zoom selection
+    pan_zoom = alt.selection_interval(name="pan_zoom_v3", bind='scales')
+    
     nearest = alt.selection_point(
+        name="nearest_v3",
         nearest=True, on="mouseover", fields=["date_utc"], empty=False
     )
 
@@ -346,6 +353,7 @@ def overview_v3(
     )
 
     selection = alt.selection_point(
+        name="selection_v3",
         fields=[color_item],
     )
     color_x = alt.condition(
@@ -380,7 +388,7 @@ def overview_v3(
         .properties(width=width, height=height, title=title)
     )
 
-    final_img = c.mark_line(strokeWidth=2).add_params(selection).encode(color=color_x)
+    final_img = c.mark_line(strokeWidth=2).add_params(selection, pan_zoom).encode(color=color_x)
 
     rules = (
         alt.Chart(b_df)
@@ -395,7 +403,6 @@ def overview_v3(
         alt.Chart(b_df)
         .mark_point()
         .encode(y=alt.Y("file:N", axis=alt.Axis(orient="right")), color=color_x)
-        .add_params(selection)
     )
 
     xpoints = c.mark_point().encode(
@@ -446,11 +453,11 @@ def overview_v3(
             rules,
             xpoints,
             tooltip_text,
-        ).interactive()
+        )
     else:
         mlayer = alt.layer(
             final_img, selectors, rules, xpoints, tooltip_text
-        ).interactive()
+        )
     return (
         (mlayer | legend)
         .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
@@ -486,6 +493,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
     b_df["date_utc"] = b_df["date"].dt.tz_localize("UTC")
 
     nearest = alt.selection_point(
+        name="nearest_v4",
         nearest=True, on="mouseover", fields=["date_utc"], empty=False
     )
 
@@ -505,6 +513,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
     )
 
     selection = alt.selection_point(
+        name="selection_v4",
         fields=["metrics"],
     )
     color_x = alt.condition(
@@ -583,12 +592,12 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         )
         mlayer = alt.layer(
             final_line, selectors, rules, tooltip_text, reboot_text, xpoints
-        ).interactive()
+        )
     else:
         mlayer = alt.layer(
             final_line, selectors, rules, xpoints, tooltip_text
-        ).interactive()
-    return (mlayer | legend).configure_axis(
+        )
+    return (mlayer | legend).interactive().configure_axis(
         labelFontSize=font_size, titleFontSize=font_size
     )
 
@@ -622,6 +631,7 @@ def overview_v5(
         )
 
     nearest = alt.selection_point(
+        name="nearest_v5",
         nearest=True, on="mouseover", fields=["date_utc"], empty=False
     )
 
@@ -642,6 +652,7 @@ def overview_v5(
     )
 
     selection = alt.selection_point(
+        name="selection_v5",
         fields=[lsel],
     )
     color_x = alt.condition(
@@ -732,13 +743,13 @@ def overview_v5(
         )
         mlayer = alt.layer(
             final_line, selectors, rules, tooltip_text, reboot_text, xpoints
-        ).interactive()
+        )
     else:
         mlayer = alt.layer(
             final_line, selectors, rules, xpoints, tooltip_text
-        ).interactive()
+        )
     return (
-        (mlayer | legend)
+        (mlayer | legend).interactive()
         .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
         .configure_title(fontSize=font_size)
     )
@@ -792,6 +803,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
     )
 
     selection = alt.selection_point(
+        name="selection_v6",
         fields=[color_item],
     )
     color_x = alt.condition(
@@ -903,13 +915,13 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
             rules,
             xpoints,
             tooltip_text,
-        ).interactive()
+        )
     else:
         mlayer = alt.layer(
             final_img, selectors, rules, xpoints, tooltip_text
-        ).interactive()
+        )
     return (
-        (mlayer | legend)
+        (mlayer | legend).interactive()
         .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
         .configure_title(fontSize=font_size)
     )
