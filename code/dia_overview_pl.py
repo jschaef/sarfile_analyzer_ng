@@ -26,14 +26,13 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # global os_details, file_chosen
     file_chosen = ""
     st.subheader('Overview of important metrics from SAR data')
-    multi_pdf_field = []
+    multi_pdf_chart_field = []
     col1, col2, *_ = lh.create_columns(4, [0, 1, 1, 1])
     st.write("#")
     if sar_file != file_chosen:
         file_chosen = sar_file
     sar_file_name = sar_file
     sar_file = f'{Config.upload_dir}/{username}/{sar_file}'
-    pdf_dir = f'{Config.upload_dir}/{username}/pdf'
     headers = pl_helpers.get_headers(df)
     restart_headers = pl_helpers.get_restart_headers(df)
     initial_aliases = ['CPU', 'Kernel tables', 'Load', 'Memory utilization',
@@ -92,35 +91,29 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         st.markdown("**Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
         this_container = col1.container(border=True)
-        this_container.markdown("###### Enable PDF Creation")
         df_len = 0
         tmp_dict = {}
         col1, col2, col3 = this_container.columns([0.2, 0.2, 0.6])
-        lh.make_vspace(6,col1)
-        lh.make_vspace(6,col2)
-        lh.make_vspace(6,col3)
+        for coumn in col1, col2, col3:
+            coumn.space()
         create_multi_pdf = 0
         if col1.toggle('Modern Style', help='Choose between modern and classic style',
                 on_change=st.rerun, args=(), kwargs={"scope": "fragment"}):
             d_style = 'modern'
         else:
             d_style = 'classic'
-        if col2.toggle("Create PDF's", help="Enable or disable PDF creation"):
-            enable_pdf = 1
-            if col3.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
-                create_multi_pdf = 1
-            else:
-                create_multi_pdf = 0
+        col2.space(), col3.space()
+        if col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
+            create_multi_pdf = 1
         else:
-            enable_pdf = 0
-        lh.make_vspace(6,col1)
-        lh.make_vspace(6,col2)
-        lh.make_vspace(6,col3)
-        col1.markdown("###### Set time frame")
+                create_multi_pdf = 0
+        for coumn in col1, col2, col3:
+            coumn.space()
+        col1.markdown("##### Set time frame")
         col2.markdown("###### ")
-        lh.make_vspace(6,col1)
-        lh.make_vspace(6,col2)
-        lh.make_vspace(6,col3)
+
+        for column in  col2, col3:
+            column.space("medium")
         for entry in headers:
             # findout longest hour range if in rare cases it
             # differs since a new device occured after reboot (persistent
@@ -142,19 +135,18 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                 end = end_box.selectbox('Choose End Time',hours[hours.index(start):],
                     index=time_len)
             break
-        lh.make_vspace(6,col1)
-        lh.make_vspace(6,col2)
-        lh.make_vspace(6,col2)
-        col1.markdown("###### Customize Diagrams")
-        lh.make_vspace(4,col1)
-        lh.make_vspace(4,col2)
+        for coumn in col1, col2:
+            coumn.space()
+        col1.markdown("##### Customize Diagrams")
+        col2.markdown("##### ")
+        col1.space(), col2.space()
         width, height = helpers_pl.diagram_expander('Diagram Width',
             'Diagram Height', col1)
         font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", col2)
-        return d_style, enable_pdf, create_multi_pdf, start, end, width, height, font_size
+        return d_style, create_multi_pdf, start, end, width, height, font_size
 
     if sel_field:
-        d_style, enable_pdf, create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
+        d_style, create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
 
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     submitted = col1.button('Show Diagrams')
@@ -232,9 +224,9 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 if sub_title == 'all':
                                     st.markdown(f'###### all of {device_num}')
                                 if d_style == 'modern':
-                                    st.altair_chart(chart, use_container_width=True, )
+                                    st.altair_chart(chart, width='stretch', )
                                 else:
-                                    st.altair_chart(chart, use_container_width=True, theme=None)
+                                    st.altair_chart(chart, width='stretch', theme=None)
                             with tab2:
                                 if statistics:
                                     col1, col2, col3, col4 = lh.create_columns(
@@ -251,17 +243,26 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 if show_manpages:
                                     helpers_pl.metric_popover(metrics)
                             with tab4:
-                                if enable_pdf:
-                                    pdf_name = f'{pdf_dir}/{sar_file_name}_{header.replace(" ", "_")}.pdf'
-                                    if create_multi_pdf:
-                                        multi_pdf_field.append(pdf_name)
-                                    helpers_pl.pdf_download(pdf_name, chart)
+                                # if enable_pdf:
+                                #     pdf_name = f'{pdf_dir}/{sar_file_name}_{header.replace(" ", "_")}.pdf'
+                                #     if create_multi_pdf:
+                                #         multi_pdf_field.append(pdf_name)
+                                #     helpers_pl.pdf_download(pdf_name, chart)
 
-                                    download_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(title)}.pdf"
-                                    # lh.pdf_download(pdf_name, chart, download_name=download_name, key=key)
-                                else:
-                                    st.write("You have to enable the PDF checkbox on the top. It is disabled\
-                                             by default because the current implementation is quite performance intensive")
+                                #     download_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(title)}.pdf"
+                                #     # lh.pdf_download(pdf_name, chart, download_name=download_name, key=key)
+                                # else:
+                                #     st.write("You have to enable the PDF checkbox on the top. It is disabled\
+                                #              by default because the current implementation is quite performance intensive")
+                                pdf_name = f'{sar_file_name}_{header.replace(" ", "_")}.pdf'
+                                lh.pdf_download(
+                                    pdf_name,
+                                    chart,
+                                    download_name=pdf_name,
+                                    key=pdf_name,
+                                )
+                                if create_multi_pdf:
+                                   multi_pdf_chart_field.append(chart)
 
                             counter += 1
                         else:
@@ -304,17 +305,15 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                         metrics =  subitem_dict['metrics']
                                         helpers_pl.metric_popover(metrics)
                                 with tab4:
-                                    if enable_pdf:
-                                        pdf_name = f'{pdf_dir}/{sar_file_name}_{sub_title.replace(" ", "_")}.pdf'
-                                        if create_multi_pdf:
-                                            multi_pdf_field.append(pdf_name)
-                                        helpers_pl.pdf_download(pdf_name, chart)
-                                        # download_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(title)}.pdf"
-                                        # lh.pdf_download(pdf_name, chart, download_name=download_name, key=f"{key}_{subitem}")
-                                    else:
-                                        st.write("You have to enable the PDF checkbox on the top. It is disabled\
-                                                 by default because the current implementation is quite performance intensive")
-
+                                    pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
+                                    lh.pdf_download(
+                                    pdf_name,
+                                    chart,
+                                    download_name=pdf_name,
+                                    key=pdf_name,
+                                )
+                                if create_multi_pdf:
+                                   multi_pdf_chart_field.append(chart)
                                 counter +=1
                         # st.markdown("___")
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
@@ -326,9 +325,21 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                             st.session_state.pop(key)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
-                        pdf_file = f"{pdf_dir}/{download_name}"
-                        outfile = mpdf.create_multi_pdf(multi_pdf_field, pdf_file)
-                        helpers_pl.multi_pdf_download(outfile)
+                        temp_pdf = mpdf.create_multi_pdf_from_charts(multi_pdf_chart_field)
+                        # Create a wrapper chart that uses the existing temp file
+                        class TempPDFChart:
+                            def __init__(self, pdf_path):
+                                self.pdf_path = pdf_path
+                            def save(self, path):
+                                # Copy temp PDF to the requested path
+                                import shutil
+                                shutil.copy(self.pdf_path, path)
+                        
+                        lh.pdf_download("", TempPDFChart(temp_pdf), download_name=download_name, key="multi_pdf")
+                        # Clean up the original temp file from mpdf
+                        import os
+                        if os.path.exists(temp_pdf):
+                            os.remove(temp_pdf)
                     st.markdown("___")
                 if st.button('Back to top'):
                     st.rerun()

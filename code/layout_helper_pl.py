@@ -2,52 +2,51 @@ import streamlit as st
 import os
 import helpers_pl as helpers
 import pandas as pd
+import tempfile
 
-global fobject
+#global fobject
 
 
 def create_pdf(file: str, chart: object) -> list:
-    global fobject
+    #global fobject
     mimetype = "application/x-binary"
     chart.save(file)
     fobject = open(file, "rb")
     return [fobject, mimetype]
 
 def pdf_download(file: str, chart: object, key=None, download_name=None):
-    """creates a download button and a checkbox. Using function create_pdf()
-    to create the file for download if the checkbox has been enabled.
+    """creates a download button using a temporary PDF file.
 
     Args:
-        file (str): filepath where to save the pdf
+        file (str): filename (not used for saving, only for naming)
         chart (altair object): image/chart created from the altair library
         key (widget key, optional): widget key for streamlit api. Defaults to None.
+        download_name (str, optional): name for the downloaded file
     """
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     col2 = col2 if col2 else st
-    save_dir = os.path.dirname(file)
-    if not os.path.exists(save_dir):
-        os.system(f"mkdir -p {save_dir}")
 
     if not download_name:
         download_name = "sar_chart.pdf"
-
-    if col1.button("prepare PDF", key=key):
+    
+    # Create temporary file for the PDF
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+    os.close(temp_fd)
+    
+    try:
+        fobject, mimetype = create_pdf(temp_path, chart)
         col1.download_button(
             key = f"{key}_download",
             label="Download PDF",
             file_name=download_name,
-            data=create_pdf(file, chart)[0],
-            mime="application/x-binary",
-            on_click="ignore",
-            type="primary",
+            data=fobject,
+            mime=mimetype,
         )
-    try:
-        fobject
-    except NameError:
-        pass
-    else:
-        fobject.close()
-
+        fobject.close()  # Close the file object
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 def show_metrics(prop_list, col=None, key=None, checkbox=None):
     col = col if col else st
@@ -64,7 +63,7 @@ def show_metrics(prop_list, col=None, key=None, checkbox=None):
             helpers.metric_expander(metric, col=col)
 
 
-def create_columns(number: int, write_field: list = None) -> list:
+def create_columns(number: int, write_field: list | None = None) -> list:
     """Create columns and write empty string into them
        if the column index in write_field is True
     Args:
