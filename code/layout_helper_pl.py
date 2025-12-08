@@ -1,20 +1,21 @@
 import streamlit as st
+from streamlit.delta_generator import DeltaGenerator
 import os
 import helpers_pl as helpers
 import pandas as pd
 import tempfile
+from typing import Any
 
 #global fobject
 
 
-def create_pdf(file: str, chart: object) -> list:
+def create_pdf(file: str, chart: Any) -> list:
     #global fobject
     mimetype = "application/x-binary"
     chart.save(file)
     fobject = open(file, "rb")
     return [fobject, mimetype]
-
-def pdf_download(file: str, chart: object, key=None, download_name=None):
+def pdf_download(file: str, chart: Any, key=None, download_name=None):
     """creates a download button using a temporary PDF file.
 
     Args:
@@ -188,31 +189,33 @@ def delete_large_obj():
     for item in st.session_state:
         if "_obj" in item:
             st.session_state.pop(item)
-
-def make_vspace(size: int, col: object) -> None:
+def make_vspace(size: int, col: DeltaGenerator) -> None:
     col.write(f"{size * '#'}")
 
-def make_big_vspace(size:int, col: object) -> None:
+def make_big_vspace(size:int, col: DeltaGenerator) -> None:
     for x in range(size):
         make_vspace(1, col)
 
-def display_timezone_chooser(col: st.delta_generator.DeltaGenerator):
+def display_timezone_chooser(col: DeltaGenerator):
     tz_choose = col.toggle("Display data for a Time Zone different from UTC",)
     if tz_choose:
         user_tz = st.context.timezone
-        if '/' in user_tz:
+        if user_tz and '/' in user_tz:
             user_pre_tz = user_tz.split('/')[0]
         else:
-            user_pre_tz = user_tz
+            user_pre_tz = user_tz if user_tz else 'UTC'
         tz_prefixes = helpers.get_time_zone_prefixs()
         tz_index = tz_prefixes.index(user_pre_tz)
         tz_pr_choose = col.selectbox("Choose Region", 
             tz_prefixes, index=tz_index, key="tz_choose")
         # tz_suffixes_index = helpers.get_time_zone_suffixs(tz_pr_choose).index(tz_pr_choose)
-        if tz_pr_choose in user_tz:
-            tz_suffixes_index = helpers.get_time_zone_suffixs(tz_pr_choose).index(user_tz)
+        tz_suffixes = helpers.get_time_zone_suffixs(tz_pr_choose)
+        if not tz_suffixes:
+            tz_suffixes = ['UTC']
+        if user_tz and tz_pr_choose in user_tz and user_tz in tz_suffixes:
+            tz_suffixes_index = tz_suffixes.index(user_tz)
         else:
             tz_suffixes_index = 0
         return col.selectbox("Choose Time Zone",
-            helpers.get_time_zone_suffixs(tz_pr_choose), index=tz_suffixes_index, key="tz_suffix_choose")
+            tz_suffixes, index=tz_suffixes_index, key="tz_suffix_choose")
     return None
