@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
         # Download sample
         download_button_str = download_button(
-            sample_dtypes[s], filename, f'Click here to download {filename}', pickle_it=pickle_it)
+            sample_dtypes[s], filename, f'Click here to download {filename}')
         st.markdown(download_button_str, unsafe_allow_html=True)
 
         if st.checkbox('Show code example '):
@@ -151,6 +151,7 @@ if __name__ == '__main__':
 
         # Upload file for testing
         folder_path = st.text_input('Enter directory: deafult .', '.')
+        filename = st.text_input('Enter filename to download', 'example.txt')
 
         # Load selected file
         with open(filename, 'rb') as f:

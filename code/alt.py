@@ -123,14 +123,13 @@ def draw_single_chart_v1(
         rules,
         text,
     ).interactive()
-    return (
-        (mlayer | legend)
-        .configure_axis(
+    result = mlayer | legend
+    if font_size is not None:
+        result = result.configure_axis(
             labelFontSize=font_size,
             titleFontSize=font_size,
-        )
-        .configure_title(fontSize=font_size)
-    )
+        ).configure_title(fontSize=font_size)
+    return result
 
 
 def create_reboot_rule(
@@ -294,9 +293,12 @@ def overview_v1(
     mlayer = alt.layer(final_line, selectors, rules, tooltip_text)
     # mlayer = mlayer|legend
     mlayer = alt.hconcat(mlayer, legend).configure_concat(spacing=50)
-    return mlayer.configure_axis(
+    result = mlayer.configure_axis(
         labelFontSize=font_size, titleFontSize=font_size
-    ).configure_title(fontSize=font_size)
+    )
+    if font_size is not None:
+        result = result.configure_title(fontSize=font_size)
+    return result
 
 
 def overview_v3(
@@ -306,6 +308,7 @@ def overview_v3(
     b_df = pd.DataFrame()
     z_fields = []
     rule_fields = []
+    y_pos = 0
     for data in collect_field:
         df = data[0]
         if not df.empty:
@@ -410,13 +413,16 @@ def overview_v3(
         opacity=alt.condition(nearest, alt.value(1), alt.value(0)), color=color_x
     )
 
-    tooltip_text = c.mark_text(
-        align="left",
-        dx=-10,
-        dy=-25,
-        fontSize=font_size,
-        lineBreak="\n",
-    ).encode(
+    text_kwargs = {
+        "align": "left",
+        "dx": -10,
+        "dy": -25,
+        "lineBreak": "\n",
+    }
+    if font_size is not None and isinstance(font_size, (int, float)):
+        text_kwargs["fontSize"] = font_size
+    
+    tooltip_text = c.mark_text(**text_kwargs).encode(
         text=alt.condition(
             nearest,
             alt.Text(f"{property}:Q", format=".2f"),
@@ -459,18 +465,22 @@ def overview_v3(
         mlayer = alt.layer(
             final_img, selectors, rules, xpoints, tooltip_text
         )
-    return (
-        (mlayer | legend)
-        .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
-        .configure_title(fontSize=font_size)
-    )
+    result = mlayer | legend
+    if font_size is not None and isinstance(font_size, (int, float)):
+        result = result.configure_axis(
+            labelFontSize=font_size, titleFontSize=font_size
+        ).configure_title(fontSize=font_size)
+    return result
 
 
 def overview_v4(collect_field, reboot_headers, width, height, font_size):
     color_item = "metric"
     b_df = pd.DataFrame()
+    property = "y"  # Initialize with the melted column name
+    filename = ""  # Initialize filename to avoid unbound variable
+    z_field = []
+    rule_field = []
     for data in collect_field:
-        z_field = []
         df = data[0]
         property = data[1]
         filename = df["file"].iloc[0]
@@ -491,7 +501,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         b_df[property] = df[property]
 
     b_df = b_df.reset_index().melt("date", var_name="metrics", value_name="y")
-    b_df["date_utc"] = b_df["date"].dt.tz_localize("UTC")
+    b_df = b_df.with_columns(date_utc=b_df["date"].dt.convert_time_zone(time_zone='UTC'))
 
     nearest = alt.selection_point(
         name="nearest_v4",
@@ -564,13 +574,16 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         opacity=alt.condition(nearest, alt.value(1), alt.value(0)), color=color_x
     )
 
-    tooltip_text = line.mark_text(
-        align="left",
-        dx=-10,
-        dy=-25,
-        fontSize=font_size,
-        lineBreak="\n",
-    ).encode(
+    text_kwargs = {
+        "align": "left",
+        "dx": -10,
+        "dy": -25,
+        "lineBreak": "\n",
+    }
+    if font_size is not None:
+        text_kwargs["fontSize"] = font_size
+    
+    tooltip_text = line.mark_text(**text_kwargs).encode(
         text=alt.condition(
             nearest,
             alt.Text("y:Q", format=".2f"),
@@ -589,11 +602,14 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         reboot_text = return_reboot_text(
             z_field, y_pos, col=color_item, col_value=filename
         )
-        reboot_text = reboot_text.encode(
-            color="filename:N",
-        )
+        if reboot_text is not None:
+            reboot_text = reboot_text.encode(
+                color="filename:N",
+            )
+            final_line += reboot_text
+        
         mlayer = alt.layer(
-            final_line, selectors, rules, tooltip_text, reboot_text, xpoints
+            final_line, selectors, rules, tooltip_text, xpoints
         )
     else:
         mlayer = alt.layer(
@@ -619,8 +635,8 @@ def overview_v5(
     color_item = lsel
     z_field = []
     rule_field = []
-    y_pos = ""
-    b_df = b_df.with_columns(date_utc=b_df["date"].dt.convert_time_zone(time_zone='UTC'))
+    y_pos = 0
+    b_df["date_utc"] = b_df["date"].dt.tz_localize("UTC")
 
     for header in reboot_headers:
         rule_field, z_field, y_pos = create_reboot_rule(
@@ -717,13 +733,16 @@ def overview_v5(
         opacity=alt.condition(nearest, alt.value(1), alt.value(0)), color=color_x
     )
 
-    tooltip_text = line.mark_text(
-        align="left",
-        dx=-10,
-        dy=-25,
-        fontSize=font_size,
-        lineBreak="\n",
-    ).encode(
+    text_kwargs = {
+        "align": "left",
+        "dx": -10,
+        "dy": -25,
+        "lineBreak": "\n",
+    }
+    if font_size is not None:
+        text_kwargs["fontSize"] = font_size
+    
+    tooltip_text = line.mark_text(**text_kwargs).encode(
         text=alt.condition(
             nearest,
             alt.Text(f"{property}:Q", format=".2f"),
@@ -741,12 +760,17 @@ def overview_v5(
         reboot_text = return_reboot_text(
             z_field, y_pos, col=color_item, col_value=filename
         )
-        reboot_text = reboot_text.encode(
-            color="filename:N",
-        )
-        mlayer = alt.layer(
-            final_line, selectors, rules, tooltip_text, reboot_text, xpoints
-        )
+        if reboot_text:
+            reboot_text = reboot_text.encode(
+                color="filename:N",
+            )
+            mlayer = alt.layer(
+                final_line, selectors, rules, tooltip_text, reboot_text, xpoints
+            )
+        else:
+            mlayer = alt.layer(
+                final_line, selectors, rules, tooltip_text, xpoints
+            )
     else:
         mlayer = alt.layer(
             final_line, selectors, rules, xpoints, tooltip_text
@@ -763,6 +787,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
     b_df = pd.DataFrame()
     z_fields = []
     rule_fields = []
+    y_pos = 0
     for data in collect_field:
         df = data[0]
         if not df.empty:
@@ -783,7 +808,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
                     z_fields.append([z_field, filename])
 
         b_df = pd.concat([b_df, df], ignore_index=False)
-    b_df["date_short"] = b_df["date"].dt.date
+    b_df["date_short"] = b_df["date"].dt.floor('1d')
     nearest = alt.selection_point(
         nearest=True, on="mouseover", fields=["date"], empty=False
     )
@@ -870,13 +895,16 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         opacity=alt.condition(nearest, alt.value(1), alt.value(0)), color=color_x
     )
 
-    tooltip_text = c.mark_text(
-        align="left",
-        dx=-10,
-        dy=-25,
-        fontSize=font_size,
-        lineBreak="\n",
-    ).encode(
+    text_kwargs = {
+        "align": "left",
+        "dx": -10,
+        "dy": -25,
+        "lineBreak": "\n",
+    }
+    if font_size is not None:
+        text_kwargs["fontSize"] = font_size
+    
+    tooltip_text = c.mark_text(**text_kwargs).encode(
         text=alt.condition(
             nearest,
             alt.Text(f"{property}:Q", format=".2f"),

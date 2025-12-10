@@ -11,6 +11,7 @@ def format_date(os_details):
     date_reg2 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{2}$")
     date_reg3 = re.compile("[0-9]{2}/[0-9]{2}/[0-9]{4}")
     date_str = ""
+    format = "%Y-%m-%d"  # Initialize with default format
     for item in os_details.split():
         date_str = item
         if date_reg.search(item):
