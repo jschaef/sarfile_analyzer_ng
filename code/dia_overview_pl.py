@@ -10,6 +10,7 @@ import multi_pdf as mpdf
 import layout_helper_pl as lh
 from config import Config
 from concurrent.futures import ThreadPoolExecutor
+import gc
 # from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
@@ -17,15 +18,25 @@ sar_structure = []
 os_details = ""
 file_chosen = ""
 
+def cleanup_chart_memory():
+    """Force garbage collection and clear chart-related session state"""
+    # Remove chart data from session state
+    keys_to_remove = [key for key in st.session_state.keys() 
+                      if any(x in key for x in ['_obj', '_chart', 'collect_list', '_pdf'])]
+    for key in keys_to_remove:
+        st.session_state.pop(key, None)
+    
+    # Force garbage collection to free memory
+    gc.collect()
+
 def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGenerator,
          sar_file: str, df: pl.DataFrame, os_details: str):
-    # clear session state
-    for item in st.session_state:
-        if '_obj' in item:
-            st.session_state.pop(item)
+    # Clear session state and free memory
+    cleanup_chart_memory()
     # global os_details, file_chosen
     file_chosen = ""
     st.subheader('Overview of important metrics from SAR data')
+    
     multi_pdf_chart_field = []
     col1, col2, *_ = lh.create_columns(4, [0, 1, 1, 1])
     st.write("#")
@@ -149,13 +160,53 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         d_style, create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
 
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
+    st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
     submitted = col1.button('Show Diagrams')
     if col2.button('Clear'):
         st.rerun()
     lh.make_vspace(1, st)
+    
+    # Check data size and warn user about memory implications
+    # Calculate actual DataFrame memory size
+    if hasattr(df, 'estimated_size'):
+        # Polars DataFrame
+        df_size_mb = df.estimated_size() / (1024 * 1024)
+    else:
+        # Pandas DataFrame or fallback - estimate based on row count and columns
+        df_size_mb = (len(df) * len(df.columns) * 8) / (1024 * 1024)  # Rough estimate: 8 bytes per value
+    
+    num_metrics_selected = len(sel_field) if sel_field else 0
+    
+    if df_size_mb > 50 and num_metrics_selected > 10:
+        st.warning(f"""⚠️ **Large Dataset Warning**: You have selected {num_metrics_selected} metrics from a {df_size_mb:.1f}MB dataset.
+        
+This may consume significant browser memory (potentially 5-15 GB). 
+
+**Browser Memory Leak Issue**: Once browser memory goes high, it may NOT decrease even after selecting fewer metrics or refreshing the page. This is a known limitation with Vega-Lite charts in browsers.
+
+**If experiencing high memory (>5GB)**:
+1. **Close this browser tab completely** (Ctrl+W or right-click → Close Tab)
+2. **Open a new tab** and navigate back to the app
+3. This forces the browser to release all accumulated memory
+
+**Recommendations**:
+- **Reduce metrics**: Select fewer metrics (5-10 recommended for large files)
+- **Limit time range**: Use the time frame selector below to analyze smaller periods
+- **Use "Detailed Metrics View"**: Better for analyzing specific metrics from large files
+        """)
+    
     if sel_field:
         col1, _ = st.columns([0.8, 0.2])
         if submitted:
+            # Hard limit on number of charts to prevent browser crash
+            MAX_CHARTS = 20 if df_size_mb > 100 else 30
+            
+            if num_metrics_selected > MAX_CHARTS:
+                st.error(f"""🛑 **Too Many Metrics Selected**: You selected {num_metrics_selected} metrics, but the limit is {MAX_CHARTS} for files of this size.
+                
+Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser memory issues.""")
+                st.stop()
+            
             with col1.container(border=True):
                 sorted_df_dict = {}
                 st_collect_list_pandas = st.session_state.get(
@@ -339,6 +390,24 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                         import os
                         if os.path.exists(temp_pdf):
                             os.remove(temp_pdf)
+                        
+                        # Clear chart objects from memory after PDF creation
+                        multi_pdf_chart_field.clear()
+                        del multi_pdf_chart_field
+                        gc.collect()
+                        
                     st.markdown("___")
-                if st.button('Back to top'):
-                    st.rerun()
+                    # Back to top link using HTML anchor without page refresh
+                    st.markdown(
+                        """
+                        <a href="#show-diagrams-section" 
+                           style="display: inline-block; padding: 0.25rem 0.75rem; 
+                                  text-decoration: none;">
+                            ⬆️ Back to top
+                        </a>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Final cleanup: force garbage collection after all charts displayed
+                    gc.collect()
