@@ -15,6 +15,7 @@ def create_pdf(file: str, chart: Any) -> list:
     chart.save(file)
     fobject = open(file, "rb")
     return [fobject, mimetype]
+
 @st.fragment
 def pdf_download(file: str, chart: Any, key=None, download_name=None):
     """creates a download button that generates PDF only when prepare button is clicked.
@@ -55,6 +56,33 @@ def pdf_download(file: str, chart: Any, key=None, download_name=None):
             # Clean up temporary file
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+def pdf_download_direct(chart: Any, download_name: str, key: str = None):
+    """Direct PDF download button without prepare step.
+    
+    Generates PDF data immediately and provides download button.
+    Use this for single-chart pages where immediate download is preferred.
+    
+    Args:
+        chart: Altair chart object to convert to PDF
+        download_name: Filename for the downloaded PDF
+        key: Optional unique key for the download button
+    """
+    import io
+    
+    # Generate PDF data in memory
+    pdf_buffer = io.BytesIO()
+    chart.save(pdf_buffer, format='pdf')
+    pdf_buffer.seek(0)
+    
+    # Create download button
+    _ = st.download_button(
+        label="Download PDF",
+        data=pdf_buffer,
+        file_name=download_name,
+        mime="application/pdf",
+        key=key if key else f"pdf_{download_name}"
+    )
 
 def show_metrics(prop_list, col=None, key=None, checkbox=None):
     col = col if col else st
