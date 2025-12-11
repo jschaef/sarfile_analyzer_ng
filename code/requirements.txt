@@ -9,5 +9,6 @@ redis
 SQLAlchemy
 streamlit
 streamlit-option-menu
+vegafusion[embed]
 vl-convert-python
 wfork-streamlit-profiler
