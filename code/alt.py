@@ -148,7 +148,7 @@ def create_reboot_rule(
         xval = header.split()[-1]
         date_str, _ = ddf.format_date(os_details)
         z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
-        z = z.tz_localize("UTC")
+        z = z.replace(tzinfo=None).replace(tzinfo=pd.Timestamp('2000-01-01', tz='UTC').tzinfo)
         z_field.append(z)
         if col is None:
             col = "dummy"
@@ -501,7 +501,7 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
         b_df[property] = df[property]
 
     b_df = b_df.reset_index().melt("date", var_name="metrics", value_name="y")
-    b_df = b_df.with_columns(date_utc=b_df["date"].dt.convert_time_zone(time_zone='UTC'))
+    b_df["date_utc"] = pd.to_datetime(b_df["date"]).dt.tz_localize("UTC")
 
     nearest = alt.selection_point(
         name="nearest_v4",
@@ -636,7 +636,7 @@ def overview_v5(
     z_field = []
     rule_field = []
     y_pos = 0
-    b_df["date_utc"] = b_df["date"].dt.tz_localize("UTC")
+    b_df = b_df.with_columns(b_df["date"].dt.replace_time_zone("UTC").alias("date_utc"))
 
     for header in reboot_headers:
         rule_field, z_field, y_pos = create_reboot_rule(
@@ -834,6 +834,8 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         name="selection_v6",
         fields=[color_item],
     )
+    pan_zoom = alt.selection_interval(name="pan_zoom_v6", bind='scales')
+    
     color_x = alt.condition(
         selection,
         alt.Color(f"{color_item}:N", legend=None),
@@ -873,7 +875,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         .properties(width=width, height=height, title=title)
     )
 
-    final_img = c.mark_line(strokeWidth=2).add_params(selection).encode(color=color_x)
+    final_img = c.mark_line(strokeWidth=2).add_params(selection, pan_zoom).encode(color=color_x)
 
     rules = (
         alt.Chart(b_df)
@@ -888,7 +890,6 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         alt.Chart(b_df)
         .mark_point()
         .encode(y=alt.Y("date", axis=alt.Axis(orient="right")), color=color_x)
-        .add_params(selection)
     )
 
     xpoints = c.mark_point().encode(
@@ -952,7 +953,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
             final_img, selectors, rules, xpoints, tooltip_text
         )
     return (
-        (mlayer | legend).interactive()
+        (mlayer | legend)
         .configure_axis(labelFontSize=font_size, titleFontSize=font_size)
         .configure_title(fontSize=font_size)
     )
