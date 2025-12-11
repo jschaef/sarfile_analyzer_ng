@@ -243,26 +243,18 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                 if show_manpages:
                                     helpers_pl.metric_popover(metrics)
                             with tab4:
-                                # if enable_pdf:
-                                #     pdf_name = f'{pdf_dir}/{sar_file_name}_{header.replace(" ", "_")}.pdf'
-                                #     if create_multi_pdf:
-                                #         multi_pdf_field.append(pdf_name)
-                                #     helpers_pl.pdf_download(pdf_name, chart)
-
-                                #     download_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(title)}.pdf"
-                                #     # lh.pdf_download(pdf_name, chart, download_name=download_name, key=key)
-                                # else:
-                                #     st.write("You have to enable the PDF checkbox on the top. It is disabled\
-                                #              by default because the current implementation is quite performance intensive")
-                                pdf_name = f'{sar_file_name}_{header.replace(" ", "_")}.pdf'
-                                lh.pdf_download(
-                                    pdf_name,
-                                    chart,
-                                    download_name=pdf_name,
-                                    key=pdf_name,
-                                )
+                                # Optimize: only generate individual PDFs when not creating multi-PDF
                                 if create_multi_pdf:
-                                   multi_pdf_chart_field.append(chart)
+                                    multi_pdf_chart_field.append(chart)
+                                    st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                                else:
+                                    pdf_name = f'{sar_file_name}_{header.replace(" ", "_")}.pdf'
+                                    lh.pdf_download(
+                                        pdf_name,
+                                        chart,
+                                        download_name=pdf_name,
+                                        key=pdf_name,
+                                    )
 
                             counter += 1
                         else:
@@ -305,15 +297,18 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                                         metrics =  subitem_dict['metrics']
                                         helpers_pl.metric_popover(metrics)
                                 with tab4:
-                                    pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
-                                    lh.pdf_download(
-                                    pdf_name,
-                                    chart,
-                                    download_name=pdf_name,
-                                    key=pdf_name,
-                                )
-                                if create_multi_pdf:
-                                   multi_pdf_chart_field.append(chart)
+                                    # Optimize: only generate individual PDFs when not creating multi-PDF
+                                    if create_multi_pdf:
+                                        multi_pdf_chart_field.append(chart)
+                                        st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                                    else:
+                                        pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
+                                        lh.pdf_download(
+                                        pdf_name,
+                                        chart,
+                                        download_name=pdf_name,
+                                        key=pdf_name,
+                                    )
                                 counter +=1
                         # st.markdown("___")
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
@@ -326,17 +321,21 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
                         temp_pdf = mpdf.create_multi_pdf_from_charts(multi_pdf_chart_field)
-                        # Create a wrapper chart that uses the existing temp file
-                        class TempPDFChart:
-                            def __init__(self, pdf_path):
-                                self.pdf_path = pdf_path
-                            def save(self, path):
-                                # Copy temp PDF to the requested path
-                                import shutil
-                                shutil.copy(self.pdf_path, path)
                         
-                        lh.pdf_download("", TempPDFChart(temp_pdf), download_name=download_name, key="multi_pdf")
-                        # Clean up the original temp file from mpdf
+                        # Read the PDF data and provide download button directly
+                        with open(temp_pdf, 'rb') as f:
+                            pdf_data = f.read()
+                        
+                        col1, _ = st.columns([0.2, 0.8])
+                        col1.download_button(
+                            label="Download Multi-PDF",
+                            data=pdf_data,
+                            file_name=download_name,
+                            mime="application/pdf",
+                            key="multi_pdf_download"
+                        )
+                        
+                        # Clean up the temp file after reading
                         import os
                         if os.path.exists(temp_pdf):
                             os.remove(temp_pdf)

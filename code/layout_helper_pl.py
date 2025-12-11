@@ -15,8 +15,9 @@ def create_pdf(file: str, chart: Any) -> list:
     chart.save(file)
     fobject = open(file, "rb")
     return [fobject, mimetype]
+@st.fragment
 def pdf_download(file: str, chart: Any, key=None, download_name=None):
-    """creates a download button using a temporary PDF file.
+    """creates a download button that generates PDF only when prepare button is clicked.
 
     Args:
         file (str): filename (not used for saving, only for naming)
@@ -25,29 +26,35 @@ def pdf_download(file: str, chart: Any, key=None, download_name=None):
         download_name (str, optional): name for the downloaded file
     """
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
-    col2 = col2 if col2 else st
-
+    
     if not download_name:
         download_name = "sar_chart.pdf"
     
-    # Create temporary file for the PDF
-    temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
-    os.close(temp_fd)
-    
-    try:
-        fobject, mimetype = create_pdf(temp_path, chart)
-        col1.download_button(
-            key = f"{key}_download",
-            label="Download PDF",
-            file_name=download_name,
-            data=fobject,
-            mime=mimetype,
-        )
-        fobject.close()  # Close the file object
-    finally:
-        # Clean up temporary file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+    # Only generate PDF when user clicks the prepare button
+    if col1.button("prepare PDF", key=key):
+        # Create temporary file for the PDF
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+        os.close(temp_fd)
+        
+        try:
+            # Generate PDF data
+            chart.save(temp_path)
+            with open(temp_path, "rb") as f:
+                pdf_data = f.read()
+            
+            # Show download button
+            col1.download_button(
+                key=f"{key}_download",
+                label="Download PDF",
+                file_name=download_name,
+                data=pdf_data,
+                mime="application/pdf",
+                type="primary",
+            )
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
 def show_metrics(prop_list, col=None, key=None, checkbox=None):
     col = col if col else st
