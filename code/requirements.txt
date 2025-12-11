@@ -3,7 +3,7 @@ altair
 connectorx
 pandas
 polars
-PyPDF4
+pypdf
 python-magic
 redis
 SQLAlchemy

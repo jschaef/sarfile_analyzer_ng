@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from PyPDF4 import PdfFileMerger
+from pypdf import PdfWriter
 from os import remove, path
 import os
 import tempfile
@@ -15,7 +15,7 @@ def create_multi_pdf_from_charts(chart_objects: list):
         Path to the temporary merged PDF file (caller must clean up)
     """
     temp_files = []
-    merger = PdfFileMerger(strict=False)
+    merger = PdfWriter()
     temp_output_fd = None
     temp_output_path = None
     
@@ -30,9 +30,8 @@ def create_multi_pdf_from_charts(chart_objects: list):
             chart.save(temp_path)
             temp_files.append(temp_path)
             
-            # Add to merger
-            with open(temp_path, "rb") as f:
-                merger.append(f)
+            # Add to merger (pypdf 6.x uses append_pages_from_reader)
+            merger.append(temp_path)
         
         # Create temporary output file
         temp_output_fd, temp_output_path = tempfile.mkstemp(suffix='.pdf')
