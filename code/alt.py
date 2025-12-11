@@ -5,8 +5,72 @@ import dataframe_funcs_pl as ddf
 import pandas as pd
 
 my_tz = time.tzname[0]
-# https://altair-viz.github.io/user_guide/faq.html#maxrowserror-how-can-i-plot-large-datasets
-alt.data_transformers.disable_max_rows()
+
+# Lazy initialization of data transformer to avoid loading at import time
+_transformer_initialized = False
+
+def _initialize_data_transformer():
+    """Initialize data transformer only when needed (lazy loading)
+    
+    Using VegaFusion transformer which does server-side data transformations.
+    This significantly reduces browser memory by pre-aggregating data before
+    sending to the browser.
+    
+    Falls back to JSON transformer if VegaFusion is not available, and finally
+    to disable_max_rows as last resort.
+    """
+    global _transformer_initialized
+    if not _transformer_initialized:
+        # https://altair-viz.github.io/user_guide/faq.html#maxrowserror-how-can-i-plot-large-datasets
+        # Try VegaFusion first - most powerful memory optimization
+        try:
+            import vegafusion as vf
+            alt.data_transformers.enable('vegafusion')
+            print("✓ Using VegaFusion data transformer for memory optimization")
+        except (ImportError, Exception):
+            # Fallback to JSON transformer
+            try:
+                alt.data_transformers.enable('json')
+                print("✓ Using JSON data transformer (VegaFusion not available)")
+            except Exception:
+                # Last resort: disable max rows
+                alt.data_transformers.disable_max_rows()
+                print("✓ Using disable_max_rows transformer (fallback)")
+        
+        _transformer_initialized = True
+
+def sample_dataframe_for_viz(df, max_rows=5000):
+    """Sample large dataframes to reduce memory usage while preserving distribution.
+    
+    For very large datasets (>100k rows), uses more aggressive sampling.
+    
+    Args:
+        df: DataFrame (Pandas or Polars)
+        max_rows: Maximum rows to keep (default: 5000)
+    
+    Returns:
+        Sampled DataFrame of the same type as input
+    """
+    df_len = len(df)
+    
+    # Aggressive sampling for very large datasets
+    if df_len > 100000:
+        max_rows = min(max_rows, 2000)  # Cap at 2000 for huge files
+    elif df_len > 50000:
+        max_rows = min(max_rows, 3000)  # Cap at 3000 for large files
+    
+    if df_len <= max_rows:
+        return df
+    
+    # Check if Polars or Pandas
+    if hasattr(df, 'sample'):  # Both have sample method
+        if 'polars' in str(type(df).__module__):
+            # Polars sampling
+            return df.sample(n=max_rows, seed=42)
+        else:
+            # Pandas sampling
+            return df.sample(n=max_rows, random_state=42).sort_index()
+    return df
 
 def draw_single_chart_v1(
     df,
@@ -19,6 +83,9 @@ def draw_single_chart_v1(
     font_size=None,
     title=None,
 ):
+    _initialize_data_transformer()
+    # Sample large datasets to reduce memory usage
+    df = sample_dataframe_for_viz(df, max_rows=5000)
     # df['date'] = df['date'].dt.tz_localize('UTC', ambiguous=True)
     df["date_utc"] = df["date"].dt.tz_localize("UTC")
     rule_field, z_field, y_pos = create_reboot_rule(
@@ -192,6 +259,9 @@ def return_reboot_text(
 def overview_v1(
     df, restart_headers, os_details, font_size=None, width=None, height=None, title=None
 ):
+    _initialize_data_transformer()
+    # Sample large datasets to reduce memory usage
+    df = sample_dataframe_for_viz(df, max_rows=5000)
     df["date_utc"] = df["date"].dt.tz_localize("UTC")
     rule_field, z_field, y_pos = create_reboot_rule(
         df, "y", restart_headers, os_details
@@ -304,6 +374,7 @@ def overview_v1(
 def overview_v3(
     collect_field, reboot_headers, width, height, lsel, font_size, title=None
 ):
+    _initialize_data_transformer()
     color_item = lsel
     b_df = pd.DataFrame()
     z_fields = []
@@ -311,6 +382,8 @@ def overview_v3(
     y_pos = 0
     for data in collect_field:
         df = data[0]
+        # Sample large datasets to reduce memory usage
+        df = sample_dataframe_for_viz(df, max_rows=5000)
         if not df.empty:
             df["date_utc"] = df["date"].dt.tz_localize("UTC")
             property = data[1]
@@ -474,6 +547,7 @@ def overview_v3(
 
 
 def overview_v4(collect_field, reboot_headers, width, height, font_size):
+    _initialize_data_transformer()
     color_item = "metric"
     b_df = pd.DataFrame()
     property = "y"  # Initialize with the melted column name
@@ -482,6 +556,8 @@ def overview_v4(collect_field, reboot_headers, width, height, font_size):
     rule_field = []
     for data in collect_field:
         df = data[0]
+        # Sample large datasets to reduce memory usage
+        df = sample_dataframe_for_viz(df, max_rows=5000)
         property = data[1]
         filename = df["file"].iloc[0]
         for header in reboot_headers:
@@ -632,6 +708,9 @@ def overview_v5(
     os_details,
     title=None,
 ):
+    _initialize_data_transformer()
+    # Sample large datasets to reduce memory usage
+    b_df = sample_dataframe_for_viz(b_df, max_rows=5000)
     color_item = lsel
     z_field = []
     rule_field = []
@@ -783,6 +862,7 @@ def overview_v5(
 
 
 def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None):
+    _initialize_data_transformer()
     color_item = "date_short"
     b_df = pd.DataFrame()
     z_fields = []
@@ -790,6 +870,8 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
     y_pos = 0
     for data in collect_field:
         df = data[0]
+        # Sample large datasets to reduce memory usage
+        df = sample_dataframe_for_viz(df, max_rows=5000)
         if not df.empty:
             df["date_utc"] = df["date"].dt.tz_localize("UTC")
             property = data[1]
