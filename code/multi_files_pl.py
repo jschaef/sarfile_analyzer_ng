@@ -239,7 +239,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                             title = f"{title}_{metric}"
                             download_name = f"{helpers.validate_convert_names(title)}.pdf"
                             download_name = f"multi_files_{download_name}"
-                            lh.pdf_download(pdf_name, img, download_name=download_name, key=download_name)
+                            lh.pdf_download_direct(img, download_name, key=download_name)
                     if not dia_type:
                         with tab2:
                             object_field = []
@@ -348,12 +348,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                             download_name = (
                                 f"{key}_{helpers.validate_convert_names(title)}.pdf"
                             )
-                            lh.pdf_download(
-                                pdf_name,
-                                chart,
-                                download_name=download_name,
-                                key=dia_key,
-                            )
+                            lh.pdf_download_direct(chart, download_name, key=dia_key)
                             st.markdown("#####")
                         with tab2:
                             for entry in display_field:
