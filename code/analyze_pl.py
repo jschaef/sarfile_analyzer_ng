@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import streamlit as st
 import os
+import gc
 import single_file_pl
 import multi_files_pl
 import dia_overview_pl
@@ -13,6 +14,9 @@ import parse_into_polars as parse_polars
 import pl_helpers2 as pl_helpers
 
 def analyze(config_c: helpers.configuration, username: str):
+    # Track current analysis mode for cleanup on mode change
+    current_mode = st.session_state.get('analysis_mode', None)
+    
     config = config_c.get_dict()
     upload_dir = config ['upload_dir']
     lh.make_vspace(1, st)
@@ -30,9 +34,33 @@ def analyze(config_c: helpers.configuration, username: str):
         single_multi = st.selectbox('**Analyze/Compare**', ['Graphical Overview',
          'Detailed Metrics View', 'Multiple Sar Files', 
          'Metrics on many devices', 'Compare Metrics'])
+    
+    # Clear memory when switching analysis modes
+    if current_mode and current_mode != single_multi:
+        # Clear chart-related session state
+        keys_to_remove = [key for key in list(st.session_state.keys()) 
+                          if any(x in str(key) for x in ['_obj', '_chart', 'collect_list', '_pdf'])]
+        for key in keys_to_remove:
+            st.session_state.pop(key, None)
+        gc.collect()
+    
+    # Update current mode
+    st.session_state['analysis_mode'] = single_multi
 
     sar_file = helpers_pl.get_sar_files(username, col=ph3, key="get_sarfiles")
+    
+    # Clear memory when switching SAR files
+    previous_sar_file = st.session_state.get('current_sar_file', None)
+    if sar_file and previous_sar_file and previous_sar_file != sar_file:
+        # Clear file-specific session state
+        keys_to_remove = [key for key in list(st.session_state.keys()) 
+                          if any(x in str(key) for x in [previous_sar_file, '_obj', '_chart', 'collect_list', '_pdf'])]
+        for key in keys_to_remove:
+            st.session_state.pop(key, None)
+        gc.collect()
+    
     if sar_file:
+        st.session_state['current_sar_file'] = sar_file
         sar_file_parm = sar_file
         sar_file = f"{upload_dir}/{sar_file}"
         df =parse_polars.get_data_frame(sar_file, username)
