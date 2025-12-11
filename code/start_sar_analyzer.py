@@ -6,17 +6,11 @@ import os
 import time
 import datetime
 import sql_stuff
-from sqlite2_polars import get_table_df
 from config import Config
-import mng_sar
-import analyze_pl
-import db_mng
 import helpers_pl as helpers
-import todo
 import redis_mng
 import help
 import info
-import self_service
 import handle_user_status
 
 st.set_page_config(
@@ -43,7 +37,12 @@ cur_dir = os.path.dirname(os.path.realpath(__file__))
 local_css(f"{cur_dir}/style.css")
 remote_css('https://fonts.googleapis.com/icon?family=Material+Icons')
 
-user_status_df = handle_user_status.load_df_from_file()[0]
+# Defer loading user_status_df until needed - don't load at module level
+def get_user_status_df():
+    """Lazy load user status dataframe only when needed"""
+    if 'user_status_df' not in st.session_state:
+        st.session_state.user_status_df = handle_user_status.load_df_from_file()[0]
+    return st.session_state.user_status_df
 
 def start():
     """Sar analyzeer App"""
@@ -113,6 +112,14 @@ def start():
                 st.warning(f'User {new_user} already exists')
 
 def main_body(username: str, config_c: helpers.configuration) :
+    # Lazy import heavy modules only when needed
+    import mng_sar
+    import analyze_pl
+    import db_mng
+    import todo
+    import self_service
+    from sqlite2_polars import get_table_df
+    
     upload_dir = f'{Config.upload_dir}/{username}'
     os.system(f'mkdir -p {upload_dir}')
     sar_files = os.listdir(upload_dir)

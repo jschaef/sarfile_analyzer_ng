@@ -152,7 +152,7 @@ def get_metrics_from_df(df: pl.DataFrame, header: str, alias: str) -> list:
         )
     df = df.with_columns(
         pl.col(header).list.eval(
-            pl.element().cast(pl.Float32, strict=False).drop_nulls()
+            pl.element().cast(pl.Float32, strict=False).drop_nulls().round(2)
         )
     )
     return df

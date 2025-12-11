@@ -150,7 +150,7 @@ def single_f(config_obj, username, selection, df, os_details):
                 st.altair_chart(chart, theme=None)
             title = f"{title}_{prop}"
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-            lh.pdf_download(pdf_name, chart, download_name=download_name)
+            lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
         with tab2:
             cols = st.columns(2)
             col1, _ = cols
@@ -207,7 +207,7 @@ def single_f(config_obj, username, selection, df, os_details):
             with chart_placeholder.container():
                 st.altair_chart(chart, theme=None)
             download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-            lh.pdf_download(pdf_name, chart, download_name=download_name)
+            lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
         with tab2:
             cols = st.columns(2)
             col1, _ = cols
