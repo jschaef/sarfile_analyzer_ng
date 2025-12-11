@@ -192,9 +192,11 @@ def show_multi(config_obj, username, selection, df, os_details):
                         )
                         with chart_placeholder:
                             st.altair_chart(chart, width='stretch', theme=None)
-                        title = f"{file_name}_{selected}_{metric}"
-                        download_name = f"{helpers_pl.validate_convert_names(title)}.pdf"
-                        lh.pdf_download(pdf_name, chart, download_name=download_name)
+                        lh.pdf_download_direct(
+                            chart, 
+                            f"{helpers_pl.validate_convert_names(f'{file_name}_{selected}_{metric}')}.pdf",
+                            key=f"pdf_{file_name}_{selected}_{metric}"
+                        )
                     with tab2:
                         cols = st.columns([0.55, 0.45])
                         col1, _ = cols
