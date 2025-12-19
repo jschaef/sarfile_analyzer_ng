@@ -6,7 +6,11 @@ import pandas as pd
 import tempfile
 from typing import Any
 
-pdf_key_counter = 0
+
+def _stable_pdf_key(prefix: str, name: str | None) -> str:
+    """Create a stable Streamlit widget key from a human-readable name."""
+    base = (name or "sar_chart").strip()
+    return f"{prefix}_{helpers.validate_convert_names(base)}"
 
 
 def create_pdf(file: str, chart: Any) -> list:
@@ -26,17 +30,12 @@ def pdf_download(file: str, chart: Any, key=None, download_name=None):
         key (widget key, optional): widget key for streamlit api. Defaults to None.
         download_name (str, optional): name for the downloaded file
     """
-    global pdf_key_counter
-    if key is None:
-        key = f"pdf_{pdf_key_counter}"
-    else:
-        key = f"{key}_{pdf_key_counter}"
-    pdf_key_counter += 1
-    
-    col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
-    
     if not download_name:
         download_name = "sar_chart.pdf"
+    if key is None:
+        key = _stable_pdf_key("pdf_prepare", download_name)
+
+    col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     
     # Only generate PDF when user clicks the prepare button
     if col1.button("prepare PDF", key=key):
@@ -75,13 +74,9 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
         download_name: Filename for the downloaded PDF
         key: Optional unique key for the download button
     """
-    global pdf_key_counter
     if key is None:
-        key = f"pdf_{pdf_key_counter}"
-    else:
-        key = f"{key}_{pdf_key_counter}"
-    pdf_key_counter += 1
-    
+        key = _stable_pdf_key("pdf_download", download_name)
+
     import io
     
     # Generate PDF data in memory
@@ -92,7 +87,7 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
     # Create download button
     _ = st.download_button(
         label="Download PDF",
-        data=pdf_buffer,
+        data=pdf_buffer.getvalue(),
         file_name=download_name,
         mime="application/pdf",
         key=key if key else f"pdf_{download_name}"
@@ -108,13 +103,9 @@ def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str = None):
         download_name: Filename for the downloaded PDF
         key: Optional unique key for the download button
     """
-    global pdf_key_counter
     if key is None:
-        key = f"pdf_{pdf_key_counter}"
-    else:
-        key = f"{key}_{pdf_key_counter}"
-    pdf_key_counter += 1
-    
+        key = _stable_pdf_key("pdf_prepare", download_name)
+
     import io
     import tempfile
     import os
@@ -167,7 +158,7 @@ def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str = None):
                 # Show download button
                 st.download_button(
                     label="Download PDF",
-                    data=pdf_buffer,
+                    data=pdf_buffer.getvalue(),
                     file_name=download_name,
                     mime="application/pdf",
                     key=f"{key}_download" if key else f"pdf_{download_name}"
@@ -179,6 +170,78 @@ def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str = None):
                 
         except Exception as e:
             st.error(f"PDF export failed: {e}")
+
+
+def pdf_download_bokeh_direct(plot_obj: Any, download_name: str, key: str = None):
+    """Single-click PDF download for Bokeh plots (deferred generation).
+
+    Uses Streamlit's newer `download_button(..., data=callable)` support so the PDF is
+    generated *only when the user clicks* "Download PDF". Nothing is cached in
+    `st.session_state` and no files are persisted.
+
+    Note: The callable runs in a separate thread; Streamlit calls inside it are ignored.
+    """
+
+    if key is None:
+        key = _stable_pdf_key("pdf_download", download_name)
+
+    def _generate_pdf_bytes() -> bytes:
+        import io
+        import os
+        import tempfile
+        import time
+        from bokeh.io import export_png
+        from PIL import Image
+        from selenium import webdriver
+        from selenium.webdriver.firefox.options import Options
+
+        # Auto-install geckodriver if needed
+        try:
+            import geckodriver_autoinstaller
+
+            geckodriver_autoinstaller.install()
+        except Exception:
+            pass
+
+        firefox_options = Options()
+        firefox_options.add_argument('--headless')
+        firefox_options.add_argument('--disable-gpu')
+        firefox_options.add_argument('--no-sandbox')
+
+        driver = webdriver.Firefox(options=firefox_options)
+        png_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+                png_path = tmp_png.name
+
+            export_png(plot_obj, filename=png_path, webdriver=driver)
+            time.sleep(0.2)
+
+            image = Image.open(png_path)
+            if image.mode == 'RGBA':
+                image = image.convert('RGB')
+
+            pdf_buffer = io.BytesIO()
+            image.save(pdf_buffer, format='PDF', resolution=100.0)
+            return pdf_buffer.getvalue()
+        finally:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            if png_path and os.path.exists(png_path):
+                try:
+                    os.unlink(png_path)
+                except Exception:
+                    pass
+
+    st.download_button(
+        label="Download PDF",
+        data=_generate_pdf_bytes,
+        file_name=download_name,
+        mime="application/pdf",
+        key=key,
+    )
 
 def show_metrics(prop_list, col=None, key=None, checkbox=None):
     col = col if col else st

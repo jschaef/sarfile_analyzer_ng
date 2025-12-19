@@ -268,7 +268,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                             download_name = f"multi_files_{download_name}"
                             
                             if chart_lib == "Bokeh":
-                                lh.pdf_download_bokeh(bokeh_fig, download_name, key=download_name)
+                                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=download_name)
                             else:
                                 lh.pdf_download_direct(img, download_name, key=download_name)
                     if not dia_type:
@@ -382,7 +382,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 download_name = (
                                     f"{key}_{helpers.validate_convert_names(title)}.pdf"
                                 )
-                                lh.pdf_download_bokeh(bokeh_fig, download_name, key=dia_key)
+                                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=dia_key)
                             else:
                                 chart = alt.overview_v1(
                                     df,

@@ -154,7 +154,7 @@ def single_f(config_obj, username, selection, df, os_details):
                     st.components.v1.html(chart_html, height=hight+100, scrolling=True)
                 title = f"{title}_{prop}"
                 download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-                lh.pdf_download_bokeh(bokeh_fig, download_name, key=f"pdf_{download_name}")
+                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
             else:
                 chart = alt.draw_single_chart_v1(
                     df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
@@ -222,7 +222,7 @@ def single_f(config_obj, username, selection, df, os_details):
                 with chart_placeholder.container():
                     st.components.v1.html(chart_html, height=height+100, scrolling=True)
                 download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-                lh.pdf_download_bokeh(bokeh_fig, download_name, key=f"pdf_{download_name}")
+                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
             else:
                 chart = alt.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
                     height=height, title=title)
