@@ -99,7 +99,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # pdfs,  pick time frame, diagram style
     @st.fragment
     def change_time_and_dia(df, headers):
-        lh.make_vspace(4, st)
+        st.space()
         st.markdown("**Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
         this_container = col1.container(border=True)
@@ -109,7 +109,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         for coumn in col1, col2, col3:
             coumn.space()
         create_multi_pdf = 0
-        col2.space(), col3.space()
+        col1.space('small'), col2.space(), col3.space()
         if col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
             create_multi_pdf = 1
         else:
@@ -117,7 +117,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         for coumn in col1, col2, col3:
             coumn.space()
         col1.markdown("##### Set time frame")
-        col2.markdown("###### ")
+        col2.space()
 
         for column in  col2, col3:
             column.space("medium")
@@ -195,7 +195,7 @@ This may consume significant browser memory (potentially 5-15 GB).
         col1, _ = st.columns([0.8, 0.2])
         if submitted:
             # Hard limit on number of charts to prevent browser crash
-            MAX_CHARTS = 20 if df_size_mb > 100 else 30
+            MAX_CHARTS = 50 if df_size_mb > 100 else 70
             
             if num_metrics_selected > MAX_CHARTS:
                 st.error(f"""🛑 **Too Many Metrics Selected**: You selected {num_metrics_selected} metrics, but the limit is {MAX_CHARTS} for files of this size.
