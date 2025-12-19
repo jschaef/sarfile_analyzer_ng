@@ -6,7 +6,7 @@ import pandas as pd
 import tempfile
 from typing import Any
 
-#global fobject
+pdf_key_counter = 0
 
 
 def create_pdf(file: str, chart: Any) -> list:
@@ -26,6 +26,13 @@ def pdf_download(file: str, chart: Any, key=None, download_name=None):
         key (widget key, optional): widget key for streamlit api. Defaults to None.
         download_name (str, optional): name for the downloaded file
     """
+    global pdf_key_counter
+    if key is None:
+        key = f"pdf_{pdf_key_counter}"
+    else:
+        key = f"{key}_{pdf_key_counter}"
+    pdf_key_counter += 1
+    
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     
     if not download_name:
@@ -68,6 +75,13 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
         download_name: Filename for the downloaded PDF
         key: Optional unique key for the download button
     """
+    global pdf_key_counter
+    if key is None:
+        key = f"pdf_{pdf_key_counter}"
+    else:
+        key = f"{key}_{pdf_key_counter}"
+    pdf_key_counter += 1
+    
     import io
     
     # Generate PDF data in memory
@@ -83,6 +97,88 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
         mime="application/pdf",
         key=key if key else f"pdf_{download_name}"
     )
+
+def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str = None):
+    """On-demand PDF download button for Bokeh plots.
+    
+    Only generates PDF when user clicks the button.
+    
+    Args:
+        plot_obj: Bokeh figure object to convert to PDF
+        download_name: Filename for the downloaded PDF
+        key: Optional unique key for the download button
+    """
+    global pdf_key_counter
+    if key is None:
+        key = f"pdf_{pdf_key_counter}"
+    else:
+        key = f"{key}_{pdf_key_counter}"
+    pdf_key_counter += 1
+    
+    import io
+    import tempfile
+    import os
+    import time
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options
+    from bokeh.io import export_png
+    from PIL import Image
+    
+    # Only generate PDF when user clicks the prepare button
+    if st.button("Prepare PDF", key=key, help="Click to generate PDF for download"):
+        try:
+            # Auto-install geckodriver if needed
+            try:
+                import geckodriver_autoinstaller
+                geckodriver_autoinstaller.install()
+            except Exception:
+                pass  # Driver might already be installed
+            
+            # Configure Firefox to run headless
+            firefox_options = Options()
+            firefox_options.add_argument('--headless')
+            firefox_options.add_argument('--disable-gpu')
+            firefox_options.add_argument('--no-sandbox')
+            
+            # Create webdriver
+            driver = webdriver.Firefox(options=firefox_options)
+            
+            try:
+                # Export Bokeh plot to PNG using temporary file
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+                    png_path = tmp_png.name
+                
+                # Give webdriver time to initialize and render
+                export_png(plot_obj, filename=png_path, webdriver=driver)
+                time.sleep(1)  # Ensure rendering is complete
+                
+                # Convert PNG to PDF
+                pdf_buffer = io.BytesIO()
+                image = Image.open(png_path)
+                # Convert RGBA to RGB if necessary
+                if image.mode == 'RGBA':
+                    image = image.convert('RGB')
+                image.save(pdf_buffer, format='PDF', resolution=100.0)
+                pdf_buffer.seek(0)
+                
+                # Clean up temporary file
+                os.unlink(png_path)
+                
+                # Show download button
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_buffer,
+                    file_name=download_name,
+                    mime="application/pdf",
+                    key=f"{key}_download" if key else f"pdf_{download_name}"
+                )
+                
+            finally:
+                # Always close the driver
+                driver.quit()
+                
+        except Exception as e:
+            st.error(f"PDF export failed: {e}")
 
 def show_metrics(prop_list, col=None, key=None, checkbox=None):
     col = col if col else st

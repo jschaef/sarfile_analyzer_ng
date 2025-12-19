@@ -116,7 +116,7 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
     chart = alt.overview_v1(df, restart_headers, os_details, font_size=font_size,
         width=width, height=height, title=f"{chart_title}")
     if show_metric:
-        metrics = df['metrics'].drop_duplicates().tolist()
+        metrics = list(df['metrics'].unique())
     collect_field.append({'df' :df, 'chart' : chart, 'title' : title , 
         'metrics' : metrics, 'header': header, 'device_num' : device_num, 
         'dup_bool': dup_bool, 'dup_check' : dup_check, 'df_describe' : 

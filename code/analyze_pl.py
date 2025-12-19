@@ -12,6 +12,8 @@ import layout_helper_pl as lh
 import helpers_pl
 import parse_into_polars as parse_polars
 import pl_helpers2 as pl_helpers
+import plotly_demo
+import bokeh_demo
 
 def analyze(config_c: helpers.configuration, username: str):
     # Track current analysis mode for cleanup on mode change
@@ -32,7 +34,7 @@ def analyze(config_c: helpers.configuration, username: str):
     with ph1:
         lh.make_vspace(1, ph1)
         single_multi = st.selectbox('**Analyze/Compare**', ['Graphical Overview',
-         'Detailed Metrics View', 'Multiple Sar Files', 
+         'Detailed Metrics View', 'Plotly Demo', 'Bokeh Demo', 'Multiple Sar Files', 
          'Metrics on many devices', 'Compare Metrics'])
     
     # Clear memory when switching analysis modes
@@ -88,6 +90,12 @@ def analyze(config_c: helpers.configuration, username: str):
 
         elif single_multi == 'Detailed Metrics View':
             single_file_pl.single_f(config, username, sar_file_parm, df, os_details)
+
+        elif single_multi == 'Plotly Demo':
+            plotly_demo.plotly_demo(config, username, sar_file_parm, df, os_details)
+
+        elif single_multi == 'Bokeh Demo':
+            bokeh_demo.bokeh_demo(config, username, sar_file_parm, df, os_details)
 
         elif single_multi == 'Multiple Sar Files':
             multi_files_pl.single_multi(config, username, [ph3, ph4, ph41])

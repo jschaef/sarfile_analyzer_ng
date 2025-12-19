@@ -1,11 +1,17 @@
 aiofiles
 altair
+bokeh
 connectorx
+geckodriver-autoinstaller
+kaleido
 pandas
+pillow
+plotly
 polars
 pypdf
 python-magic
 redis
+selenium
 SQLAlchemy
 streamlit
 streamlit-option-menu
