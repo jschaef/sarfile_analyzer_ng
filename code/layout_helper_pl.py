@@ -93,83 +93,104 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
         key=key if key else f"pdf_{download_name}"
     )
 
-def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str = None):
-    """On-demand PDF download button for Bokeh plots.
-    
-    Only generates PDF when user clicks the button.
-    
-    Args:
-        plot_obj: Bokeh figure object to convert to PDF
-        download_name: Filename for the downloaded PDF
-        key: Optional unique key for the download button
+@st.fragment
+def pdf_download_bokeh(plot_obj: Any, download_name: str, key: str | None = None):
+    """Two-step Bokeh PDF export: Prepare → Download.
+
+    Requirements this satisfies:
+    - One Prepare button per diagram.
+    - Clicking Prepare should not refresh the whole page (fragment rerun only).
+    - After preparing, show a Download button in the same place.
+    - Clicking Download may refresh; when wrapped in a fragment it usually won't.
+
+    Notes:
+    - `dia_overview_pl.cleanup_chart_memory()` deletes keys containing `'_pdf'`.
+      This helper stores bytes under keys that avoid that substring so prepared
+      data isn't accidentally cleared on unrelated reruns.
     """
+
     if key is None:
-        key = _stable_pdf_key("pdf_prepare", download_name)
+        key = _stable_pdf_key("bokehpdf_prepare", download_name)
+
+    prepared_bytes_key = f"{key}__bytes"
 
     import io
-    import tempfile
     import os
+    import tempfile
     import time
-    from selenium import webdriver
-    from selenium.webdriver.firefox.options import Options
     from bokeh.io import export_png
     from PIL import Image
-    
-    # Only generate PDF when user clicks the prepare button
-    if st.button("Prepare PDF", key=key, help="Click to generate PDF for download"):
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options
+
+    def _prepare_clicked() -> bool:
         try:
-            # Auto-install geckodriver if needed
+            from streamlit.errors import StreamlitAPIException
+        except Exception:  # pragma: no cover
+            StreamlitAPIException = Exception
+
+        try:
+            return st.button("Prepare PDF", key=key, help="Generate the PDF and show the download button")
+        except StreamlitAPIException:
+            # Fallback if this is ever used inside a form
+            return st.form_submit_button("Prepare PDF", key=key)
+
+    if _prepare_clicked():
+        png_path = None
+        driver = None
+        try:
             try:
                 import geckodriver_autoinstaller
+
                 geckodriver_autoinstaller.install()
             except Exception:
-                pass  # Driver might already be installed
-            
-            # Configure Firefox to run headless
+                pass
+
             firefox_options = Options()
             firefox_options.add_argument('--headless')
             firefox_options.add_argument('--disable-gpu')
             firefox_options.add_argument('--no-sandbox')
-            
-            # Create webdriver
+
             driver = webdriver.Firefox(options=firefox_options)
-            
-            try:
-                # Export Bokeh plot to PNG using temporary file
-                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-                    png_path = tmp_png.name
-                
-                # Give webdriver time to initialize and render
-                export_png(plot_obj, filename=png_path, webdriver=driver)
-                time.sleep(1)  # Ensure rendering is complete
-                
-                # Convert PNG to PDF
-                pdf_buffer = io.BytesIO()
-                image = Image.open(png_path)
-                # Convert RGBA to RGB if necessary
-                if image.mode == 'RGBA':
-                    image = image.convert('RGB')
-                image.save(pdf_buffer, format='PDF', resolution=100.0)
-                pdf_buffer.seek(0)
-                
-                # Clean up temporary file
-                os.unlink(png_path)
-                
-                # Show download button
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf_buffer.getvalue(),
-                    file_name=download_name,
-                    mime="application/pdf",
-                    key=f"{key}_download" if key else f"pdf_{download_name}"
-                )
-                
-            finally:
-                # Always close the driver
-                driver.quit()
-                
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+                png_path = tmp_png.name
+
+            export_png(plot_obj, filename=png_path, webdriver=driver)
+            time.sleep(0.2)
+
+            image = Image.open(png_path)
+            if image.mode == 'RGBA':
+                image = image.convert('RGB')
+
+            pdf_buffer = io.BytesIO()
+            image.save(pdf_buffer, format='PDF', resolution=100.0)
+            st.session_state[prepared_bytes_key] = pdf_buffer.getvalue()
         except Exception as e:
             st.error(f"PDF export failed: {e}")
+            st.session_state.pop(prepared_bytes_key, None)
+        finally:
+            if driver is not None:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            if png_path and os.path.exists(png_path):
+                try:
+                    os.unlink(png_path)
+                except Exception:
+                    pass
+
+    pdf_bytes = st.session_state.get(prepared_bytes_key)
+    if pdf_bytes:
+        st.download_button(
+            label="Download PDF",
+            data=pdf_bytes,
+            file_name=download_name,
+            mime="application/pdf",
+            key=f"{key}__download",
+            type="primary",
+        )
 
 
 def pdf_download_bokeh_direct(plot_obj: Any, download_name: str, key: str = None):

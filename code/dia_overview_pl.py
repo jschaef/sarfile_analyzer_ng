@@ -157,8 +157,15 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
 
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
+    show_state_key = f"dia_overview_show_{sar_file_name}"
+    if show_state_key not in st.session_state:
+        st.session_state[show_state_key] = False
+
     submitted = col1.button('Show Diagrams')
+    if submitted:
+        st.session_state[show_state_key] = True
     if col2.button('Clear'):
+        st.session_state[show_state_key] = False
         st.rerun()
     lh.make_vspace(1, st)
     
@@ -193,7 +200,7 @@ This may consume significant browser memory (potentially 5-15 GB).
     
     if sel_field:
         col1, _ = st.columns([0.8, 0.2])
-        if submitted:
+        if submitted or st.session_state.get(show_state_key, False):
             # Hard limit on number of charts to prevent browser crash
             MAX_CHARTS = 50 if df_size_mb > 100 else 70
             
@@ -301,8 +308,14 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                     multi_pdf_chart_field.append(bokeh_fig)
                                     st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
                                 else:
-                                    pdf_name = f'{sar_file_name}_{header.replace(" ", "_")}.pdf'
-                                    lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_name)
+                                    pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
+                                    pdf_key = (
+                                        f"bokehpdf_{sar_file_name}_"
+                                        f"{helpers_pl.validate_convert_names(header)}_"
+                                        f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                        f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                    )
+                                    lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
 
                             counter += 1
                         else:
@@ -313,6 +326,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             for subitem in sorted_df_dict[key]:
                                 subitem_dict = subitem[0]
                                 df_chart = subitem_dict['df']
+                                device_num = subitem_dict.get('device_num', '')
                                 dup_bool = subitem_dict['dup_bool']
                                 dup_check = subitem_dict['dup_check']
                                 df_describe = subitem_dict['df_describe']
@@ -360,7 +374,13 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                         st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
                                     else:
                                         pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
-                                        lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_name)
+                                        pdf_key = (
+                                            f"bokehpdf_{sar_file_name}_"
+                                            f"{helpers_pl.validate_convert_names(header)}_"
+                                            f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                            f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                        )
+                                        lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
                                 counter +=1
                         # st.markdown("___")
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
