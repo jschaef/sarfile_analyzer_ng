@@ -103,7 +103,43 @@ def _restart_label_flags(
     return flags
 
 
-def _add_restart_marker(p, x, color: str = "orange", y_mid: float | None = None, show_label: bool = True):
+def _scope_hover_to_renderers(hover_tool: HoverTool, renderers):
+    """Limit a HoverTool to a specific set of glyph renderers."""
+    try:
+        hover_tool.renderers = list(renderers) if renderers is not None else []
+    except Exception:
+        pass
+
+
+def _ensure_restart_hover_tool(p):
+    """Create (or reuse) a restart-only hover tool for a figure.
+
+    Important: The metric hover tool(s) must be scoped to their own renderers,
+    otherwise a wide restart hit target can prevent metric tooltips.
+    """
+    tool = getattr(p, "_restart_hover_tool", None)
+    if tool is None:
+        tool = HoverTool(
+            tooltips=[("RESTART", "@restart_time{%H:%M:%S}")],
+            formatters={"@restart_time": "datetime"},
+            mode="mouse",
+        )
+        tool.renderers = []
+        p.add_tools(tool)
+        p._restart_hover_tool = tool
+    return tool
+
+
+def _add_restart_marker(
+    p,
+    x,
+    color: str = "orange",
+    y_mid: float | None = None,
+    show_label: bool = True,
+    restart_hover: HoverTool | None = None,
+    y_low: float | None = None,
+    y_high: float | None = None,
+):
     # Always draw the dashed line.
     p.add_layout(
         Span(
@@ -114,6 +150,41 @@ def _add_restart_marker(p, x, color: str = "orange", y_mid: float | None = None,
             line_width=2,
         )
     )
+
+    # Add a thin, nearly invisible but hoverable glyph at the same x.
+    # (Annotations like Span can't be hit-tested by HoverTool.)
+    if restart_hover is not None:
+        try:
+            if y_low is None or y_high is None:
+                y_low = getattr(getattr(p, "y_range", None), "start", None)
+                y_high = getattr(getattr(p, "y_range", None), "end", None)
+            if y_low is None or y_high is None:
+                y_low, y_high = 0.0, 1.0
+
+            restart_src = ColumnDataSource(
+                {
+                    "x0": [x],
+                    "x1": [x],
+                    "y0": [float(y_low)],
+                    "y1": [float(y_high)],
+                    "restart_time": [x],
+                }
+            )
+            restart_r = p.segment(
+                x0="x0",
+                y0="y0",
+                x1="x1",
+                y1="y1",
+                source=restart_src,
+                line_color=color,
+                line_alpha=0.001,
+                line_width=8,
+            )
+            if restart_hover.renderers is None:
+                restart_hover.renderers = []
+            restart_hover.renderers.append(restart_r)
+        except Exception:
+            pass
 
     if not show_label:
         return
@@ -214,6 +285,7 @@ def draw_single_chart_v1(
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
     legend_items = []
     
+    metric_renderers = []
     for i, (name, group) in enumerate(df.groupby(color_item)):
         color = colors[i % len(colors)]
         # Create ColumnDataSource with only the columns we need
@@ -233,6 +305,7 @@ def draw_single_chart_v1(
             alpha=0.8,
             legend_label=str(name)
         )
+        metric_renderers.append(line)
         legend_items.append((str(name), [line]))
     
     # Add hover tool
@@ -246,12 +319,14 @@ def draw_single_chart_v1(
         mode='vline'
     )
     p.add_tools(hover)
+    _scope_hover_to_renderers(hover, metric_renderers)
     
     # Add crosshair tool for mouse following lines
     p.add_tools(CrosshairTool())
     
     # Add restart markers if they exist
     restart_times = parse_restart_times(restart_headers, os_details)
+    restart_hover = _ensure_restart_hover_tool(p) if restart_times else None
     try:
         x_min = df["date_utc"].min()
         x_max = df["date_utc"].max()
@@ -263,7 +338,16 @@ def draw_single_chart_v1(
         y_mid = None
     show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
     for restart_time, show_label in zip(sorted(restart_times), show_flags):
-        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
+        _add_restart_marker(
+            p,
+            restart_time,
+            color="orange",
+            y_mid=y_mid,
+            show_label=show_label,
+            restart_hover=restart_hover,
+            y_low=getattr(getattr(p, "y_range", None), "start", None),
+            y_high=getattr(getattr(p, "y_range", None), "end", None),
+        )
     
     # Configure legend
     if legend_items:
@@ -324,6 +408,7 @@ def overview_v1(
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
     # Plot lines for each metric
+    metric_renderers = []
     for i, metric in enumerate(metrics):
         metric_df = df[df['metrics'] == metric]
         color = colors[i % len(colors)]
@@ -345,6 +430,7 @@ def overview_v1(
             alpha=0.8,
             legend_label=str(metric)
         )
+        metric_renderers.append(line)
     
     # Add hover tool
     hover = HoverTool(
@@ -357,12 +443,14 @@ def overview_v1(
         mode='vline'
     )
     p.add_tools(hover)
+    _scope_hover_to_renderers(hover, metric_renderers)
     
     # Add crosshair tool
     p.add_tools(CrosshairTool())
     
     # Add restart markers if they exist
     restart_times = parse_restart_times(restart_headers, os_details)
+    restart_hover = _ensure_restart_hover_tool(p) if restart_times else None
     try:
         x_min = df["date_utc"].min()
         x_max = df["date_utc"].max()
@@ -374,7 +462,16 @@ def overview_v1(
         y_mid = None
     show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
     for restart_time, show_label in zip(sorted(restart_times), show_flags):
-        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
+        _add_restart_marker(
+            p,
+            restart_time,
+            color="orange",
+            y_mid=y_mid,
+            show_label=show_label,
+            restart_hover=restart_hover,
+            y_low=float(df["y"].min()) if "y" in df.columns else None,
+            y_high=float(df["y"].max()) if "y" in df.columns else None,
+        )
     
     # Configure legend
     p.legend.location = "top_right"
@@ -454,6 +551,7 @@ def overview_v3(
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
     # Plot lines for each file
+    metric_renderers = []
     for i, file in enumerate(files):
         file_df = b_df[b_df[color_item] == file]
         color = colors[i % len(colors)]
@@ -474,6 +572,7 @@ def overview_v3(
             alpha=0.8,
             legend_label=str(file)
         )
+        metric_renderers.append(line)
     
     # Add hover tool
     hover = HoverTool(
@@ -485,10 +584,17 @@ def overview_v3(
         mode='vline'
     )
     p.add_tools(hover)
+    _scope_hover_to_renderers(hover, metric_renderers)
     p.add_tools(CrosshairTool())
     
     # Add restart markers if they exist - match restarts to files
     if reboot_headers:
+        restart_hover = _ensure_restart_hover_tool(p)
+        try:
+            y_low = float(b_df[property].min())
+            y_high = float(b_df[property].max())
+        except Exception:
+            y_low, y_high = None, None
         for header in reboot_headers:
             if header[0]:
                 # Extract hostname and date from os_details to match with filename
@@ -511,7 +617,16 @@ def overview_v3(
                             y_mid = None
                         show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
                         for restart_time, show_label in zip(sorted(restart_times), show_flags):
-                            _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
+                            _add_restart_marker(
+                                p,
+                                restart_time,
+                                color="orange",
+                                y_mid=y_mid,
+                                show_label=show_label,
+                                restart_hover=restart_hover,
+                                y_low=y_low,
+                                y_high=y_high,
+                            )
                         break
     
     # Configure legend
@@ -598,6 +713,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
     date_color_map = {}
 
     # Plot each day as a separate line but aligned to the common time axis
+    metric_renderers = []
     for i, date in enumerate(sorted(b_df[color_item].unique())):
         date_df = b_df[b_df[color_item] == date]
         color = colors[i % len(colors)]
@@ -612,7 +728,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         }
         source = ColumnDataSource(data=source_data)
 
-        p.line(
+        line = p.line(
             x='aligned_time',
             y=property,
             source=source,
@@ -621,6 +737,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
             alpha=0.85,
             legend_label=date_label,
         )
+        metric_renderers.append(line)
 
     hover = HoverTool(
         tooltips=[
@@ -633,10 +750,12 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         mode='vline'
     )
     p.add_tools(hover)
+    _scope_hover_to_renderers(hover, metric_renderers)
     p.add_tools(CrosshairTool())
 
     # Add restart markers (aligned to base day)
     if reboot_headers:
+        restart_hover = _ensure_restart_hover_tool(p)
         # Determine x span on the aligned axis for label suppression.
         try:
             x_min = b_df["aligned_time"].min()
@@ -647,6 +766,11 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
             y_mid = (float(b_df[property].min()) + float(b_df[property].max())) / 2.0
         except Exception:
             y_mid = None
+        try:
+            y_low = float(b_df[property].min())
+            y_high = float(b_df[property].max())
+        except Exception:
+            y_low, y_high = None, None
 
         for header in reboot_headers:
             if not header[0]:
@@ -667,7 +791,16 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
 
             show_flags = _restart_label_flags(sorted(aligned_times), x_min, x_max, getattr(p, "width", None))
             for aligned_restart, show_label in zip(sorted(aligned_times), show_flags):
-                _add_restart_marker(p, aligned_restart, color=date_color_map.get(date_label, 'orange'), y_mid=y_mid, show_label=show_label)
+                _add_restart_marker(
+                    p,
+                    aligned_restart,
+                    color=date_color_map.get(date_label, 'orange'),
+                    y_mid=y_mid,
+                    show_label=show_label,
+                    restart_hover=restart_hover,
+                    y_low=y_low,
+                    y_high=y_high,
+                )
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
@@ -769,6 +902,7 @@ def overview_v5(
         groups = [filename]
         b_df[color_item] = filename
 
+    metric_renderers = []
     for i, group_name in enumerate(groups):
         gdf = b_df[b_df[color_item] == group_name]
         if gdf.empty:
@@ -781,7 +915,7 @@ def overview_v5(
                 color_item: [group_name] * len(gdf),
             }
         )
-        p.line(
+        line = p.line(
             x="date_utc",
             y=property,
             source=source,
@@ -790,6 +924,7 @@ def overview_v5(
             alpha=0.85,
             legend_label=str(group_name),
         )
+        metric_renderers.append(line)
 
     hover = HoverTool(
         tooltips=[
@@ -801,10 +936,12 @@ def overview_v5(
         mode="vline",
     )
     p.add_tools(hover)
+    _scope_hover_to_renderers(hover, metric_renderers)
     p.add_tools(CrosshairTool())
 
     # Add restart markers.
     restart_times = parse_restart_times(restart_headers, os_details)
+    restart_hover = _ensure_restart_hover_tool(p) if restart_times else None
     try:
         x_min = b_df["date_utc"].min()
         x_max = b_df["date_utc"].max()
@@ -816,7 +953,16 @@ def overview_v5(
         y_mid = None
     show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
     for restart_time, show_label in zip(sorted(restart_times), show_flags):
-        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
+        _add_restart_marker(
+            p,
+            restart_time,
+            color="orange",
+            y_mid=y_mid,
+            show_label=show_label,
+            restart_hover=restart_hover,
+            y_low=getattr(getattr(p, "y_range", None), "start", None),
+            y_high=getattr(getattr(p, "y_range", None), "end", None),
+        )
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
