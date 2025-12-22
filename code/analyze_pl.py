@@ -91,12 +91,6 @@ def analyze(config_c: helpers.configuration, username: str):
         elif single_multi == 'Detailed Metrics View':
             single_file_pl.single_f(config, username, sar_file_parm, df, os_details)
 
-        elif single_multi == 'Plotly Demo':
-            plotly_demo.plotly_demo(config, username, sar_file_parm, df, os_details)
-
-        elif single_multi == 'Bokeh Demo':
-            bokeh_demo.bokeh_demo(config, username, sar_file_parm, df, os_details)
-
         elif single_multi == 'Multiple Sar Files':
             multi_files_pl.single_multi(config, username, [ph3, ph4, ph41])
 
