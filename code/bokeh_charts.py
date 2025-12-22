@@ -5,10 +5,12 @@ Similar to alt.py but uses Bokeh for better performance with large datasets
 """
 import time
 import pandas as pd
+from math import pi
 from bokeh.plotting import figure
 from bokeh.models import (
     HoverTool,
     Span,
+    Label,
     ColumnDataSource,
     NumeralTickFormatter,
     CrosshairTool,
@@ -52,6 +54,100 @@ def parse_restart_times(restart_headers, os_details):
         restart_times.append(z)
     
     return restart_times
+
+
+def _restart_label_flags(
+    times,
+    x_min,
+    x_max,
+    plot_width_px: int | None,
+    min_sep_px: int = 18,
+):
+    """Return a list of booleans whether to show the RESTART label.
+
+    Always draws dashed lines. Labels are suppressed if neighboring restart lines
+    are too close in x such that text would overlap.
+
+    We approximate overlap by converting a pixel separation threshold into a
+    time delta using the current x-span and plot width.
+    """
+    if not times:
+        return []
+    if x_min is None or x_max is None or plot_width_px is None or plot_width_px <= 0:
+        return [True] * len(times)
+
+    try:
+        span = pd.Timestamp(x_max) - pd.Timestamp(x_min)
+        if span <= pd.Timedelta(0):
+            return [True] * len(times)
+        min_dt = span * (min_sep_px / float(plot_width_px))
+    except Exception:
+        return [True] * len(times)
+
+    flags = []
+    last_labeled = None
+    for t in times:
+        if last_labeled is None:
+            flags.append(True)
+            last_labeled = t
+            continue
+        try:
+            if (pd.Timestamp(t) - pd.Timestamp(last_labeled)) >= min_dt:
+                flags.append(True)
+                last_labeled = t
+            else:
+                flags.append(False)
+        except Exception:
+            flags.append(True)
+            last_labeled = t
+    return flags
+
+
+def _add_restart_marker(p, x, color: str = "orange", y_mid: float | None = None, show_label: bool = True):
+    # Always draw the dashed line.
+    p.add_layout(
+        Span(
+            location=x,
+            dimension="height",
+            line_color=color,
+            line_dash="dashed",
+            line_width=2,
+        )
+    )
+
+    if not show_label:
+        return
+
+    # Place label in *data space* so it's centered in the plotting area
+    # (not affected by title/toolbar/axis padding).
+    if y_mid is None:
+        try:
+            y_start = getattr(p.y_range, "start", None)
+            y_end = getattr(p.y_range, "end", None)
+            if y_start is not None and y_end is not None:
+                y_mid = (float(y_start) + float(y_end)) / 2.0
+        except Exception:
+            y_mid = None
+
+    if y_mid is None:
+        y_mid = 0.0
+
+    p.add_layout(
+        Label(
+            x=x,
+            y=y_mid,
+            x_units="data",
+            y_units="data",
+            x_offset=8,
+            text="RESTART",
+            angle=pi / 2,
+            text_color=color,
+            text_font_size="10pt",
+            text_font_style="bold",
+            text_align="center",
+            text_baseline="middle",
+        )
+    )
 
 
 def draw_single_chart_v1(
@@ -156,15 +252,18 @@ def draw_single_chart_v1(
     
     # Add restart markers if they exist
     restart_times = parse_restart_times(restart_headers, os_details)
-    for restart_time in restart_times:
-        vline = Span(
-            location=restart_time,
-            dimension='height',
-            line_color='orange',
-            line_dash='dashed',
-            line_width=2
-        )
-        p.add_layout(vline)
+    try:
+        x_min = df["date_utc"].min()
+        x_max = df["date_utc"].max()
+    except Exception:
+        x_min, x_max = None, None
+    try:
+        y_mid = (float(y_min) + float(y_max)) / 2.0 if pd.notna(y_min) and pd.notna(y_max) else None
+    except Exception:
+        y_mid = None
+    show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
+    for restart_time, show_label in zip(sorted(restart_times), show_flags):
+        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
     
     # Configure legend
     if legend_items:
@@ -264,15 +363,18 @@ def overview_v1(
     
     # Add restart markers if they exist
     restart_times = parse_restart_times(restart_headers, os_details)
-    for restart_time in restart_times:
-        vline = Span(
-            location=restart_time,
-            dimension='height',
-            line_color='orange',
-            line_dash='dashed',
-            line_width=2
-        )
-        p.add_layout(vline)
+    try:
+        x_min = df["date_utc"].min()
+        x_max = df["date_utc"].max()
+    except Exception:
+        x_min, x_max = None, None
+    try:
+        y_mid = (float(df["y"].min()) + float(df["y"].max())) / 2.0
+    except Exception:
+        y_mid = None
+    show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
+    for restart_time, show_label in zip(sorted(restart_times), show_flags):
+        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
     
     # Configure legend
     p.legend.location = "top_right"
@@ -398,15 +500,18 @@ def overview_v3(
                     if hostname in file and date in file:
                         # Parse restart times for this file
                         restart_times = parse_restart_times(header[0], header[1])
-                        for restart_time in restart_times:
-                            vline = Span(
-                                location=restart_time,
-                                dimension='height',
-                                line_color='orange',
-                                line_dash='dashed',
-                                line_width=2
-                            )
-                            p.add_layout(vline)
+                        try:
+                            x_min = b_df["date_utc"].min()
+                            x_max = b_df["date_utc"].max()
+                        except Exception:
+                            x_min, x_max = None, None
+                        try:
+                            y_mid = (float(b_df[property].min()) + float(b_df[property].max())) / 2.0
+                        except Exception:
+                            y_mid = None
+                        show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
+                        for restart_time, show_label in zip(sorted(restart_times), show_flags):
+                            _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
                         break
     
     # Configure legend
@@ -532,6 +637,17 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
 
     # Add restart markers (aligned to base day)
     if reboot_headers:
+        # Determine x span on the aligned axis for label suppression.
+        try:
+            x_min = b_df["aligned_time"].min()
+            x_max = b_df["aligned_time"].max()
+        except Exception:
+            x_min, x_max = None, None
+        try:
+            y_mid = (float(b_df[property].min()) + float(b_df[property].max())) / 2.0
+        except Exception:
+            y_mid = None
+
         for header in reboot_headers:
             if not header[0]:
                 continue
@@ -541,19 +657,17 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
                 parsed_date = pd.to_datetime(date_str, errors='coerce')
             date_label = parsed_date.strftime('%Y-%m-%d') if parsed_date is not None and not pd.isna(parsed_date) else str(date_str)
             restart_times = parse_restart_times(header[0], header[1])
+            aligned_times = []
             for restart_time in restart_times:
                 restart_ts = pd.Timestamp(restart_time)
                 if restart_ts.tzinfo is None:
                     restart_ts = restart_ts.tz_localize('UTC')
                 aligned_restart = (base_date + (restart_ts - restart_ts.normalize())).tz_localize(None)
-                vline = Span(
-                    location=aligned_restart,
-                    dimension='height',
-                    line_color=date_color_map.get(date_label, 'orange'),
-                    line_dash='dashed',
-                    line_width=2,
-                )
-                p.add_layout(vline)
+                aligned_times.append(aligned_restart)
+
+            show_flags = _restart_label_flags(sorted(aligned_times), x_min, x_max, getattr(p, "width", None))
+            for aligned_restart, show_label in zip(sorted(aligned_times), show_flags):
+                _add_restart_marker(p, aligned_restart, color=date_color_map.get(date_label, 'orange'), y_mid=y_mid, show_label=show_label)
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
@@ -691,16 +805,18 @@ def overview_v5(
 
     # Add restart markers.
     restart_times = parse_restart_times(restart_headers, os_details)
-    for restart_time in restart_times:
-        p.add_layout(
-            Span(
-                location=restart_time,
-                dimension="height",
-                line_color="orange",
-                line_dash="dashed",
-                line_width=2,
-            )
-        )
+    try:
+        x_min = b_df["date_utc"].min()
+        x_max = b_df["date_utc"].max()
+    except Exception:
+        x_min, x_max = None, None
+    try:
+        y_mid = (float(y_min) + float(y_max)) / 2.0 if pd.notna(y_min) and pd.notna(y_max) else None
+    except Exception:
+        y_mid = None
+    show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
+    for restart_time, show_label in zip(sorted(restart_times), show_flags):
+        _add_restart_marker(p, restart_time, color="orange", y_mid=y_mid, show_label=show_label)
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
