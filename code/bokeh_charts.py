@@ -567,6 +567,18 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
 
+    # Return HTML components and figure object (for PDF export)
+    script, div = components(p)
+    cdn_js = CDN.js_files
+    cdn_css = CDN.css_files
+    resources_html = ""
+    for css in cdn_css:
+        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
+    for js in cdn_js:
+        resources_html += f'<script src="{js}"></script>\n'
+    full_html = f"{resources_html}{script}\n{div}"
+    return full_html, p
+
 
 def overview_v5(
     b_df,
