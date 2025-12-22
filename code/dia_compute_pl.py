@@ -86,10 +86,6 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
         show_metric: int, device_num: int, sub_title: str,) -> list:
     collect_field = []
     title = header
-    if sub_title:
-        chart_title = f"{header} {sub_title}"
-    else:
-        chart_title = title
     dup_bool = 0
     df_describe = 0
     df_display = 0
