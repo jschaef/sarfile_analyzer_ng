@@ -13,6 +13,7 @@ from bokeh.models import (
     NumeralTickFormatter,
     CrosshairTool,
     DatetimeTickFormatter,
+    Range1d,
 )
 from bokeh.embed import components
 from bokeh.resources import CDN
@@ -68,6 +69,17 @@ def draw_single_chart_v1(
     Create a Bokeh chart for single metric visualization.
     Returns tuple: (HTML string for rendering via components.html(), figure object for PDF export)
     """
+    def _tooltip_field(field_name: str) -> str:
+        # Sar metrics often contain special characters (e.g. "ldavg-15").
+        # Bokeh tooltips require @{field} syntax for such names.
+        return f"@{{{field_name}}}"
+
+    # Compute y-range from full (unsampled) data to avoid surprising scaling.
+    # Also coerce to numeric to ignore non-numeric artifacts.
+    y_series_full = pd.to_numeric(df.get(property), errors="coerce")
+    y_min = y_series_full.min(skipna=True)
+    y_max = y_series_full.max(skipna=True)
+
     # Sample large datasets to reduce memory usage
     df = sample_dataframe_for_viz(df, max_rows=5000)
     df["date_utc"] = df["date"].dt.tz_localize("UTC")
@@ -87,6 +99,20 @@ def draw_single_chart_v1(
         height=hight,
         toolbar_location="above",
     )
+
+    # Stabilize y-axis: Bokeh's automatic DataRange can look "too high" for small float ranges.
+    # Explicitly set a padded range from the data.
+    if pd.notna(y_min) and pd.notna(y_max):
+        span = float(y_max - y_min)
+        if span == 0.0:
+            pad = max(abs(float(y_max)) * 0.1, 1.0)
+        else:
+            pad = span * 0.1
+        start = float(y_min) - pad
+        end = float(y_max) + pad
+        if float(y_min) >= 0.0:
+            start = max(0.0, start)
+        p.y_range = Range1d(start=start, end=end)
     
     # Group by color_item and plot lines for each group
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
@@ -117,8 +143,8 @@ def draw_single_chart_v1(
     hover = HoverTool(
         tooltips=[
             ('Time', '@date_utc{%F %T}'),
-            (property, f'@{property}{{0.00}}'),
-            (color_item.capitalize(), f'@{color_item}'),
+            (property, f"{_tooltip_field(property)}{{0.00}}"),
+            (color_item.capitalize(), _tooltip_field(color_item)),
         ],
         formatters={'@date_utc': 'datetime'},
         mode='vline'
@@ -146,7 +172,7 @@ def draw_single_chart_v1(
         p.legend.click_policy = "hide"
     
     # Format Y-axis to show decimal notation instead of scientific notation
-    p.yaxis.formatter = NumeralTickFormatter(format="0,0")
+    p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
     
     # Apply font sizes if specified
     if font_size is not None:

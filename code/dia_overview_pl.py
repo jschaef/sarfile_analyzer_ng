@@ -180,7 +180,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     
     num_metrics_selected = len(sel_field) if sel_field else 0
     
-    if df_size_mb > 50 and num_metrics_selected > 10:
+    if df_size_mb > 50 and num_metrics_selected > 70:
         st.warning(f"""⚠️ **Large Dataset Warning**: You have selected {num_metrics_selected} metrics from a {df_size_mb:.1f}MB dataset.
         
 This may consume significant browser memory (potentially 5-15 GB). 
