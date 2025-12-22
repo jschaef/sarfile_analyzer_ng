@@ -314,6 +314,11 @@ def overview_v3(
     Returns tuple: (HTML string, figure object)
     """
     import pandas as pd
+
+    def _tooltip_field(field_name: str) -> str:
+        # Metric names can contain characters like '%' or '-' (e.g. "%usr", "ldavg-1").
+        # Bokeh hover needs @{field} syntax in that case.
+        return f"@{{{field_name}}}"
     
     color_item = lsel  # Usually "file"
     b_df = pd.DataFrame()
@@ -371,9 +376,8 @@ def overview_v3(
     # Add hover tool
     hover = HoverTool(
         tooltips=[
-            ('Time', '@date_utc{%F %T}'),
-            (property, f'@{property}{{0.00}}'),
-            ('File', f'@{color_item}'),
+            ('Time of Day', '@date_utc{%H:%M:%S}'),
+            (property, f"{_tooltip_field(property)}{{0.00}}"),
         ],
         formatters={'@date_utc': 'datetime'},
         mode='vline'
@@ -438,6 +442,11 @@ def overview_v3(
 
 def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None):
     """Create a Bokeh chart that overlays multiple days onto a single 24h window."""
+    def _tooltip_field(field_name: str) -> str:
+        # Metric names can contain characters like '%' or '-' (e.g. "%usr", "ldavg-1").
+        # Bokeh hover needs @{field} syntax in that case.
+        return f"@{{{field_name}}}"
+
     color_item = "date_short"
     b_df = pd.DataFrame()
 
@@ -510,14 +519,11 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
 
     hover = HoverTool(
         tooltips=[
-            ('Time of Day', '@aligned_time{%H:%M}'),
-            (property, f'@{property}{{0.00}}'),
-            ('Date', '@date_label'),
-            ('Original Timestamp', '@original_time{%F %T}'),
+            ('Time of Day', '@aligned_time{%H:%M:%S}'),
+            (property, f"{_tooltip_field(property)}{{0.00}}"),
         ],
         formatters={
             '@aligned_time': 'datetime',
-            '@original_time': 'datetime',
         },
         mode='vline'
     )
@@ -560,6 +566,152 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         p.yaxis.axis_label_text_font_size = f'{font_size}pt'
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
+
+
+def overview_v5(
+    b_df,
+    property,
+    filename,
+    reboot_headers,
+    width,
+    height,
+    lsel,
+    font_size,
+    os_details,
+    title=None,
+):
+    """Create a Bokeh chart for one file, many devices.
+
+    This mirrors the intent of alt.overview_v5 used by display_multi.show_multi:
+    plot the same metric for multiple sub-devices (e.g. CPUs) over time.
+    """
+
+    def _tooltip_field(field_name: str) -> str:
+        # Metric names can include characters like '%' or '-' (e.g. "%usr", "ldavg-1").
+        return f"@{{{field_name}}}"
+
+    if b_df is None or len(b_df) == 0:
+        return "", None
+
+    # Normalize restart headers input shape.
+    restart_headers = reboot_headers
+    if isinstance(restart_headers, list) and restart_headers and isinstance(restart_headers[0], list):
+        restart_headers = restart_headers[0]
+
+    # Compute y-range from full data (before sampling).
+    y_series_full = pd.to_numeric(b_df.get(property), errors="coerce")
+    y_min = y_series_full.min(skipna=True)
+    y_max = y_series_full.max(skipna=True)
+
+    b_df = sample_dataframe_for_viz(b_df, max_rows=5000)
+    if "date" not in b_df.columns:
+        return "", None
+
+    # Ensure datetime and add UTC column.
+    b_df = b_df.copy()
+    b_df["date"] = pd.to_datetime(b_df["date"], errors="coerce")
+    b_df["date_utc"] = b_df["date"].dt.tz_localize("UTC")
+
+    color_item = lsel  # typically 'sub_device'
+
+    p = figure(
+        title=title or f"{property}",
+        x_axis_label="Time",
+        y_axis_label=property,
+        x_axis_type="datetime",
+        width=width,
+        height=height,
+        toolbar_location="above",
+    )
+
+    # Stabilize y-axis range.
+    if pd.notna(y_min) and pd.notna(y_max):
+        span = float(y_max - y_min)
+        pad = max(abs(float(y_max)) * 0.1, 1.0) if span == 0.0 else span * 0.1
+        start = float(y_min) - pad
+        end = float(y_max) + pad
+        if float(y_min) >= 0.0:
+            start = max(0.0, start)
+        p.y_range = Range1d(start=start, end=end)
+
+    # Plot each device as a separate line.
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    groups = []
+    if color_item in b_df.columns:
+        groups = list(pd.unique(b_df[color_item]))
+    else:
+        groups = [filename]
+        b_df[color_item] = filename
+
+    for i, group_name in enumerate(groups):
+        gdf = b_df[b_df[color_item] == group_name]
+        if gdf.empty:
+            continue
+        color = colors[i % len(colors)]
+        source = ColumnDataSource(
+            data={
+                "date_utc": gdf["date_utc"].values,
+                property: gdf[property].values,
+                color_item: [group_name] * len(gdf),
+            }
+        )
+        p.line(
+            x="date_utc",
+            y=property,
+            source=source,
+            line_width=2,
+            color=color,
+            alpha=0.85,
+            legend_label=str(group_name),
+        )
+
+    hover = HoverTool(
+        tooltips=[
+            ("Time", "@date_utc{%F %T}"),
+            (property, f"{_tooltip_field(property)}{{0.00}}"),
+            (color_item, _tooltip_field(color_item)),
+        ],
+        formatters={"@date_utc": "datetime"},
+        mode="vline",
+    )
+    p.add_tools(hover)
+    p.add_tools(CrosshairTool())
+
+    # Add restart markers.
+    restart_times = parse_restart_times(restart_headers, os_details)
+    for restart_time in restart_times:
+        p.add_layout(
+            Span(
+                location=restart_time,
+                dimension="height",
+                line_color="orange",
+                line_dash="dashed",
+                line_width=2,
+            )
+        )
+
+    p.legend.location = "top_right"
+    p.legend.click_policy = "hide"
+    p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
+
+    if font_size is not None:
+        if p.title:
+            p.title.text_font_size = f"{font_size}pt"
+        p.xaxis.axis_label_text_font_size = f"{font_size}pt"
+        p.yaxis.axis_label_text_font_size = f"{font_size}pt"
+        p.xaxis.major_label_text_font_size = f"{font_size}pt"
+        p.yaxis.major_label_text_font_size = f"{font_size}pt"
+
+    script, div = components(p)
+    cdn_js = CDN.js_files
+    cdn_css = CDN.css_files
+    resources_html = ""
+    for css in cdn_css:
+        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
+    for js in cdn_js:
+        resources_html += f'<script src="{js}"></script>\n'
+    full_html = f"{resources_html}{script}\n{div}"
+    return full_html, p
 
     # Return HTML components and figure object (for PDF export)
     script, div = components(p)
