@@ -3,6 +3,7 @@ import streamlit as st
 import polars as pl
 import helpers_pl
 import alt
+import bokeh_charts
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
 import layout_helper_pl as lh
@@ -178,25 +179,57 @@ def show_multi(config_obj, username, selection, df, os_details):
                         font_size = helpers_pl.font_expander(
                             12, "Change Axis Font Size", "font size", cols[1]
                         )
-                        chart = alt.overview_v5(
-                            filtered_df,
-                            metric,
-                            file_name,
-                            [restart_headers],
-                            width,
-                            hight,
-                            "sub_device",
-                            font_size,
-                            os_details,
-                            title=f"{selected} {metric}",
+                        chart_lib = cols[2].radio(
+                            "Chart Library",
+                            ["Bokeh", "Altair"],
+                            index=0,
+                            key="multi_device_chart_lib",
+                            horizontal=True,
                         )
-                        with chart_placeholder:
-                            st.altair_chart(chart, width='stretch', theme=None)
-                        lh.pdf_download_direct(
-                            chart, 
-                            f"{helpers_pl.validate_convert_names(f'{file_name}_{selected}_{metric}')}.pdf",
-                            key=f"pdf_{file_name}_{selected}_{metric}"
-                        )
+
+                        if chart_lib == "Bokeh":
+                            # Bokeh expects pandas for dt access + ColumnDataSource
+                            b_df = filtered_df.to_pandas()
+                            chart_html, bokeh_fig = bokeh_charts.overview_v5(
+                                b_df,
+                                metric,
+                                file_name,
+                                restart_headers,
+                                width,
+                                hight,
+                                "sub_device",
+                                font_size,
+                                os_details,
+                                title=f"{selected} {metric}",
+                            )
+                            with chart_placeholder:
+                                st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+                            download_name = f"{helpers_pl.validate_convert_names(f'{file_name}_{selected}_{metric}')}.pdf"
+                            lh.pdf_download_bokeh_direct(
+                                bokeh_fig,
+                                download_name,
+                                key=f"pdf_{file_name}_{selected}_{metric}"
+                            )
+                        else:
+                            chart = alt.overview_v5(
+                                filtered_df,
+                                metric,
+                                file_name,
+                                [restart_headers],
+                                width,
+                                hight,
+                                "sub_device",
+                                font_size,
+                                os_details,
+                                title=f"{selected} {metric}",
+                            )
+                            with chart_placeholder:
+                                st.altair_chart(chart, width='stretch', theme=None)
+                            lh.pdf_download_direct(
+                                chart,
+                                f"{helpers_pl.validate_convert_names(f'{file_name}_{selected}_{metric}')}.pdf",
+                                key=f"pdf_{file_name}_{selected}_{metric}",
+                            )
                     with tab2:
                         cols = st.columns([0.55, 0.45])
                         col1, _ = cols

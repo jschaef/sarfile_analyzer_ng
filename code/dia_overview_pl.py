@@ -8,6 +8,7 @@ import polars as pl
 import dia_compute_pl as dia_compute
 import multi_pdf as mpdf
 import layout_helper_pl as lh
+import bokeh_charts
 from config import Config
 from concurrent.futures import ThreadPoolExecutor
 import gc
@@ -98,7 +99,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # pdfs,  pick time frame, diagram style
     @st.fragment
     def change_time_and_dia(df, headers):
-        lh.make_vspace(4, st)
+        st.space()
         st.markdown("**Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
         this_container = col1.container(border=True)
@@ -108,12 +109,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         for coumn in col1, col2, col3:
             coumn.space()
         create_multi_pdf = 0
-        if col1.toggle('Modern Style', help='Choose between modern and classic style',
-                on_change=st.rerun, args=(), kwargs={"scope": "fragment"}):
-            d_style = 'modern'
-        else:
-            d_style = 'classic'
-        col2.space(), col3.space()
+        col1.space('small'), col2.space(), col3.space()
         if col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
             create_multi_pdf = 1
         else:
@@ -121,7 +117,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         for coumn in col1, col2, col3:
             coumn.space()
         col1.markdown("##### Set time frame")
-        col2.markdown("###### ")
+        col2.space()
 
         for column in  col2, col3:
             column.space("medium")
@@ -154,15 +150,22 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         width, height = helpers_pl.diagram_expander('Diagram Width',
             'Diagram Height', col1)
         font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", col2)
-        return d_style, create_multi_pdf, start, end, width, height, font_size
+        return create_multi_pdf, start, end, width, height, font_size
 
     if sel_field:
-        d_style, create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
+        create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
 
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
+    show_state_key = f"dia_overview_show_{sar_file_name}"
+    if show_state_key not in st.session_state:
+        st.session_state[show_state_key] = False
+
     submitted = col1.button('Show Diagrams')
+    if submitted:
+        st.session_state[show_state_key] = True
     if col2.button('Clear'):
+        st.session_state[show_state_key] = False
         st.rerun()
     lh.make_vspace(1, st)
     
@@ -177,12 +180,12 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     
     num_metrics_selected = len(sel_field) if sel_field else 0
     
-    if df_size_mb > 50 and num_metrics_selected > 10:
+    if df_size_mb > 50 and num_metrics_selected > 70:
         st.warning(f"""⚠️ **Large Dataset Warning**: You have selected {num_metrics_selected} metrics from a {df_size_mb:.1f}MB dataset.
         
 This may consume significant browser memory (potentially 5-15 GB). 
 
-**Browser Memory Leak Issue**: Once browser memory goes high, it may NOT decrease even after selecting fewer metrics or refreshing the page. This is a known limitation with Vega-Lite charts in browsers.
+**Browser Memory Issue**: Once browser memory goes high, it may NOT decrease even after selecting fewer metrics or refreshing the page.
 
 **If experiencing high memory (>5GB)**:
 1. **Close this browser tab completely** (Ctrl+W or right-click → Close Tab)
@@ -197,9 +200,9 @@ This may consume significant browser memory (potentially 5-15 GB).
     
     if sel_field:
         col1, _ = st.columns([0.8, 0.2])
-        if submitted:
+        if submitted or st.session_state.get(show_state_key, False):
             # Hard limit on number of charts to prevent browser crash
-            MAX_CHARTS = 20 if df_size_mb > 100 else 30
+            MAX_CHARTS = 50 if df_size_mb > 100 else 70
             
             if num_metrics_selected > MAX_CHARTS:
                 st.error(f"""🛑 **Too Many Metrics Selected**: You selected {num_metrics_selected} metrics, but the limit is {MAX_CHARTS} for files of this size.
@@ -261,7 +264,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         # no sub_devices
                         if len(sorted_df_dict[key]) == 1:
                             header = sorted_df_dict[key][0][0]['header']
-                            chart = sorted_df_dict[key][0][0]['chart']
+                            df_chart = sorted_df_dict[key][0][0]['df']
                             device_num = sorted_df_dict[key][0][0]['device_num']
                             sub_title = sorted_df_dict[key][0][0]['sub_title']
                             dup_bool = sorted_df_dict[key][0][0]['dup_bool']
@@ -274,10 +277,16 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             with tab1:
                                 if sub_title == 'all':
                                     st.markdown(f'###### all of {device_num}')
-                                if d_style == 'modern':
-                                    st.altair_chart(chart, width='stretch', )
-                                else:
-                                    st.altair_chart(chart, width='stretch', theme=None)
+                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                    df_chart,
+                                    restart_headers,
+                                    os_details,
+                                    font_size=font_size,
+                                    width=width,
+                                    height=height,
+                                    title=f"{header}",
+                                )
+                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                             with tab2:
                                 if statistics:
                                     col1, col2, col3, col4 = lh.create_columns(
@@ -296,16 +305,17 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             with tab4:
                                 # Optimize: only generate individual PDFs when not creating multi-PDF
                                 if create_multi_pdf:
-                                    multi_pdf_chart_field.append(chart)
+                                    multi_pdf_chart_field.append(bokeh_fig)
                                     st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
                                 else:
-                                    pdf_name = f'{sar_file_name}_{header.replace(" ", "_")}.pdf'
-                                    lh.pdf_download(
-                                        pdf_name,
-                                        chart,
-                                        download_name=pdf_name,
-                                        key=pdf_name,
+                                    pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
+                                    pdf_key = (
+                                        f"bokehpdf_{sar_file_name}_"
+                                        f"{helpers_pl.validate_convert_names(header)}_"
+                                        f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                        f"{helpers_pl.validate_convert_names(str(device_num))}"
                                     )
+                                    lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
 
                             counter += 1
                         else:
@@ -315,7 +325,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             counter = 0
                             for subitem in sorted_df_dict[key]:
                                 subitem_dict = subitem[0]
-                                chart = subitem_dict['chart']
+                                df_chart = subitem_dict['df']
+                                device_num = subitem_dict.get('device_num', '')
                                 dup_bool = subitem_dict['dup_bool']
                                 dup_check = subitem_dict['dup_check']
                                 df_describe = subitem_dict['df_describe']
@@ -326,7 +337,16 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                 tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page",
                                         " 📊 PDF",])
                                 with tab1:
-                                    st.altair_chart(chart, theme=None)
+                                    chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                        df_chart,
+                                        restart_headers,
+                                        os_details,
+                                        font_size=font_size,
+                                        width=width,
+                                        height=height,
+                                        title=f"{header} {sub_title}" if sub_title else f"{header}",
+                                    )
+                                    st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
                                     if statistics:
                                         col1, col2, col3, col4 = lh.create_columns(
@@ -350,16 +370,17 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                 with tab4:
                                     # Optimize: only generate individual PDFs when not creating multi-PDF
                                     if create_multi_pdf:
-                                        multi_pdf_chart_field.append(chart)
+                                        multi_pdf_chart_field.append(bokeh_fig)
                                         st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
                                     else:
                                         pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
-                                        lh.pdf_download(
-                                        pdf_name,
-                                        chart,
-                                        download_name=pdf_name,
-                                        key=pdf_name,
-                                    )
+                                        pdf_key = (
+                                            f"bokehpdf_{sar_file_name}_"
+                                            f"{helpers_pl.validate_convert_names(header)}_"
+                                            f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                            f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                        )
+                                        lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
                                 counter +=1
                         # st.markdown("___")
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
@@ -371,7 +392,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             st.session_state.pop(key)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
-                        temp_pdf = mpdf.create_multi_pdf_from_charts(multi_pdf_chart_field)
+                        temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field)
                         
                         # Read the PDF data and provide download button directly
                         with open(temp_pdf, 'rb') as f:

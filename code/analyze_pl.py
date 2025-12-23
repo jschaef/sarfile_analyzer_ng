@@ -92,7 +92,8 @@ def analyze(config_c: helpers.configuration, username: str):
         elif single_multi == 'Multiple Sar Files':
             multi_files_pl.single_multi(config, username, [ph3, ph4, ph41])
 
-        elif single_multi == 'Compare Metrics':
-            handle_metrics_pl.do_metrics(config, username, sar_file_parm, df, os_details) 
         elif single_multi == 'Metrics on many devices':
             display_multi.show_multi(config, username, sar_file_parm, df, os_details)
+
+        elif single_multi == 'Compare Metrics':
+            handle_metrics_pl.do_metrics(config, username, sar_file_parm, df, os_details) 

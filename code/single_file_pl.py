@@ -3,6 +3,7 @@ import polars as pl
 import layout_helper_pl as lh
 import helpers_pl
 import alt
+import bokeh_charts
 import re
 import pl_helpers2 as pl_h2
 import dia_compute_pl as dia_compute
@@ -144,13 +145,24 @@ def single_f(config_obj, username, selection, df, os_details):
             cols = st.columns(8)
             width, hight = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
-            chart = alt.draw_single_chart_v1(
-                df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
-            with chart_placeholder.container():
-                st.altair_chart(chart, theme=None)
-            title = f"{title}_{prop}"
-            download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-            lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
+            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="single_chart_lib", horizontal=True)
+            
+            if chart_lib == "Bokeh":
+                chart_html, bokeh_fig = bokeh_charts.draw_single_chart_v1(
+                    df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
+                with chart_placeholder.container():
+                    st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                title = f"{title}_{prop}"
+                download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
+                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
+            else:
+                chart = alt.draw_single_chart_v1(
+                    df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
+                with chart_placeholder.container():
+                    st.altair_chart(chart, theme=None)
+                title = f"{title}_{prop}"
+                download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
+                lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
         with tab2:
             cols = st.columns(2)
             col1, _ = cols
@@ -202,12 +214,22 @@ def single_f(config_obj, username, selection, df, os_details):
             cols = st.columns(8)
             width, height = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
-            chart = alt.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
-                height=height, title=title)
-            with chart_placeholder.container():
-                st.altair_chart(chart, theme=None)
-            download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
-            lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
+            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="overview_chart_lib", horizontal=True)
+            
+            if chart_lib == "Bokeh":
+                chart_html, bokeh_fig = bokeh_charts.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
+                    height=height, title=title)
+                with chart_placeholder.container():
+                    st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
+                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
+            else:
+                chart = alt.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
+                    height=height, title=title)
+                with chart_placeholder.container():
+                    st.altair_chart(chart, theme=None)
+                download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
+                lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
         with tab2:
             cols = st.columns(2)
             col1, _ = cols

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 # compare same metric on multiple sar files
 import alt
+import bokeh_charts
 import streamlit as st
 import helpers_pl as helpers
 import pl_helpers2 as pl_helpers
@@ -210,36 +211,66 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                         width, hight = helpers.diagram_expander(
                             "Diagram Width", "Diagram Hight", col=cols[0]
                         )
-                        if not dia_type:
-                            img = alt.overview_v3(
-                                chart_field,
-                                reboot_headers,
-                                width,
-                                hight,
-                                "file",
-                                font_size,
-                                title=title,
-                            )
-                        else:
-                            img = alt.overview_v6(
-                                chart_field,
-                                reboot_headers,
-                                width,
-                                hight,
-                                font_size,
-                                title=title,
-                            )
-                        img = img.configure_axisY(labelLimit=400)
-
+                        chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="multi_compare_lib", horizontal=True)
+                        
                         chart_placeholder = st.empty()
-                        with chart_placeholder:
-                            st.altair_chart(img, theme=None)
+                        
+                        if chart_lib == "Bokeh":
+                            if dia_type:
+                                chart_html, bokeh_fig = bokeh_charts.overview_v3(
+                                    chart_field,
+                                    reboot_headers,
+                                    width,
+                                    hight,
+                                    "file",
+                                    font_size,
+                                    title=title,
+                                )
+                            else:
+                                chart_html, bokeh_fig = bokeh_charts.overview_v6(
+                                    chart_field,
+                                    reboot_headers,
+                                    width,
+                                    hight,
+                                    font_size,
+                                    title=title,
+                                )
+                            with chart_placeholder:
+                                st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                        else:
+                            if dia_type:
+                                img = alt.overview_v3(
+                                    chart_field,
+                                    reboot_headers,
+                                    width,
+                                    hight,
+                                    "file",
+                                    font_size,
+                                    title=title,
+                                )
+                            else:
+                                img = alt.overview_v6(
+                                    chart_field,
+                                    reboot_headers,
+                                    width,
+                                    hight,
+                                    font_size,
+                                    title=title,
+                                )
+                            img = img.configure_axisY(labelLimit=400)
+                            with chart_placeholder:
+                                st.altair_chart(img, theme=None)
+                        
                         if not dia_type:
                             metric = chart_field[0][1]
                             title = f"{title}_{metric}"
                             download_name = f"{helpers.validate_convert_names(title)}.pdf"
                             download_name = f"multi_files_{download_name}"
-                            lh.pdf_download_direct(img, download_name, key=download_name)
+                            
+                            if chart_lib == "Bokeh":
+                                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=download_name)
+                            else:
+                                lh.pdf_download_direct(img, download_name, key=download_name)
                     if not dia_type:
                         with tab2:
                             object_field = []
@@ -333,22 +364,42 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 cols[1],
                                 key=f"slider_{key}",
                             )
-                            chart = alt.overview_v1(
-                                df,
-                                restart_headers,
-                                os_details,
-                                font_size,
-                                width=width,
-                                height=height,
-                                title=title,
-                            )
-                            with chart_placeholder:
-                                st.altair_chart(chart, theme=None)
-                            dia_key = f"dia_{collect_field.index(data)}"
-                            download_name = (
-                                f"{key}_{helpers.validate_convert_names(title)}.pdf"
-                            )
-                            lh.pdf_download_direct(chart, download_name, key=dia_key)
+                            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key=f"multi_overview_{key}", horizontal=True)
+                            
+                            if chart_lib == "Bokeh":
+                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                    df,
+                                    restart_headers,
+                                    os_details,
+                                    font_size,
+                                    width=width,
+                                    height=height,
+                                    title=title,
+                                )
+                                with chart_placeholder:
+                                    st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                                dia_key = f"dia_{collect_field.index(data)}"
+                                download_name = (
+                                    f"{key}_{helpers.validate_convert_names(title)}.pdf"
+                                )
+                                lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=dia_key)
+                            else:
+                                chart = alt.overview_v1(
+                                    df,
+                                    restart_headers,
+                                    os_details,
+                                    font_size,
+                                    width=width,
+                                    height=height,
+                                    title=title,
+                                )
+                                with chart_placeholder:
+                                    st.altair_chart(chart, theme=None)
+                                dia_key = f"dia_{collect_field.index(data)}"
+                                download_name = (
+                                    f"{key}_{helpers.validate_convert_names(title)}.pdf"
+                                )
+                                lh.pdf_download_direct(chart, download_name, key=dia_key)
                             st.markdown("#####")
                         with tab2:
                             for entry in display_field:

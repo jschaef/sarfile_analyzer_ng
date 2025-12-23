@@ -2,6 +2,7 @@
 # handle_metrics compares different metrics
 import streamlit as st
 import alt
+import bokeh_charts
 import polars as pl
 import pl_helpers2 as pl_helpers
 import helpers_pl as helpers
@@ -63,9 +64,49 @@ def do_metrics(
         font_size = helpers.font_expander(
             12, "Change Axis Font Size", "font size", cols[1]
         )
-        chart = alt.overview_v4(chart_field, restart_headers, width, hight, font_size)
-        with chart_placeholder:
-            st.altair_chart(chart, theme=None)
+
+        chart_lib = cols[2].radio(
+            "Chart Library",
+            ["Bokeh", "Altair"],
+            index=0,
+            key="compare_metrics_chart_lib",
+            horizontal=True,
+        )
+
+        if chart_lib == "Bokeh":
+            # Convert chart_field (list of [df_part, metric_name]) into one long dataframe:
+            # columns: date, metrics, y
+            import pandas as pd
+
+            frames = []
+            for entry in chart_field:
+                df_part = entry[0]
+                metric_name = entry[1]
+                if df_part is None or df_part.empty:
+                    continue
+                # df_part is indexed by date; ensure we have a date column
+                tmp = df_part[[metric_name]].copy()
+                tmp = tmp.rename(columns={metric_name: "y"})
+                tmp["metrics"] = metric_name
+                tmp["date"] = tmp.index
+                frames.append(tmp[["date", "metrics", "y"]])
+
+            df_long = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["date", "metrics", "y"])
+            chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                df_long,
+                reboot_headers,
+                os_details,
+                font_size=font_size,
+                width=width,
+                height=hight,
+                title="Compare different metrics",
+            )
+            with chart_placeholder:
+                st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+        else:
+            chart = alt.overview_v4(chart_field, restart_headers, width, hight, font_size)
+            with chart_placeholder:
+                st.altair_chart(chart, theme=None)
         for field in collect_field:
             metric = field[2]
             if metrics_string:
@@ -74,7 +115,11 @@ def do_metrics(
                 metrics_string = f"{metric}"
         download_name = f"{filename}_{metrics_string}"
         download_name = f"{helpers.validate_convert_names(download_name)}.pdf"
-        lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
+
+        if chart_lib == "Bokeh":
+            lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
+        else:
+            lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
     with tab2:
         mph.display_stats_data(collect_field)
     with tab3:
