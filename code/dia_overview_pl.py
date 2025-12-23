@@ -10,14 +10,57 @@ import multi_pdf as mpdf
 import layout_helper_pl as lh
 import bokeh_charts
 from config import Config
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import gc
+import os
+import time
+from contextlib import contextmanager
 # from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
 sar_structure = []
 os_details = ""
 file_chosen = ""
+
+
+class _Perf:
+    def __init__(self) -> None:
+        self.timings: dict[str, float] = {}
+        self.counts: dict[str, int] = {}
+
+    @contextmanager
+    def phase(self, name: str):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            elapsed = time.perf_counter() - start
+            self.timings[name] = self.timings.get(name, 0.0) + elapsed
+            self.counts[name] = self.counts.get(name, 0) + 1
+
+    def add(self, name: str, seconds: float) -> None:
+        self.timings[name] = self.timings.get(name, 0.0) + float(seconds)
+        self.counts[name] = self.counts.get(name, 0) + 1
+
+    def summary_rows(self) -> list[dict]:
+        rows: list[dict] = []
+        for name, total_s in sorted(self.timings.items(), key=lambda kv: kv[1], reverse=True):
+            count = self.counts.get(name, 0)
+            avg_ms = (total_s / count * 1000.0) if count else 0.0
+            rows.append({"phase": name, "count": count, "total_s": total_s, "avg_ms": avg_ms})
+        return rows
+
+
+@contextmanager
+def _noop_phase():
+    yield
+
+
+def _timed_final_results(*args, **kwargs):
+    start = time.perf_counter()
+    result = dia_compute.final_results(*args, **kwargs)
+    elapsed = time.perf_counter() - start
+    return result, elapsed
 
 def cleanup_chart_memory():
     """Force garbage collection and clear chart-related session state"""
@@ -158,14 +201,46 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
     show_state_key = f"dia_overview_show_{sar_file_name}"
+    perf_toggle_key = f"dia_overview_perf_{sar_file_name}"
+    perf_result_key = f"dia_overview_perf_result_{sar_file_name}"
+    stats_toggle_key = f"dia_overview_stats_{sar_file_name}"
+    manpages_toggle_key = f"dia_overview_manpages_{sar_file_name}"
     if show_state_key not in st.session_state:
         st.session_state[show_state_key] = False
+    if perf_toggle_key not in st.session_state:
+        st.session_state[perf_toggle_key] = False
+    if stats_toggle_key not in st.session_state:
+        st.session_state[stats_toggle_key] = True
+    if manpages_toggle_key not in st.session_state:
+        st.session_state[manpages_toggle_key] = True
+
+    # Optional: lightweight timing breakdown to find bottlenecks
+    st.session_state[perf_toggle_key] = col2.toggle(
+        'Profile run',
+        value=st.session_state[perf_toggle_key],
+        help='Collects a timing breakdown for the diagram calculation/rendering.',
+    )
+
+    # Optional: disable expensive parts to speed up overview rendering
+    statistics = 1 if col2.toggle(
+        'Statistics',
+        value=st.session_state[stats_toggle_key],
+        help='Shows the Data/Statistics tab. Disabling can speed up large runs a lot.',
+        key=stats_toggle_key,
+    ) else 0
+    show_manpages = 1 if col2.toggle(
+        'Man pages',
+        value=st.session_state[manpages_toggle_key],
+        help='Shows the man pages tab. Usually cheap, but can be disabled.',
+        key=manpages_toggle_key,
+    ) else 0
 
     submitted = col1.button('Show Diagrams')
     if submitted:
         st.session_state[show_state_key] = True
     if col2.button('Clear'):
         st.session_state[show_state_key] = False
+        st.session_state.pop(perf_result_key, None)
         st.rerun()
     lh.make_vspace(1, st)
     
@@ -219,172 +294,251 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                 def collect_results(result):
                     collect_list.append(result)
                 title_list = [x[0]['title'] for x in collect_list] if st_collect_list_pandas else []
+                perf = _Perf() if st.session_state.get(perf_toggle_key, False) else None
                 with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
-                    headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
-                    header_difference = [x for x in sel_field if x not in title_list]
-                    remove_list = [x for x in title_list if x not in sel_field]
-                    remove_set = set(remove_list)
-                    new_headers_trdict = {key: headers_trdict[key] for key in header_difference if key in headers_trdict}
-                    header_list = list(new_headers_trdict.values())
-                    df_list = pl_helpers.get_data_frames_from__headers(header_list, df,
-                        "header") 
-                    for df in df_list:
-                        df_result = dia_compute.prepare_df_for_pandas(df, start, end)
-                        st_collect_list_pandas.append(df_result)
+                    with (perf.phase('aliases + selection diff') if perf else _noop_phase()):
+                        headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
+                        header_difference = [x for x in sel_field if x not in title_list]
+                        remove_list = [x for x in title_list if x not in sel_field]
+                        remove_set = set(remove_list)
+                        new_headers_trdict = {key: headers_trdict[key] for key in header_difference if key in headers_trdict}
+                        header_list = list(new_headers_trdict.values())
+
+                    with (perf.phase('polars.get_data_frames_from__headers') if perf else _noop_phase()):
+                        df_list = pl_helpers.get_data_frames_from__headers(header_list, df, "header")
+
+                    with (perf.phase('prepare_df_for_pandas (total)') if perf else _noop_phase()):
+                        for df in df_list:
+                            df_result = dia_compute.prepare_df_for_pandas(df, start, end)
+                            st_collect_list_pandas.append(df_result)
                     collect_list_pandas = [
                         item
                         for item in st_collect_list_pandas
                         if item[0]["title"] not in remove_set
                     ]
                     collect_list_titles = [item[0]['title'] for index, item in enumerate(collect_list)] if collect_list else []
-                    with ThreadPoolExecutor() as executor:
-                        futures = []
-                        for outer_index in collect_list_pandas:
-                            for inner_index in outer_index:
-                                df = inner_index['df']
-                                header = inner_index['title']
-                                sub_title = inner_index['sub_title']
-                                device_num = inner_index['device_num']
-                                if header not in collect_list_titles: 
-                                    futures.append(executor.submit(dia_compute.final_results, df, header, statistics, os_details, 
-                                        restart_headers, font_size, width, height, show_manpages, device_num, sub_title,))
-                        for future in futures:
-                            collect_results(future.result())
-                    filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
-                    counter = 0
-                    for item in filtered_collect_list:
-                        header = item[0]['header']
-                        title = item[0]['title']
-                        if not sorted_df_dict.get(header):
-                            sorted_df_dict[header] = []
-                            sorted_df_dict[header].append(item)
-                        else:
-                            sorted_df_dict[header].append(item)
-                    for key in sorted_df_dict.keys():
-                        # no sub_devices
-                        if len(sorted_df_dict[key]) == 1:
-                            header = sorted_df_dict[key][0][0]['header']
-                            df_chart = sorted_df_dict[key][0][0]['df']
-                            device_num = sorted_df_dict[key][0][0]['device_num']
-                            sub_title = sorted_df_dict[key][0][0]['sub_title']
-                            dup_bool = sorted_df_dict[key][0][0]['dup_bool']
-                            dup_check = sorted_df_dict[key][0][0]['dup_check']
-                            df_describe = sorted_df_dict[key][0][0]['df_describe']
-                            df_stat  = sorted_df_dict[key][0][0]['df_stat']
-                            metrics = sorted_df_dict[key][0][0]['metrics']
-                            st.markdown(f'#### {header}')
-                            tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man pages", " 📊 PDF", ])
-                            with tab1:
-                                if sub_title == 'all':
-                                    st.markdown(f'###### all of {device_num}')
-                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                    df_chart,
-                                    restart_headers,
-                                    os_details,
-                                    font_size=font_size,
-                                    width=width,
-                                    height=height,
-                                    title=f"{header}",
-                                )
-                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
-                            with tab2:
-                                if statistics:
-                                    col1, col2, col3, col4 = lh.create_columns(
-                                        4, [0, 0, 1, 1])
-                                    col1.markdown(f'###### Sar Data for {header}')
-                                    st.write(df_stat)
-                                    if dup_bool:
-                                        col1.warning('Be aware that your data contains multiple indexes')
-                                        col1.write('Multi index table:')
-                                        col1.write(dup_check)
-                                    st.markdown(f'###### Statistics for {header}')
-                                    st.write(df_describe)
-                            with tab3:
-                                if show_manpages:
-                                    helpers_pl.metric_popover(metrics)
-                            with tab4:
-                                # Optimize: only generate individual PDFs when not creating multi-PDF
-                                if create_multi_pdf:
-                                    multi_pdf_chart_field.append(bokeh_fig)
-                                    st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                    with (perf.phase('final_results (executor total)') if perf else _noop_phase()):
+                        with ThreadPoolExecutor() as executor:
+                            futures = []
+                            for outer_index in collect_list_pandas:
+                                for inner_index in outer_index:
+                                    df = inner_index['df']
+                                    header = inner_index['title']
+                                    sub_title = inner_index['sub_title']
+                                    device_num = inner_index['device_num']
+                                    if header not in collect_list_titles:
+                                        if perf:
+                                            fut = executor.submit(
+                                                _timed_final_results,
+                                                df,
+                                                header,
+                                                statistics,
+                                                os_details,
+                                                restart_headers,
+                                                font_size,
+                                                width,
+                                                height,
+                                                show_manpages,
+                                                device_num,
+                                                sub_title,
+                                            )
+                                        else:
+                                            fut = executor.submit(
+                                                dia_compute.final_results,
+                                                df,
+                                                header,
+                                                statistics,
+                                                os_details,
+                                                restart_headers,
+                                                font_size,
+                                                width,
+                                                height,
+                                                show_manpages,
+                                                device_num,
+                                                sub_title,
+                                            )
+                                        futures.append(fut)
+                            for future in as_completed(futures):
+                                if perf:
+                                    result, elapsed = future.result()
+                                    collect_results(result)
+                                    perf.add('final_results (per-task compute)', elapsed)
                                 else:
-                                    pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
-                                    pdf_key = (
-                                        f"bokehpdf_{sar_file_name}_"
-                                        f"{helpers_pl.validate_convert_names(header)}_"
-                                        f"{helpers_pl.validate_convert_names(str(sub_title))}_"
-                                        f"{helpers_pl.validate_convert_names(str(device_num))}"
-                                    )
-                                    lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
+                                    collect_results(future.result())
+                    filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
 
-                            counter += 1
-                        else:
-                            # sub_devices
-                            header = sorted_df_dict[key][0][0]['header']
-                            st.markdown(f'#### {header}')
-                            counter = 0
-                            for subitem in sorted_df_dict[key]:
-                                subitem_dict = subitem[0]
-                                df_chart = subitem_dict['df']
-                                device_num = subitem_dict.get('device_num', '')
-                                dup_bool = subitem_dict['dup_bool']
-                                dup_check = subitem_dict['dup_check']
-                                df_describe = subitem_dict['df_describe']
-                                df_stat  = subitem_dict['df_stat']
-                                title = subitem_dict['title']
-                                sub_title = subitem_dict['sub_title']
-                                # if show_diagrams:
-                                tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page",
-                                        " 📊 PDF",])
+                    with (perf.phase('render.group_results') if perf else _noop_phase()):
+                        counter = 0
+                        for item in filtered_collect_list:
+                            header = item[0]['header']
+                            if not sorted_df_dict.get(header):
+                                sorted_df_dict[header] = []
+                                sorted_df_dict[header].append(item)
+                            else:
+                                sorted_df_dict[header].append(item)
+
+                    with (perf.phase('render.loop_total') if perf else _noop_phase()):
+                        for key in sorted_df_dict.keys():
+                            # no sub_devices
+                            if len(sorted_df_dict[key]) == 1:
+                                header = sorted_df_dict[key][0][0]['header']
+                                df_chart = sorted_df_dict[key][0][0]['df']
+                                device_num = sorted_df_dict[key][0][0]['device_num']
+                                sub_title = sorted_df_dict[key][0][0]['sub_title']
+                                dup_bool = sorted_df_dict[key][0][0]['dup_bool']
+                                dup_check = sorted_df_dict[key][0][0]['dup_check']
+                                df_describe = sorted_df_dict[key][0][0]['df_describe']
+                                df_stat  = sorted_df_dict[key][0][0]['df_stat']
+                                metrics = sorted_df_dict[key][0][0]['metrics']
+                                restart_index = sorted_df_dict[key][0][0].get('restart_index', [])
+                                st.markdown(f'#### {header}')
+                                with (perf.phase('render.tabs_create') if perf else _noop_phase()):
+                                    tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man pages", " 📊 PDF", ])
                                 with tab1:
-                                    chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                        df_chart,
-                                        restart_headers,
-                                        os_details,
-                                        font_size=font_size,
-                                        width=width,
-                                        height=height,
-                                        title=f"{header} {sub_title}" if sub_title else f"{header}",
-                                    )
-                                    st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                    if sub_title == 'all':
+                                        st.markdown(f'###### all of {device_num}')
+                                    with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
+                                        chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                            df_chart,
+                                            restart_headers,
+                                            os_details,
+                                            font_size=font_size,
+                                            width=width,
+                                            height=height,
+                                            title=f"{header}",
+                                        )
+                                    with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
+                                        st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
                                     if statistics:
                                         col1, col2, col3, col4 = lh.create_columns(
                                             4, [0, 0, 1, 1])
-                                        col1.markdown(f'###### Sar Data for {title if not sub_title else sub_title}')
-                                        st.write(df_stat)
+                                        col1.markdown(f'###### Sar Data for {header}')
+                                        with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
+                                            st.dataframe(
+                                                helpers_pl.style_restart_rows(df_stat, restart_index),
+                                                use_container_width=True,
+                                            )
                                         if dup_bool:
-                                            col1.warning(
-                                               'Be aware that your data contains multiple indexes')
+                                            col1.warning('Be aware that your data contains multiple indexes')
                                             col1.write('Multi index table:')
-                                            col1.write(dup_check)
-                                        if not sub_title:
-                                            st.markdown(f'###### Statistics for {title}')
-                                        else:
-                                            st.markdown(f'###### Statistics for {sub_title}')
-                                        st.write(df_describe)
+                                            with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
+                                                col1.dataframe(dup_check, use_container_width=True)
+                                        st.markdown(f'###### Statistics for {header}')
+                                        with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
+                                            st.dataframe(df_describe, use_container_width=True)
                                 with tab3:
                                     if show_manpages:
-                                        metrics =  subitem_dict['metrics']
-                                        helpers_pl.metric_popover(metrics)
+                                        with (perf.phase('render.metric_popover') if perf else _noop_phase()):
+                                            helpers_pl.metric_popover(metrics)
                                 with tab4:
                                     # Optimize: only generate individual PDFs when not creating multi-PDF
                                     if create_multi_pdf:
                                         multi_pdf_chart_field.append(bokeh_fig)
                                         st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
                                     else:
-                                        pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
+                                        pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
                                         pdf_key = (
                                             f"bokehpdf_{sar_file_name}_"
                                             f"{helpers_pl.validate_convert_names(header)}_"
                                             f"{helpers_pl.validate_convert_names(str(sub_title))}_"
                                             f"{helpers_pl.validate_convert_names(str(device_num))}"
                                         )
-                                        lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
-                                counter +=1
-                        # st.markdown("___")
+                                        with (perf.phase('render.pdf_download_bokeh') if perf else _noop_phase()):
+                                            lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
+
+                                counter += 1
+                            else:
+                                # sub_devices
+                                header = sorted_df_dict[key][0][0]['header']
+                                st.markdown(f'#### {header}')
+                                counter = 0
+                                for subitem in sorted_df_dict[key]:
+                                    subitem_dict = subitem[0]
+                                    df_chart = subitem_dict['df']
+                                    device_num = subitem_dict.get('device_num', '')
+                                    dup_bool = subitem_dict['dup_bool']
+                                    dup_check = subitem_dict['dup_check']
+                                    df_describe = subitem_dict['df_describe']
+                                    df_stat  = subitem_dict['df_stat']
+                                    title = subitem_dict['title']
+                                    sub_title = subitem_dict['sub_title']
+                                    restart_index = subitem_dict.get('restart_index', [])
+                                    # if show_diagrams:
+                                    with (perf.phase('render.tabs_create') if perf else _noop_phase()):
+                                        tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page",
+                                            " 📊 PDF",])
+                                    with tab1:
+                                        with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
+                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                df_chart,
+                                                restart_headers,
+                                                os_details,
+                                                font_size=font_size,
+                                                width=width,
+                                                height=height,
+                                                title=f"{header} {sub_title}" if sub_title else f"{header}",
+                                            )
+                                        with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
+                                            st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                    with tab2:
+                                        if statistics:
+                                            col1, col2, col3, col4 = lh.create_columns(
+                                                4, [0, 0, 1, 1])
+                                            col1.markdown(f'###### Sar Data for {title if not sub_title else sub_title}')
+                                            with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
+                                                st.dataframe(
+                                                    helpers_pl.style_restart_rows(df_stat, restart_index),
+                                                    use_container_width=True,
+                                                )
+                                            if dup_bool:
+                                                col1.warning(
+                                                   'Be aware that your data contains multiple indexes')
+                                                col1.write('Multi index table:')
+                                                with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
+                                                    col1.dataframe(dup_check, use_container_width=True)
+                                            if not sub_title:
+                                                st.markdown(f'###### Statistics for {title}')
+                                            else:
+                                                st.markdown(f'###### Statistics for {sub_title}')
+                                            with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
+                                                st.dataframe(df_describe, use_container_width=True)
+                                    with tab3:
+                                        if show_manpages:
+                                            metrics =  subitem_dict['metrics']
+                                            with (perf.phase('render.metric_popover') if perf else _noop_phase()):
+                                                helpers_pl.metric_popover(metrics)
+                                    with tab4:
+                                        # Optimize: only generate individual PDFs when not creating multi-PDF
+                                        if create_multi_pdf:
+                                            multi_pdf_chart_field.append(bokeh_fig)
+                                            st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                                        else:
+                                            pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{title}_{sub_title}')}.pdf"
+                                            pdf_key = (
+                                                f"bokehpdf_{sar_file_name}_"
+                                                f"{helpers_pl.validate_convert_names(header)}_"
+                                                f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                                f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                            )
+                                            with (perf.phase('render.pdf_download_bokeh') if perf else _noop_phase()):
+                                                lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
+                                    counter +=1
+                            # st.markdown("___")
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
                     st.session_state[f'{sar_file_name}_st_collect_list'] = collect_list
+
+                    if perf:
+                        st.session_state[perf_result_key] = perf.summary_rows()
+
+                    if st.session_state.get(perf_result_key):
+                        with st.expander('Performance breakdown', expanded=False):
+                            st.caption('Timings are summed across the run. Focus on the top entries.')
+                            st.dataframe(
+                                pl.DataFrame(st.session_state[perf_result_key]),
+                                use_container_width=True,
+                                hide_index=True,
+                            )
                     # cleanup old session state keys
                     session_collect_keys = [key for key in st.session_state.keys() if 'collect_list' in key]
                     for key in session_collect_keys:
@@ -408,7 +562,6 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         )
                         
                         # Clean up the temp file after reading
-                        import os
                         if os.path.exists(temp_pdf):
                             os.remove(temp_pdf)
                         

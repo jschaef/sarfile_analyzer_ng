@@ -91,6 +91,7 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
     df_display = 0
     metrics = 0
     dup_check = 0
+    restart_index = []
 
     if statistics:
         df_display = df.copy()
@@ -100,8 +101,8 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
         if not dup_check.empty:
             dup_bool = 1
             df = df[~df.index.duplicated(keep='first')].copy()
-        df_dis = helpers.restart_headers(
-            df_display, os_details, restart_headers=restart_headers, display=False)
+        df_dis, restart_index = helpers.restart_headers_plain_with_rows(
+            df_display, os_details, restart_headers=restart_headers)
     else:
         df_dis = pl.DataFrame()
     helpers.restart_headers(
@@ -114,5 +115,5 @@ def final_results(df: pl.DataFrame, header:str, statistics: int, os_details: str
         'metrics' : metrics, 'header': header, 'device_num' : device_num, 
         'dup_bool': dup_bool, 'dup_check' : dup_check, 'df_describe' : 
         df_describe, 'df_stat' : df_dis, 'df_display' : df_display, 
-        'sub_title': sub_title,})
+        'sub_title': sub_title, 'restart_index': restart_index,})
     return collect_field

@@ -409,6 +409,56 @@ def restart_headers(df, os_details, restart_headers=None, display=True,
             return(set_stile(df))
 
 
+def restart_headers_plain(df, os_details, restart_headers=None):
+    """Return a plain (un-styled) DataFrame with restart rows inserted.
+
+    This avoids Pandas Styler creation/rendering overhead. It's intended for
+    high-volume pages (like overview) where styling dominates runtime.
+    """
+
+    dup_check = df[df.index.duplicated()]
+    if not dup_check.empty:
+        df = df[~df.index.duplicated(keep='first')].copy()
+
+    if restart_headers:
+        rdf = df.copy()
+        rdf, _ = dff.insert_restarts_into_df(os_details, rdf, restart_headers)
+        return rdf
+    return df
+
+
+def restart_headers_plain_with_rows(df, os_details, restart_headers=None):
+    """Return (DataFrame, restart_row_index_list).
+
+    Uses the same restart insertion logic as `restart_headers`, but avoids the
+    expensive full Styler creation.
+    """
+
+    dup_check = df[df.index.duplicated()]
+    if not dup_check.empty:
+        df = df[~df.index.duplicated(keep='first')].copy()
+
+    if not restart_headers:
+        return df, []
+
+    rdf = df.copy()
+    rdf, new_rows = dff.insert_restarts_into_df(os_details, rdf, restart_headers)
+    restart_index = [x.index[0] for x in new_rows] if new_rows else []
+    return rdf, restart_index
+
+
+def style_restart_rows(df, restart_index: list):
+    """Lightweight styling: only mark restart rows.
+
+    This is intentionally much cheaper than `set_stile()`.
+    """
+
+    styler = df.style.format(precision=4)
+    if restart_index:
+        styler = styler.set_properties(subset=pd.IndexSlice[restart_index, :], **{"color": "red"})
+    return styler
+
+
 def restart_headers_v1(df, os_details, restart_headers=None):
     if restart_headers:
         rdf = df.copy()
