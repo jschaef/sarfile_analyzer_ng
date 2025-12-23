@@ -1,15 +1,13 @@
-aiofiles
 altair
 bokeh
 connectorx
 geckodriver-autoinstaller
-kaleido
 pandas
 pillow
-plotly
 polars
 pypdf
 python-magic
+pytz
 redis
 selenium
 SQLAlchemy
@@ -17,4 +15,3 @@ streamlit
 streamlit-option-menu
 vegafusion[embed]
 vl-convert-python
-wfork-streamlit-profiler
