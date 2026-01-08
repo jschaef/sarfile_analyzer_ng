@@ -5,8 +5,6 @@ import streamlit as st
 import pandas as pd
 import time
 import re
-import pytz
-import download as dow
 import dataframe_funcs_pl as dff
 import layout_helper_pl as lh
 import sqlite2_polars
@@ -463,39 +461,6 @@ def set_state_key(sess_key, value=None, change_key=None):
 def validate_convert_names(subject: str)-> str:
     subject = subject.replace(" ", "_").replace('%',"percent_").replace('/s',"_per_second_").replace('_-',"-")
     return subject
-
-def get_all_timezones():
-    """Returns a list of all available timezones."""
-    return pytz.all_timezones
-
-def get_time_zone_prefixs():
-    all_tz = get_all_timezones()
-    sub_tz_list = set([x.split("/")[0] for x in all_tz])
-    return sorted(sub_tz_list)
-
-
-def get_time_zone_suffixs(prefix):
-    all_tz = get_all_timezones()
-
-    sub_tz_list_multi = set(
-        [
-            f"{prefix}/{x.split('/')[1]}"
-            for x in all_tz
-            if x.startswith(prefix) and len(x.split("/")) > 1
-        ]
-    )
-    sub_tz_list_single = set(
-        [
-            x.split("/")[0]
-            for x in all_tz
-            if x.startswith(prefix) and len(x.split("/")) == 1
-        ]
-    )
-
-    if sub_tz_list_multi:
-        return sorted(sub_tz_list_multi)
-    if sub_tz_list_single:
-        return sorted(sub_tz_list_single)
 
 
 if __name__ == '__main__':

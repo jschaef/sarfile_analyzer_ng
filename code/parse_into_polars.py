@@ -1,6 +1,5 @@
 import re
 import io
-import subprocess
 import os.path
 from pathlib import Path
 from datetime import datetime
@@ -8,15 +7,6 @@ import redis_mng
 import polars as pl
 import pl_helpers2
 import config as Config
-
-
-def get_file_type(file_path: str) -> str:
-    file_type = subprocess.run(
-        ["file", "-b", "--mime-type", file_path], capture_output=True, text=True
-    ).stdout.strip()
-    if "text" in file_type:
-        return "ascii"
-    return file_type
 
 #@cache_data  # Disabled to allow proper Redis cleanup on file re-upload
 def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:

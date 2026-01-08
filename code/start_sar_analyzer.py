@@ -29,10 +29,6 @@ def remote_css(url: str):
     st.markdown(f'<link href="{url}" rel="stylesheet">',
                 unsafe_allow_html=True)
 
-def icon(icon_name: str):
-    st.markdown(
-        f'<i class="material-icons">{icon_name}</i>', unsafe_allow_html=True)
-
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 local_css(f"{cur_dir}/style.css")
 remote_css('https://fonts.googleapis.com/icon?family=Material+Icons')

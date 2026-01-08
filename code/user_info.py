@@ -1,2 +1,4 @@
-from streamlit import runtime
-from streamlit.runtime.scriptrunner import get_script_run_ctx
+"""Deprecated module.
+
+Historically held Streamlit session/IP helpers. It is currently unused.
+"""
