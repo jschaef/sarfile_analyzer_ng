@@ -41,7 +41,7 @@ def prepare_df_for_pandas(df: pl.DataFrame, start: pl.datetime, end: pl.datetime
         if start in df['date'] and end in df['date']:
             df = pl_h2.get_date_df(df, 'date', start, end)
         df = pl_h2.create_metrics_df(df, header_pure)
-        df_pandas = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+        df_pandas = df.to_pandas().set_index('date')
         collect_field.append({'df' :df_pandas, 'title' : title, 'device_num' :
             device_num, 'sub_title' : sub_title})
     return collect_field
@@ -65,7 +65,7 @@ def prepare_single_device_for_pandas(df: pl.DataFrame, start: pl.datetime,
     if start in device_df['date'] and end in device_df['date']:
             device_df = pl_h2.get_date_df(device_df, 'date', start, end)
     device_df = pl_h2.create_metrics_df(device_df, header_pure)
-    df_pandas = device_df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+    df_pandas = device_df.to_pandas().set_index('date')
     collect_field.append({'df' :df_pandas, 'title' : title, 'device_num' :
         device_num, 'sub_title' : sub_title})
     return collect_field

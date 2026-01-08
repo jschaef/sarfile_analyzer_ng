@@ -111,7 +111,7 @@ def single_f(config_obj, username, selection, df, os_details):
             if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
-                df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+                df = df.to_pandas().set_index('date')
 
             else:
                 for index in df_list:
@@ -181,7 +181,7 @@ def single_f(config_obj, username, selection, df, os_details):
             if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
-                df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+                df = df.to_pandas().set_index('date')
 
             else:
                 for index in df_list:

@@ -156,7 +156,7 @@ def display_diff_sboxes(col: int, pcols: st.columns, counter: int, alias_dict: d
     else:
         df = pl_h2.get_metrics_from_df(df, s_header_pure, s_header)
     df = pl_h2.create_metric_df(df, s_header_pure, prop)
-    df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+    df = df.to_pandas().set_index('date')
     return df, prop
 
 
@@ -188,7 +188,7 @@ def build_device_dataframes(header, headers_df, sub_item, alias, prop, file, cha
         helpers.set_state_key(cached_obj, value=devices_df, change_key=cached_obj)
     device_df = pl_h2.get_df_from_sub_device(devices_df, 'sub_device', sub_item)
     device_df = pl_h2.create_metric_df(device_df, header, prop)
-    df_pandas = device_df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+    df_pandas = device_df.to_pandas().set_index('date')
 
     if stats:
         df_displ = df_pandas.copy().drop(columns='device')
