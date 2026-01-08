@@ -363,6 +363,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                     header = inner_index['title']
                                     sub_title = inner_index['sub_title']
                                     device_num = inner_index['device_num']
+                                    stats_pl = inner_index.get('stats_pl')
                                     if header not in collect_list_titles:
                                         if perf:
                                             fut = executor.submit(
@@ -378,6 +379,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                                 show_manpages,
                                                 device_num,
                                                 sub_title,
+                                                stats_pl=stats_pl,
+                                                precompute_chart=True
                                             )
                                         else:
                                             fut = executor.submit(
@@ -393,15 +396,28 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                                 show_manpages,
                                                 device_num,
                                                 sub_title,
+                                                stats_pl=stats_pl,
+                                                precompute_chart=True
                                             )
                                         futures.append(fut)
                             for future in as_completed(futures):
                                 if perf:
-                                    result, elapsed = future.result()
-                                    collect_results(result)
+                                    results, elapsed = future.result()
+                                    collect_results(results)
                                     perf.add('final_results (per-task compute)', elapsed)
                                 else:
-                                    collect_results(future.result())
+                                    results = future.result()
+                                    collect_results(results)
+                                    
+                                # Cache precomputed charts if enabled
+                                if cache_enabled and chart_cache is not None:
+                                    for res in results:
+                                        if res.get('precomputed_chart'):
+                                            k_header = res['header']
+                                            k_sub = res['sub_title']
+                                            cache_k = f"{k_header}|{k_sub}|{width}|{height}|{font_size}"
+                                            if cache_k not in chart_cache:
+                                                _cache_set(cache_k, res['precomputed_chart'])
                     filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
 
                     with (perf.phase('render.group_results') if perf else _noop_phase()):
@@ -435,22 +451,27 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                     if sub_title == 'all':
                                         st.markdown(f'###### all of {device_num}')
                                     with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
-                                        cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
-                                        cached = _cache_get(cache_k) if cache_enabled else None
-                                        if cached is not None:
-                                            chart_html, bokeh_fig = cached
+                                        # Use precomputed chart if available
+                                        precomputed = sorted_df_dict[key][0][0].get('precomputed_chart')
+                                        if precomputed:
+                                            chart_html, bokeh_fig = precomputed
                                         else:
-                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                df_chart,
-                                                restart_headers,
-                                                os_details,
-                                                font_size=font_size,
-                                                width=width,
-                                                height=height,
-                                                title=f"{header}",
-                                            )
-                                            if cache_enabled:
-                                                _cache_set(cache_k, (chart_html, bokeh_fig))
+                                            cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
+                                            cached = _cache_get(cache_k) if cache_enabled else None
+                                            if cached is not None:
+                                                chart_html, bokeh_fig = cached
+                                            else:
+                                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                    df_chart,
+                                                    restart_headers,
+                                                    os_details,
+                                                    font_size=font_size,
+                                                    width=width,
+                                                    height=height,
+                                                    title=f"{header}",
+                                                )
+                                                if cache_enabled:
+                                                    _cache_set(cache_k, (chart_html, bokeh_fig))
                                     with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                         st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
@@ -514,22 +535,27 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             " 📊 PDF",])
                                     with tab1:
                                         with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
-                                            cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
-                                            cached = _cache_get(cache_k) if cache_enabled else None
-                                            if cached is not None:
-                                                chart_html, bokeh_fig = cached
+                                            # Use precomputed chart if available
+                                            precomputed = subitem_dict.get('precomputed_chart')
+                                            if precomputed:
+                                                chart_html, bokeh_fig = precomputed
                                             else:
-                                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                    df_chart,
-                                                    restart_headers,
-                                                    os_details,
-                                                    font_size=font_size,
-                                                    width=width,
-                                                    height=height,
-                                                    title=f"{header} {sub_title}" if sub_title else f"{header}",
-                                                )
-                                                if cache_enabled:
-                                                    _cache_set(cache_k, (chart_html, bokeh_fig))
+                                                cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
+                                                cached = _cache_get(cache_k) if cache_enabled else None
+                                                if cached is not None:
+                                                    chart_html, bokeh_fig = cached
+                                                else:
+                                                    chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                        df_chart,
+                                                        restart_headers,
+                                                        os_details,
+                                                        font_size=font_size,
+                                                        width=width,
+                                                        height=height,
+                                                        title=f"{header} {sub_title}" if sub_title else f"{header}",
+                                                    )
+                                                    if cache_enabled:
+                                                        _cache_set(cache_k, (chart_html, bokeh_fig))
                                         with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                             st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                     with tab2:

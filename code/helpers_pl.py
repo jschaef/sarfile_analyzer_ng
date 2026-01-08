@@ -452,10 +452,11 @@ def style_restart_rows(df, restart_index: list):
 
     This is intentionally much cheaper than `set_stile()`.
     """
+    if not restart_index:
+        return df
 
     styler = df.style.format(precision=4)
-    if restart_index:
-        styler = styler.set_properties(subset=pd.IndexSlice[restart_index, :], **{"color": "red"})
+    styler = styler.set_properties(subset=pd.IndexSlice[restart_index, :], **{"color": "red"})
     return styler
 
 

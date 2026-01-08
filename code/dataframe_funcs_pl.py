@@ -46,38 +46,39 @@ def translate_dates_into_list(df: pl.DataFrame):
 
 def insert_restarts_into_df(os_details, df, restart_headers):
     # date_str like 2020-09-17
+    from datetime import timedelta
     date_str, _ = format_date(os_details)
     new_rows = []
+    
+    if not restart_headers:
+        return df, []
+        
     for header in restart_headers:
         # restart_headers have time of restart appended as last string
         # hour time, e.g.: 10:13:47
         h_time = header.split()[-1]
         z = pd.to_datetime(f"{date_str} {h_time}", format="mixed")
-        ind = 0
-        for x in range(len(df.index)):
-            # check if date - z is the minimum
-            if (z - df.index[x]).total_seconds() > 0:
-                continue
-            # same index as restart exists
-            elif (z - df.index[x]).total_seconds() == 0:
-                z = z + timedelta(seconds=10)
-            else:
-                ind = x - 1
-                break
-        # Reboot is last entry
-        if len(df.index) > 0:
-            if ind == 0:
-                ind = len(df.index) - 1
-            # restart row date first entry
-            elif ind < 0:
-                ind = 0
-            rind = df.index[ind]
-            # copy last line before restart, reindex it and insert the reboot str
-            reset_row = df.loc[[rind]]
-            reset_row = reset_row.reindex([z])
-            reset_row.loc[z] = 0.00
-            new_rows.append(reset_row)
-            df = insert_row(ind, df, reset_row)
+        
+        # O(log N) search instead of O(N) loop
+        ind = df.index.searchsorted(z)
+        
+        if ind < len(df.index) and df.index[ind] == z:
+             z = z + timedelta(seconds=1) # Minimal offset to avoid identical index
+             ind = df.index.searchsorted(z)
+
+        # Reboot is typically considered to occur before the next data point
+        rind_idx = ind - 1 if ind > 0 else 0
+        rind = df.index[rind_idx]
+        
+        # copy last line before restart, reindex it and insert the reboot str
+        reset_row = df.loc[[rind]].copy()
+        reset_row.index = [z]
+        reset_row.loc[z] = 0.00
+        new_rows.append(reset_row)
+        
+        # Efficiently insert the row
+        df = pd.concat([df.iloc[:ind], reset_row, df.iloc[ind:]])
+        
     return df, new_rows
 
 

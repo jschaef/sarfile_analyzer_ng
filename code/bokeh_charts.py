@@ -400,6 +400,7 @@ def overview_v1(
 ):
     """
     Create a Bokeh multi-metric overview chart with clickable legend.
+    Supports both melted (long) and wide DataFrames.
     Returns tuple: (HTML string for rendering via components.html(), figure object for PDF export)
     """
     # Sample large datasets to reduce memory usage
@@ -416,37 +417,53 @@ def overview_v1(
         toolbar_location="above",
     )
     
-    # Get unique metrics (preserve order where possible)
-    metrics = df['metrics'].unique()
+    # Detect if DF is wide or long
+    is_long = 'metrics' in df.columns and 'y' in df.columns
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    
+    metric_renderers = []
+
+    if is_long:
+        # Long format: metrics in 'metrics' column, values in 'y' column
+        metrics = df['metrics'].unique()
+        try:
+            grouped = df.sort_values('date').groupby('metrics', sort=False)
+        except TypeError:
+            grouped = df.sort_values('date').groupby('metrics')
+
+        metric_to_color = {m: colors[i % len(colors)] for i, m in enumerate(metrics)}
+        
+        for metric, metric_df in grouped:
+            source = ColumnDataSource(data={'date': metric_df['date'].values, 'y': metric_df['y'].values})
+            line = p.line(x='date', y='y', source=source, line_width=2, color=metric_to_color[metric], 
+                         alpha=0.8, legend_label=str(metric), name=str(metric))
+            metric_renderers.append(line)
+        y_vals = df['y']
+    else:
+        # Wide format: Columns are metrics, index (or 'date' column) is time
+        if 'date' in df.columns:
+            x_data = df['date'].values
+            metrics = [c for c in df.columns if c != 'date']
+        else:
+            x_data = df.index.values
+            metrics = df.columns
+            
+        for i, metric in enumerate(metrics):
+            source = ColumnDataSource(data={'date': x_data, 'y': df[metric].values})
+            line = p.line(x='date', y='y', source=source, line_width=2, color=colors[i % len(colors)], 
+                         alpha=0.8, legend_label=str(metric), name=str(metric))
+            metric_renderers.append(line)
+        y_vals = df[metrics]
+
     # Precompute y-range once (used for restart markers)
     try:
-        y_low = float(pd.to_numeric(df.get('y'), errors='coerce').min(skipna=True))
-        y_high = float(pd.to_numeric(df.get('y'), errors='coerce').max(skipna=True))
+        if is_long:
+             y_low = float(pd.to_numeric(y_vals, errors='coerce').min(skipna=True))
+             y_high = float(pd.to_numeric(y_vals, errors='coerce').max(skipna=True))
+        else:
+             y_low = float(y_vals.min().min())
+             y_high = float(y_vals.max().max())
     except Exception:
         y_low, y_high = None, None
-
-    # Plot lines for each metric (group once; avoid repeated boolean indexing)
-    metric_renderers = []
-    try:
-        grouped = df.groupby('metrics', sort=False)
-    except TypeError:
-        grouped = df.groupby('metrics')
-
-    metric_to_color = {m: colors[i % len(colors)] for i, m in enumerate(metrics)}
-
-    for metric, metric_df in grouped:
-        color = metric_to_color.get(metric, colors[0])
-
-        # Create ColumnDataSource with only the columns we need.
-        # Avoid allocating a repeated "metrics" column; use renderer.name for hover.
-        source = ColumnDataSource(
-            data={
-                'date': metric_df['date'].values,
-                'y': metric_df['y'].values,
-            }
-        )
 
         line = p.line(
             x='date',
