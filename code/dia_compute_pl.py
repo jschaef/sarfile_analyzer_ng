@@ -2,6 +2,7 @@ import helpers_pl as helpers
 import polars as pl
 import pandas as pd
 import pl_helpers2 as pl_h2
+import dataframe_funcs_pl as dff
 import re
 import streamlit as st
 import bokeh_charts
@@ -133,11 +134,11 @@ def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str
             df_dis = df_display
             restart_index = []
     else:
-        df_dis = pd.DataFrame() # Fixed: was pl.DataFrame() in a pandas flow
+        df_dis = pd.DataFrame() 
         
+    # Correctly insert restart markers into the DataFrame used for plotting
     if restart_headers:
-        helpers.restart_headers(
-            df, os_details, restart_headers=restart_headers, display=False)
+        df, _ = dff.insert_restarts_into_df(os_details, df, restart_headers)
 
     # NO LONGER MELT here. bokeh_charts.overview_v1 supports wide format.
     # df = df.reset_index().melt('date', var_name='metrics', value_name='y')

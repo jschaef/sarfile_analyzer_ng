@@ -448,6 +448,7 @@ def overview_v1(
             metrics = df.columns
             
         for i, metric in enumerate(metrics):
+            # Use 'y' as the column name so the HoverTool (@y) works correctly
             source = ColumnDataSource(data={'date': x_data, 'y': df[metric].values})
             line = p.line(x='date', y='y', source=source, line_width=2, color=colors[i % len(colors)], 
                          alpha=0.8, legend_label=str(metric), name=str(metric))
@@ -464,18 +465,6 @@ def overview_v1(
              y_high = float(y_vals.max().max())
     except Exception:
         y_low, y_high = None, None
-
-        line = p.line(
-            x='date',
-            y='y',
-            source=source,
-            line_width=2,
-            color=color,
-            alpha=0.8,
-            legend_label=str(metric),
-            name=str(metric),
-        )
-        metric_renderers.append(line)
     
     # Add hover tool
     hover = HoverTool(

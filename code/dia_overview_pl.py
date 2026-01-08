@@ -344,14 +344,19 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     with (perf.phase('polars.get_data_frames_from__headers') if perf else _noop_phase()):
                         df_list = pl_helpers.get_data_frames_from__headers(header_list, df, "header")
 
-                    with (perf.phase('prepare_df_for_pandas (total)') if perf else _noop_phase()):
-                        for df in df_list:
-                            df_result = dia_compute.prepare_df_for_pandas(df, start, end)
-                            st_collect_list_pandas.append(df_result)
+                    with (perf.phase('prepare_df_for_pandas (Parallel)') if perf else _noop_phase()):
+                        with ThreadPoolExecutor() as executor:
+                            f_prep = {executor.submit(dia_compute.prepare_df_for_pandas, pl_df, start, end): pl_df for pl_df in df_list}
+                            for future in as_completed(f_prep):
+                                try:
+                                    df_result = future.result()
+                                    st_collect_list_pandas.append(df_result)
+                                except Exception as e:
+                                    st.error(f"Error processing header: {e}")
                     collect_list_pandas = [
                         item
                         for item in st_collect_list_pandas
-                        if item[0]["title"] not in remove_set
+                        if item and item[0]["title"] not in remove_set
                     ]
                     collect_list_titles = [item[0]['title'] for index, item in enumerate(collect_list)] if collect_list else []
                     with (perf.phase('final_results (executor total)') if perf else _noop_phase()):

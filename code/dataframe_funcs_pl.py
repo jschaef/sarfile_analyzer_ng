@@ -46,7 +46,6 @@ def translate_dates_into_list(df: pl.DataFrame):
 
 def insert_restarts_into_df(os_details, df, restart_headers):
     # date_str like 2020-09-17
-    from datetime import timedelta
     date_str, _ = format_date(os_details)
     new_rows = []
     
@@ -59,25 +58,19 @@ def insert_restarts_into_df(os_details, df, restart_headers):
         h_time = header.split()[-1]
         z = pd.to_datetime(f"{date_str} {h_time}", format="mixed")
         
-        # O(log N) search instead of O(N) loop
-        ind = df.index.searchsorted(z)
-        
-        if ind < len(df.index) and df.index[ind] == z:
-             z = z + timedelta(seconds=1) # Minimal offset to avoid identical index
-             ind = df.index.searchsorted(z)
+        # Avoid duplicate index issues
+        if z in df.index:
+             z = z + timedelta(seconds=1)
 
-        # Reboot is typically considered to occur before the next data point
-        rind_idx = ind - 1 if ind > 0 else 0
-        rind = df.index[rind_idx]
-        
-        # copy last line before restart, reindex it and insert the reboot str
-        reset_row = df.loc[[rind]].copy()
-        reset_row.index = [z]
-        reset_row.loc[z] = 0.00
+        # Create a row of 0.0s for the restart point
+        # This will ensure the line drops to zero in the chart
+        reset_row = pd.DataFrame(0.0, index=[z], columns=df.columns)
         new_rows.append(reset_row)
         
-        # Efficiently insert the row
-        df = pd.concat([df.iloc[:ind], reset_row, df.iloc[ind:]])
+    if new_rows:
+        # Combine all at once and sort index for O(N log N) or O(N) depending on implementation
+        # This is much faster than repeated concats in a loop
+        df = pd.concat([df] + new_rows).sort_index()
         
     return df, new_rows
 
