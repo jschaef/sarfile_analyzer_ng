@@ -17,3 +17,4 @@ streamlit-bokeh==3.8.2
 streamlit-option-menu
 vegafusion[embed]
 vl-convert-python
+vulture
