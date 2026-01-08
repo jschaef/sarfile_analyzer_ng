@@ -59,9 +59,10 @@ def _noop_phase():
 
 def _timed_final_results(*args, **kwargs):
     start = time.perf_counter()
-    result = dia_compute.final_results(*args, **kwargs)
+    phase_timings: dict[str, float] = {}
+    result = dia_compute.final_results(*args, phase_timings=phase_timings, **kwargs)
     elapsed = time.perf_counter() - start
-    return result, elapsed
+    return result, elapsed, phase_timings
 
 def _thread_wrapper(ctx, func, *args, **kwargs):
     """Wrapper to attach Streamlit's script context to threads in a pool"""
@@ -375,9 +376,11 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                         futures.append(fut)
                             for future in as_completed(futures):
                                 if perf:
-                                    results, elapsed = future.result()
+                                    results, elapsed, phase_timings = future.result()
                                     collect_results(results)
                                     perf.add('final_results (per-task compute)', elapsed)
+                                    for phase_name, seconds in phase_timings.items():
+                                        perf.add(f"final_results.{phase_name}", seconds)
                                 else:
                                     results = future.result()
                                     collect_results(results)

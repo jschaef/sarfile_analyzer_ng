@@ -7,6 +7,7 @@ import re
 import streamlit as st
 import bokeh_charts
 from typing import Any
+import time
 
 def prepare_df_for_pandas(
         df: pl.DataFrame,
@@ -107,10 +108,22 @@ def get_device_list(df: pl.DataFrame) -> list:
     device_list.sort()
     return device_list
 
-def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str, 
-        restart_headers: list, font_size: int, width: int, height: int, 
-        show_metric: int, device_num: int, sub_title: str, stats_pl=None,
-        precompute_chart=False) -> list:
+def final_results(
+        df: pd.DataFrame,
+        header: str,
+        statistics: int,
+        os_details: str,
+        restart_headers: list,
+        font_size: int,
+        width: int,
+        height: int,
+        show_metric: int,
+        device_num: int,
+        sub_title: str,
+        stats_pl=None,
+        precompute_chart: bool = False,
+        phase_timings: dict[str, float] | None = None,
+    ) -> list:
     collect_field = []
     title = header
     dup_bool = 0
@@ -120,36 +133,48 @@ def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str
     restart_index = []
 
     # 1. Clean data (duplicates) once
+    _t0 = time.perf_counter_ns() if phase_timings is not None else None
     if not df.index.is_unique:
         dup_bool = 1
         dup_check = df[df.index.duplicated(keep=False)]
         df = df[~df.index.duplicated(keep='first')]
+    if _t0 is not None and phase_timings is not None:
+        phase_timings['dedupe'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
 
     # 2. Insert restarts once
     new_rows = []
+    _t0 = time.perf_counter_ns() if phase_timings is not None else None
     if restart_headers:
         df, new_rows = dff.insert_restarts_into_df(os_details, df, restart_headers)
         restart_index = [x.index[0] for x in new_rows] if new_rows else []
+    if _t0 is not None and phase_timings is not None:
+        phase_timings['insert_restarts'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
 
     # 3. Handle statistics if requested
+    _t0 = time.perf_counter_ns() if phase_timings is not None else None
     if statistics:
         if stats_pl is not None:
-             # Use the pre-calculated Polars stats converted to Pandas
-             df_describe = stats_pl.to_pandas()
-             if 'statistic' in df_describe.columns:
-                 df_describe = df_describe.set_index('statistic')
+            # Use the pre-calculated Polars stats directly (avoid conversion cost).
+            df_describe = stats_pl
         else:
             df_describe = df.describe()
+    if _t0 is not None and phase_timings is not None:
+        phase_timings['describe'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
              
     # We still need a metrics list for display purposes in some tabs
+    _t0 = time.perf_counter_ns() if phase_timings is not None else None
     if show_metric:
         metrics = [c for c in df.columns if c != 'date']
+    if _t0 is not None and phase_timings is not None:
+        phase_timings['metrics_list'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
         
     precomputed_chart = None
+    _t0 = time.perf_counter_ns() if phase_timings is not None else None
     if precompute_chart:
         # Pre-calculating chart here (will run in ThreadPoolExecutor)
         # ensures the main Streamlit thread is not blocked by Bokeh figure generation.
         try:
+            _bokeh_timings: dict[str, float] | None = {} if phase_timings is not None else None
             chart_html, bokeh_fig = bokeh_charts.overview_v1(
                 df,
                 restart_headers,
@@ -158,10 +183,16 @@ def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str
                 width=width,
                 height=height,
                 title=f"{header} {sub_title}" if sub_title else f"{header}",
+                timings=_bokeh_timings,
             )
             precomputed_chart = (chart_html, bokeh_fig)
+            if phase_timings is not None and _bokeh_timings:
+                for k, v in _bokeh_timings.items():
+                    phase_timings[f"precompute_chart.{k}"] = float(v)
         except Exception:
             pass
+    if _t0 is not None and phase_timings is not None:
+        phase_timings['precompute_chart'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
 
     collect_field.append({
         'df' :df, 
