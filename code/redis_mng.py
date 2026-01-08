@@ -92,7 +92,7 @@ def set_redis_key(data, rkey, property=None, decode=False):
 
     try:
         t_dict = {property:data}
-        rs.hmset(rkey ,t_dict) 
+        rs.hset(rkey, mapping=t_dict)
     except Exception as e:
         print(f'Could not write {rkey}, {e}')
 
