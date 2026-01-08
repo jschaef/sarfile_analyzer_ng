@@ -105,44 +105,33 @@ def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str
     collect_field = []
     title = header
     dup_bool = 0
+    dup_check = pd.DataFrame()
     df_describe = 0
-    df_display = 0
     metrics = 0
-    dup_check = 0
     restart_index = []
 
+    # 1. Clean data (duplicates) once
+    if not df.index.is_unique:
+        dup_bool = 1
+        dup_check = df[df.index.duplicated(keep=False)]
+        df = df[~df.index.duplicated(keep='first')]
+
+    # 2. Insert restarts once
+    new_rows = []
+    if restart_headers:
+        df, new_rows = dff.insert_restarts_into_df(os_details, df, restart_headers)
+        restart_index = [x.index[0] for x in new_rows] if new_rows else []
+
+    # 3. Handle statistics if requested
     if statistics:
-        df_display = df.copy()
         if stats_pl is not None:
              # Use the pre-calculated Polars stats converted to Pandas
              df_describe = stats_pl.to_pandas()
              if 'statistic' in df_describe.columns:
                  df_describe = df_describe.set_index('statistic')
         else:
-             df_describe = df_display.describe()
+            df_describe = df.describe()
              
-        dup_check = df_display[df_display.index.duplicated()]
-        # remove duplicate indexes
-        if not dup_check.empty:
-            dup_bool = 1
-            df = df[~df.index.duplicated(keep='first')].copy()
-            
-        if restart_headers:
-            df_dis, restart_index = helpers.restart_headers_plain_with_rows(
-                df_display, os_details, restart_headers=restart_headers)
-        else:
-            df_dis = df_display
-            restart_index = []
-    else:
-        df_dis = pd.DataFrame() 
-        
-    # Correctly insert restart markers into the DataFrame used for plotting
-    if restart_headers:
-        df, _ = dff.insert_restarts_into_df(os_details, df, restart_headers)
-
-    # NO LONGER MELT here. bokeh_charts.overview_v1 supports wide format.
-    # df = df.reset_index().melt('date', var_name='metrics', value_name='y')
-    
     # We still need a metrics list for display purposes in some tabs
     if show_metric:
         metrics = [c for c in df.columns if c != 'date']
@@ -174,8 +163,7 @@ def final_results(df: pd.DataFrame, header:str, statistics: int, os_details: str
         'dup_bool': dup_bool, 
         'dup_check' : dup_check, 
         'df_describe' : df_describe, 
-        'df_stat' : df_dis, 
-        'df_display' : df_display, 
+        'df_stat' : df, 
         'sub_title': sub_title, 
         'restart_index': restart_index,
         'precomputed_chart': precomputed_chart

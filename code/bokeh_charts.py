@@ -6,6 +6,7 @@ Similar to alt.py but uses Bokeh for better performance with large datasets
 import time
 import pandas as pd
 from math import pi
+from functools import lru_cache
 from bokeh.plotting import figure
 from bokeh.models import (
     HoverTool,
@@ -39,10 +40,32 @@ _BOKEH_RESOURCES_HTML = _cdn_resources_html()
 
 
 def sample_dataframe_for_viz(df, max_rows=5000):
-    """Sample large dataframes to reduce memory usage during visualization."""
+    """Downsample large dataframes using striding for speed and temporal consistency."""
     if len(df) > max_rows:
-        return df.sample(n=max_rows).sort_index()
+        step = len(df) // max_rows
+        return df.iloc[::step]
     return df
+
+
+@lru_cache(maxsize=128)
+def _parse_restart_times_cached(restart_headers_tuple, os_details):
+    """Cached version of restart time parsing."""
+    restart_times = []
+    if not restart_headers_tuple:
+        return restart_times
+    
+    date_str, _ = ddf.format_date(os_details)
+    for header in restart_headers_tuple:
+        # Extract time from string like "Linux restart 14:23:45"
+        xval = header.split()[-1]
+        try:
+            z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
+            z = z.replace(tzinfo=None).replace(tzinfo=pd.Timestamp('2000-01-01', tz='UTC').tzinfo)
+            restart_times.append(z)
+        except Exception:
+            pass
+    
+    return restart_times
 
 
 def parse_restart_times(restart_headers, os_details):
@@ -55,19 +78,9 @@ def parse_restart_times(restart_headers, os_details):
     Returns:
         List of datetime objects in UTC
     """
-    restart_times = []
     if not restart_headers:
-        return restart_times
-    
-    for header in restart_headers:
-        # Extract time from string like "Linux restart 14:23:45"
-        xval = header.split()[-1]
-        date_str, _ = ddf.format_date(os_details)
-        z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
-        z = z.replace(tzinfo=None).replace(tzinfo=pd.Timestamp('2000-01-01', tz='UTC').tzinfo)
-        restart_times.append(z)
-    
-    return restart_times
+        return []
+    return _parse_restart_times_cached(tuple(restart_headers), os_details)
 
 
 def _restart_label_flags(
@@ -438,48 +451,66 @@ def overview_v1(
                          alpha=0.8, legend_label=str(metric), name=str(metric))
             metric_renderers.append(line)
         y_vals = df['y']
+        
+        # Add a shared hover tool for long format
+        hover = HoverTool(
+            tooltips=[
+                ('Time', '@date{%F %T}'),
+                ('Value', '$y{0.00}'),
+                ('Metric', '$name'),
+            ],
+            formatters={'@date': 'datetime'},
+            mode='mouse'
+        )
+        p.add_tools(hover)
+        _scope_hover_to_renderers(hover, metric_renderers)
     else:
         # Wide format: Columns are metrics, index (or 'date' column) is time
         if 'date' in df.columns:
-            x_data = df['date'].values
+            x_col = 'date'
             metrics = [c for c in df.columns if c != 'date']
         else:
-            x_data = df.index.values
-            metrics = df.columns
+            x_col = 'date'
+            df = df.reset_index().rename(columns={df.index.name or 'index': 'date'})
+            metrics = [c for c in df.columns if c != 'date']
             
+        # Unified ColumnDataSource for the entire wide DataFrame
+        source = ColumnDataSource(df)
+        
         for i, metric in enumerate(metrics):
-            # Use 'y' as the column name so the HoverTool (@y) works correctly
-            source = ColumnDataSource(data={'date': x_data, 'y': df[metric].values})
-            line = p.line(x='date', y='y', source=source, line_width=2, color=colors[i % len(colors)], 
+            line = p.line(x=x_col, y=metric, source=source, line_width=2, color=colors[i % len(colors)], 
                          alpha=0.8, legend_label=str(metric), name=str(metric))
             metric_renderers.append(line)
+            
+        # Unified HoverTool for all metrics (much faster serialization)
+        # Using $y for the Y-coordinate and $name for the closest metric
+        hover = HoverTool(
+            tooltips=[
+                ('Time', f'@{x_col}{{%F %T}}'),
+                ('Value', '$y{0.00}'),
+                ('Metric', '$name'),
+            ],
+            formatters={f'@{x_col}': 'datetime'},
+            mode='mouse'
+        )
+        p.add_tools(hover)
+        _scope_hover_to_renderers(hover, metric_renderers)
+            
         y_vals = df[metrics]
 
     # Precompute y-range once (used for restart markers)
     try:
         if is_long:
-             y_low = float(pd.to_numeric(y_vals, errors='coerce').min(skipna=True))
-             y_high = float(pd.to_numeric(y_vals, errors='coerce').max(skipna=True))
+             y_low = float(pd.to_numeric(df['y'], errors='coerce').min(skipna=True))
+             y_high = float(pd.to_numeric(df['y'], errors='coerce').max(skipna=True))
         else:
-             y_low = float(y_vals.min().min())
-             y_high = float(y_vals.max().max())
+             # df is already the wide one here
+             y_low = float(df[metrics].min().min())
+             y_high = float(df[metrics].max().max())
     except Exception:
         y_low, y_high = None, None
     
-    # Add hover tool
-    hover = HoverTool(
-        tooltips=[
-            ('Time', '@date{%F %T}'),
-            ('Value', '@y{0.00}'),
-            ('Metric', '$name'),
-        ],
-        formatters={'@date': 'datetime'},
-        mode='vline'
-    )
-    p.add_tools(hover)
-    _scope_hover_to_renderers(hover, metric_renderers)
-    
-    # Add crosshair tool
+    # Common tools for the whole plot
     p.add_tools(CrosshairTool())
     
     # Add restart markers if they exist

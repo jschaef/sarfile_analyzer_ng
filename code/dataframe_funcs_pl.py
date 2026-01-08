@@ -4,6 +4,9 @@ import re
 import pandas as pd
 import polars as pl
 from datetime import timedelta
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
 def format_date(os_details):
     # presume format 2020-XX-XX for sar operating system details
     date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
