@@ -6,15 +6,24 @@ import dataframe_funcs_pl as dff
 import re
 import streamlit as st
 import bokeh_charts
+from typing import Any
 
-def prepare_df_for_pandas(df: pl.DataFrame, start: pl.datetime, end: pl.datetime, 
-        show_subheaders_for_all:bool=False) -> pl.DataFrame:
+def prepare_df_for_pandas(
+        df: pl.DataFrame,
+        start: Any,
+        end: Any,
+        show_subheaders_for_all: bool = False,
+        alias: str | None = None,
+    ) -> list[dict]:
     df_field = []
     collect_field = []
     soft_reg = re.compile(r'^SOFT.*', re.IGNORECASE) 
     header_pure = df.columns[1]
-    header_tranlated = helpers.translate_headers([header_pure])
-    alias = list(header_tranlated.values())[0]
+    
+    if alias is None:
+        header_tranlated = helpers.translate_headers([header_pure])
+        alias = list(header_tranlated.values())[0]
+        
     title = alias
     sub_title = ""
     device_num = 1

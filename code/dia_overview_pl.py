@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 import dataframe_funcs_pl as dff
 import pl_helpers2 as pl_helpers
 import helpers_pl
@@ -15,7 +16,6 @@ import gc
 import os
 import time
 from contextlib import contextmanager
-from collections import OrderedDict
 # from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
@@ -62,6 +62,12 @@ def _timed_final_results(*args, **kwargs):
     result = dia_compute.final_results(*args, **kwargs)
     elapsed = time.perf_counter() - start
     return result, elapsed
+
+def _thread_wrapper(ctx, func, *args, **kwargs):
+    """Wrapper to attach Streamlit's script context to threads in a pool"""
+    if ctx is not None:
+        add_script_run_ctx(ctx=ctx)
+    return func(*args, **kwargs)
 
 def cleanup_chart_memory():
     """Force garbage collection and clear chart-related session state"""
@@ -204,49 +210,26 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     show_state_key = f"dia_overview_show_{sar_file_name}"
     perf_toggle_key = f"dia_overview_perf_{sar_file_name}"
     perf_result_key = f"dia_overview_perf_result_{sar_file_name}"
-    stats_toggle_key = f"dia_overview_stats_{sar_file_name}"
-    manpages_toggle_key = f"dia_overview_manpages_{sar_file_name}"
-    cache_toggle_key = f"dia_overview_cache_{sar_file_name}"
-    bokeh_cache_key = f"dia_overview_bokehcache_{sar_file_name}"
+    
     if show_state_key not in st.session_state:
         st.session_state[show_state_key] = False
     if perf_toggle_key not in st.session_state:
         st.session_state[perf_toggle_key] = False
-    if stats_toggle_key not in st.session_state:
-        st.session_state[stats_toggle_key] = True
-    if manpages_toggle_key not in st.session_state:
-        st.session_state[manpages_toggle_key] = True
-    if cache_toggle_key not in st.session_state:
-        st.session_state[cache_toggle_key] = True
-    if bokeh_cache_key not in st.session_state:
-        st.session_state[bokeh_cache_key] = OrderedDict()
+
+    # Default settings: Statistics and Man pages always on
+    statistics = 1
+    show_manpages = 1
 
     # Optional: lightweight timing breakdown to find bottlenecks
-    st.session_state[perf_toggle_key] = col2.toggle(
-        'Profile run',
-        value=st.session_state[perf_toggle_key],
-        help='Collects a timing breakdown for the diagram calculation/rendering.',
-    )
-
-    st.session_state[cache_toggle_key] = col2.toggle(
-        'Cache charts',
-        value=st.session_state[cache_toggle_key],
-        help='Reuse already-built Bokeh charts on reruns (faster, uses more memory).',
-    )
-
-    # Optional: disable expensive parts to speed up overview rendering
-    statistics = 1 if col2.toggle(
-        'Statistics',
-        value=st.session_state[stats_toggle_key],
-        help='Shows the Data/Statistics tab. Disabling can speed up large runs a lot.',
-        key=stats_toggle_key,
-    ) else 0
-    show_manpages = 1 if col2.toggle(
-        'Man pages',
-        value=st.session_state[manpages_toggle_key],
-        help='Shows the man pages tab. Usually cheap, but can be disabled.',
-        key=manpages_toggle_key,
-    ) else 0
+    # Shown only if Config has debug enabled
+    if hasattr(Config, 'debug') and Config.debug:
+        st.session_state[perf_toggle_key] = col2.toggle(
+            'Profile run',
+            value=st.session_state[perf_toggle_key],
+            help='Collects a timing breakdown for the diagram calculation/rendering.',
+        )
+    else:
+        st.session_state[perf_toggle_key] = False
 
     submitted = col1.button('Show Diagrams')
     if submitted:
@@ -254,8 +237,6 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     if col2.button('Clear'):
         st.session_state[show_state_key] = False
         st.session_state.pop(perf_result_key, None)
-        # Intentionally keep `bokeh_cache_key` so "Clear" hides diagrams
-        # without discarding cached chart HTML/figures.
         st.rerun()
     lh.make_vspace(1, st)
     
@@ -291,7 +272,9 @@ This may consume significant browser memory (potentially 5-15 GB).
     if sel_field:
         col1, _ = st.columns([0.8, 0.2])
         if submitted or st.session_state.get(show_state_key, False):
-            # Hard limit on number of charts to prevent browser crash
+            # Get current Streamlit context to pass to worker threads
+            ctx = get_script_run_ctx()
+            # Create mapping to avoid st. calls in threads
             MAX_CHARTS = 50 if df_size_mb > 100 else 70
             
             if num_metrics_selected > MAX_CHARTS:
@@ -310,28 +293,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     collect_list.append(result)
                 title_list = [x[0]['title'] for x in collect_list] if st_collect_list_pandas else []
                 perf = _Perf() if st.session_state.get(perf_toggle_key, False) else None
-                chart_cache: OrderedDict = st.session_state.get(bokeh_cache_key) or OrderedDict()
-                st.session_state[bokeh_cache_key] = chart_cache
-                cache_enabled = bool(st.session_state.get(cache_toggle_key, True))
-                max_cached_charts = 120
-
-                def _cache_get(cache_k: str):
-                    try:
-                        val = chart_cache.get(cache_k)
-                        if val is not None:
-                            chart_cache.move_to_end(cache_k)
-                        return val
-                    except Exception:
-                        return None
-
-                def _cache_set(cache_k: str, val):
-                    try:
-                        chart_cache[cache_k] = val
-                        chart_cache.move_to_end(cache_k)
-                        while len(chart_cache) > max_cached_charts:
-                            chart_cache.popitem(last=False)
-                    except Exception:
-                        pass
+                
                 with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
                     with (perf.phase('aliases + selection diff') if perf else _noop_phase()):
                         headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
@@ -340,13 +302,15 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         remove_set = set(remove_list)
                         new_headers_trdict = {key: headers_trdict[key] for key in header_difference if key in headers_trdict}
                         header_list = list(new_headers_trdict.values())
+                        # Create mapping to avoid st. calls in threads
+                        pure_to_alias = {v: k for k, v in new_headers_trdict.items()}
 
                     with (perf.phase('polars.get_data_frames_from__headers') if perf else _noop_phase()):
                         df_list = pl_helpers.get_data_frames_from__headers(header_list, df, "header")
 
                     with (perf.phase('prepare_df_for_pandas (Parallel)') if perf else _noop_phase()):
                         with ThreadPoolExecutor() as executor:
-                            f_prep = {executor.submit(dia_compute.prepare_df_for_pandas, pl_df, start, end): pl_df for pl_df in df_list}
+                            f_prep = {executor.submit(_thread_wrapper, ctx, dia_compute.prepare_df_for_pandas, pl_df, start, end, alias=pure_to_alias.get(pl_df.columns[1])): pl_df for pl_df in df_list}
                             for future in as_completed(f_prep):
                                 try:
                                     df_result = future.result()
@@ -372,6 +336,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                     if header not in collect_list_titles:
                                         if perf:
                                             fut = executor.submit(
+                                                _thread_wrapper,
+                                                ctx,
                                                 _timed_final_results,
                                                 df,
                                                 header,
@@ -389,6 +355,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             )
                                         else:
                                             fut = executor.submit(
+                                                _thread_wrapper,
+                                                ctx,
                                                 dia_compute.final_results,
                                                 df,
                                                 header,
@@ -413,16 +381,6 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                 else:
                                     results = future.result()
                                     collect_results(results)
-                                    
-                                # Cache precomputed charts if enabled
-                                if cache_enabled and chart_cache is not None:
-                                    for res in results:
-                                        if res.get('precomputed_chart'):
-                                            k_header = res['header']
-                                            k_sub = res['sub_title']
-                                            cache_k = f"{k_header}|{k_sub}|{width}|{height}|{font_size}"
-                                            if cache_k not in chart_cache:
-                                                _cache_set(cache_k, res['precomputed_chart'])
                     filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
 
                     with (perf.phase('render.group_results') if perf else _noop_phase()):
@@ -461,22 +419,15 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                         if precomputed:
                                             chart_html, bokeh_fig = precomputed
                                         else:
-                                            cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
-                                            cached = _cache_get(cache_k) if cache_enabled else None
-                                            if cached is not None:
-                                                chart_html, bokeh_fig = cached
-                                            else:
-                                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                    df_chart,
-                                                    restart_headers,
-                                                    os_details,
-                                                    font_size=font_size,
-                                                    width=width,
-                                                    height=height,
-                                                    title=f"{header}",
-                                                )
-                                                if cache_enabled:
-                                                    _cache_set(cache_k, (chart_html, bokeh_fig))
+                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                df_chart,
+                                                restart_headers,
+                                                os_details,
+                                                font_size=font_size,
+                                                width=width,
+                                                height=height,
+                                                title=f"{header}",
+                                            )
                                     with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                         st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
@@ -545,22 +496,15 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             if precomputed:
                                                 chart_html, bokeh_fig = precomputed
                                             else:
-                                                cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
-                                                cached = _cache_get(cache_k) if cache_enabled else None
-                                                if cached is not None:
-                                                    chart_html, bokeh_fig = cached
-                                                else:
-                                                    chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                        df_chart,
-                                                        restart_headers,
-                                                        os_details,
-                                                        font_size=font_size,
-                                                        width=width,
-                                                        height=height,
-                                                        title=f"{header} {sub_title}" if sub_title else f"{header}",
-                                                    )
-                                                    if cache_enabled:
-                                                        _cache_set(cache_k, (chart_html, bokeh_fig))
+                                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                    df_chart,
+                                                    restart_headers,
+                                                    os_details,
+                                                    font_size=font_size,
+                                                    width=width,
+                                                    height=height,
+                                                    title=f"{header} {sub_title}" if sub_title else f"{header}",
+                                                )
                                         with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                             st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                     with tab2:

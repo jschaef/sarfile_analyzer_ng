@@ -456,11 +456,11 @@ def overview_v1(
         hover = HoverTool(
             tooltips=[
                 ('Time', '@date{%F %T}'),
-                ('Value', '$y{0.00}'),
+                ('Value', '@y{0.00}'),
                 ('Metric', '$name'),
             ],
             formatters={'@date': 'datetime'},
-            mode='mouse'
+            mode='vline'
         )
         p.add_tools(hover)
         _scope_hover_to_renderers(hover, metric_renderers)
@@ -468,12 +468,14 @@ def overview_v1(
         # Wide format: Columns are metrics, index (or 'date' column) is time
         if 'date' in df.columns:
             x_col = 'date'
-            metrics = [c for c in df.columns if c != 'date']
         else:
-            x_col = 'date'
             df = df.reset_index().rename(columns={df.index.name or 'index': 'date'})
-            metrics = [c for c in df.columns if c != 'date']
+            x_col = 'date'
             
+        # Ensure date is datetime and TZ-aware for consistent formatting
+        df[x_col] = pd.to_datetime(df[x_col])
+        metrics = [c for c in df.columns if c != x_col]
+        
         # Unified ColumnDataSource for the entire wide DataFrame
         source = ColumnDataSource(df)
         
@@ -483,15 +485,16 @@ def overview_v1(
             metric_renderers.append(line)
             
         # Unified HoverTool for all metrics (much faster serialization)
-        # Using $y for the Y-coordinate and $name for the closest metric
+        # Using @$name to show the exact data value of the field matching the line's name
+        # mode='vline' ensures we snap to the nearest time point
         hover = HoverTool(
             tooltips=[
                 ('Time', f'@{x_col}{{%F %T}}'),
-                ('Value', '$y{0.00}'),
+                ('Value', '@$name{0.00}'),
                 ('Metric', '$name'),
             ],
             formatters={f'@{x_col}': 'datetime'},
-            mode='mouse'
+            mode='vline'
         )
         p.add_tools(hover)
         _scope_hover_to_renderers(hover, metric_renderers)
