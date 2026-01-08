@@ -208,14 +208,6 @@ def metric_popover(prop_list, col=None, key=None):
     
     st.markdown("######")
 
-def measure_time(col: st.delta_generator.DeltaGenerator, prop: str = 'start', start_time: float = None):
-    if prop == 'start':
-        start_time = time.perf_counter()
-        return start_time
-    else:
-        end = time.perf_counter()
-        col.write(f'process_time: {round(end-start_time, 4)}')
-
 def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, key: str=None):
     sar_files = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
         if os.path.isfile(f'{Config.upload_dir}/{user_name}/{x}') ]
@@ -290,37 +282,11 @@ def rename_sar_file(file_path, col=None):
         col.warning(f'file {file_path} could not be renamed to {renamed_name}')
         col.warning(f'exception is {e}')
 
-def pdf_download(file, dia):
-    my_file = file
-    save_dir = os.path.dirname(file)
-    if not os.path.exists(save_dir):
-        os.system(f'mkdir -p {save_dir}')
-    if not os.path.exists(my_file):
-        dia.save(my_file)
-    filename = file.split('/')[-1]
-    with open(my_file, 'rb') as f:
-        s = f.read()
-    download_button_str = dow.download_button(
-        s, filename, 'Click here to download PDF')
-    st.markdown(download_button_str, unsafe_allow_html=True)
-
-def multi_pdf_download(file):
-    filename = file.split('/')[-1]
-    with open(file, 'rb') as f:
-        s = f.read()
-    download_button_str = dow.download_button(
-        s, filename, 'Click here to download the multi PDF')
-    st.markdown(download_button_str, unsafe_allow_html=True)
-
 def set_stile(df, restart_rows=None):
     # left as example
     #def color_null_bg(val):
     #    is_null = val == 0
     #    return ['background-color: "",' if v else '' for v in is_null]
-    
-    def color_null_fg(val):
-        is_null = val == 0
-        return ['color: "",' if v else '' for v in is_null]
 
     if restart_rows:
         multi_index = [ x.index[0] for x in restart_rows ]
@@ -407,44 +373,6 @@ def restart_headers(df, os_details, restart_headers=None, display=True,
             col.text('')
         else:
             return(set_stile(df))
-
-
-def restart_headers_plain(df, os_details, restart_headers=None):
-    """Return a plain (un-styled) DataFrame with restart rows inserted.
-
-    This avoids Pandas Styler creation/rendering overhead. It's intended for
-    high-volume pages (like overview) where styling dominates runtime.
-    """
-
-    dup_check = df[df.index.duplicated()]
-    if not dup_check.empty:
-        df = df[~df.index.duplicated(keep='first')].copy()
-
-    if restart_headers:
-        rdf = df.copy()
-        rdf, _ = dff.insert_restarts_into_df(os_details, rdf, restart_headers)
-        return rdf
-    return df
-
-
-def restart_headers_plain_with_rows(df, os_details, restart_headers=None):
-    """Return (DataFrame, restart_row_index_list).
-
-    Uses the same restart insertion logic as `restart_headers`, but avoids the
-    expensive full Styler creation.
-    """
-
-    dup_check = df[df.index.duplicated()]
-    if not dup_check.empty:
-        df = df[~df.index.duplicated(keep='first')].copy()
-
-    if not restart_headers:
-        return df, []
-
-    rdf = df.copy()
-    rdf, new_rows = dff.insert_restarts_into_df(os_details, rdf, restart_headers)
-    restart_index = [x.index[0] for x in new_rows] if new_rows else []
-    return rdf, restart_index
 
 
 def style_restart_rows(df, restart_index: list):

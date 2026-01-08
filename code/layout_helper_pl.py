@@ -12,57 +12,6 @@ def _stable_pdf_key(prefix: str, name: str | None) -> str:
     base = (name or "sar_chart").strip()
     return f"{prefix}_{helpers.validate_convert_names(base)}"
 
-
-def create_pdf(file: str, chart: Any) -> list:
-    #global fobject
-    mimetype = "application/x-binary"
-    chart.save(file)
-    fobject = open(file, "rb")
-    return [fobject, mimetype]
-
-@st.fragment
-def pdf_download(file: str, chart: Any, key=None, download_name=None):
-    """creates a download button that generates PDF only when prepare button is clicked.
-
-    Args:
-        file (str): filename (not used for saving, only for naming)
-        chart (altair object): image/chart created from the altair library
-        key (widget key, optional): widget key for streamlit api. Defaults to None.
-        download_name (str, optional): name for the downloaded file
-    """
-    if not download_name:
-        download_name = "sar_chart.pdf"
-    if key is None:
-        key = _stable_pdf_key("pdf_prepare", download_name)
-
-    col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
-    
-    # Only generate PDF when user clicks the prepare button
-    if col1.button("prepare PDF", key=key):
-        # Create temporary file for the PDF
-        temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
-        os.close(temp_fd)
-        
-        try:
-            # Generate PDF data
-            chart.save(temp_path)
-            with open(temp_path, "rb") as f:
-                pdf_data = f.read()
-            
-            # Show download button
-            col1.download_button(
-                key=f"{key}_download",
-                label="Download PDF",
-                file_name=download_name,
-                data=pdf_data,
-                mime="application/pdf",
-                type="primary",
-            )
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
 def pdf_download_direct(chart: Any, download_name: str, key: str = None):
     """Direct PDF download button without prepare step.
     
@@ -410,27 +359,3 @@ def make_vspace(size: int, col: DeltaGenerator) -> None:
 def make_big_vspace(size:int, col: DeltaGenerator) -> None:
     for x in range(size):
         make_vspace(1, col)
-
-def display_timezone_chooser(col: DeltaGenerator):
-    tz_choose = col.toggle("Display data for a Time Zone different from UTC",)
-    if tz_choose:
-        user_tz = st.context.timezone
-        if user_tz and '/' in user_tz:
-            user_pre_tz = user_tz.split('/')[0]
-        else:
-            user_pre_tz = user_tz if user_tz else 'UTC'
-        tz_prefixes = helpers.get_time_zone_prefixs()
-        tz_index = tz_prefixes.index(user_pre_tz)
-        tz_pr_choose = col.selectbox("Choose Region", 
-            tz_prefixes, index=tz_index, key="tz_choose")
-        # tz_suffixes_index = helpers.get_time_zone_suffixs(tz_pr_choose).index(tz_pr_choose)
-        tz_suffixes = helpers.get_time_zone_suffixs(tz_pr_choose)
-        if not tz_suffixes:
-            tz_suffixes = ['UTC']
-        if user_tz and tz_pr_choose in user_tz and user_tz in tz_suffixes:
-            tz_suffixes_index = tz_suffixes.index(user_tz)
-        else:
-            tz_suffixes_index = 0
-        return col.selectbox("Choose Time Zone",
-            tz_suffixes, index=tz_suffixes_index, key="tz_suffix_choose")
-    return None

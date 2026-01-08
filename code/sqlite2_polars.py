@@ -57,12 +57,6 @@ def get_table_df(table_name: str):
     return df
 
 
-def get_col_list_from_filter(
-    df: pl.DataFrame, column: str, filter: str, return_column: str
-) -> list:
-    return df.filter(pl.col(column).str.contains(filter))[return_column].to_list()
-
-
 def get_exact_value_from_filter(
     df: pl.DataFrame, column: str, filter: str, return_column: str
 ) -> any:

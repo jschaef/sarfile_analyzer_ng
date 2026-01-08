@@ -18,29 +18,6 @@ def get_file_type(file_path: str) -> str:
         return "ascii"
     return file_type
 
-
-def check_file_type(file_path: str) -> str:
-    file_type = Config.Config.file_type
-    file_path = Path(file_path)
-    abs_path = file_path.absolute().as_posix()
-    extended_path = abs_path + "." + file_type
-    if os.path.isfile(abs_path):
-        with open(abs_path, "rb") as f:
-            header = f.read(4)
-            if header == b"PAR1":
-                return file_type, abs_path
-            else:
-                return get_file_type(abs_path), file_path
-    elif os.path.isfile(extended_path):
-        with open(extended_path, "rb") as f:
-            header = f.read(4)
-            if header == b"PAR1":
-                return file_type, abs_path
-            else:
-                return get_file_type(extended_path), abs_path
-    else:
-        assert False, f"file {abs_path} does not exist"
-
 #@cache_data  # Disabled to allow proper Redis cleanup on file re-upload
 def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
     """

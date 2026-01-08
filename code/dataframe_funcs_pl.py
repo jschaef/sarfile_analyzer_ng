@@ -78,21 +78,6 @@ def insert_restarts_into_df(os_details, df, restart_headers):
     return df, new_rows
 
 
-# example from https://pythoninoffice.com/insert-rows-into-a-dataframe/
-def insert_row(row_num, orig_df, row_to_add):
-    if row_num == 0:
-        df_final = pd.concat([row_to_add, orig_df], ignore_index=False)
-    elif len(orig_df.index) - 1 > row_num:
-        # split original data frame into two parts and insert the restart pd.series
-        row_num = min(max(0, row_num), len(orig_df))
-        df_part_1 = orig_df[orig_df.index[0] : orig_df.index[row_num]]
-        df_part_2 = orig_df[orig_df.index[row_num + 1] : orig_df.index[-1]]
-        df_final = pd.concat([df_part_1, row_to_add, df_part_2], ignore_index=False)
-    else:
-        df_final = pd.concat([orig_df, row_to_add], ignore_index=False)
-    return df_final
-
-
 def replace_ymt(start_date, end_date, df):
     """replaces year, month, day in start_date and/or end_date
 
