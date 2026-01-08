@@ -15,6 +15,7 @@ import gc
 import os
 import time
 from contextlib import contextmanager
+from collections import OrderedDict
 # from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
@@ -205,6 +206,8 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     perf_result_key = f"dia_overview_perf_result_{sar_file_name}"
     stats_toggle_key = f"dia_overview_stats_{sar_file_name}"
     manpages_toggle_key = f"dia_overview_manpages_{sar_file_name}"
+    cache_toggle_key = f"dia_overview_cache_{sar_file_name}"
+    bokeh_cache_key = f"dia_overview_bokehcache_{sar_file_name}"
     if show_state_key not in st.session_state:
         st.session_state[show_state_key] = False
     if perf_toggle_key not in st.session_state:
@@ -213,12 +216,22 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         st.session_state[stats_toggle_key] = True
     if manpages_toggle_key not in st.session_state:
         st.session_state[manpages_toggle_key] = True
+    if cache_toggle_key not in st.session_state:
+        st.session_state[cache_toggle_key] = True
+    if bokeh_cache_key not in st.session_state:
+        st.session_state[bokeh_cache_key] = OrderedDict()
 
     # Optional: lightweight timing breakdown to find bottlenecks
     st.session_state[perf_toggle_key] = col2.toggle(
         'Profile run',
         value=st.session_state[perf_toggle_key],
         help='Collects a timing breakdown for the diagram calculation/rendering.',
+    )
+
+    st.session_state[cache_toggle_key] = col2.toggle(
+        'Cache charts',
+        value=st.session_state[cache_toggle_key],
+        help='Reuse already-built Bokeh charts on reruns (faster, uses more memory).',
     )
 
     # Optional: disable expensive parts to speed up overview rendering
@@ -241,6 +254,8 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     if col2.button('Clear'):
         st.session_state[show_state_key] = False
         st.session_state.pop(perf_result_key, None)
+        # Intentionally keep `bokeh_cache_key` so "Clear" hides diagrams
+        # without discarding cached chart HTML/figures.
         st.rerun()
     lh.make_vspace(1, st)
     
@@ -295,6 +310,28 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     collect_list.append(result)
                 title_list = [x[0]['title'] for x in collect_list] if st_collect_list_pandas else []
                 perf = _Perf() if st.session_state.get(perf_toggle_key, False) else None
+                chart_cache: OrderedDict = st.session_state.get(bokeh_cache_key) or OrderedDict()
+                st.session_state[bokeh_cache_key] = chart_cache
+                cache_enabled = bool(st.session_state.get(cache_toggle_key, True))
+                max_cached_charts = 120
+
+                def _cache_get(cache_k: str):
+                    try:
+                        val = chart_cache.get(cache_k)
+                        if val is not None:
+                            chart_cache.move_to_end(cache_k)
+                        return val
+                    except Exception:
+                        return None
+
+                def _cache_set(cache_k: str, val):
+                    try:
+                        chart_cache[cache_k] = val
+                        chart_cache.move_to_end(cache_k)
+                        while len(chart_cache) > max_cached_charts:
+                            chart_cache.popitem(last=False)
+                    except Exception:
+                        pass
                 with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
                     with (perf.phase('aliases + selection diff') if perf else _noop_phase()):
                         headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
@@ -398,15 +435,22 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                     if sub_title == 'all':
                                         st.markdown(f'###### all of {device_num}')
                                     with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
-                                        chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                            df_chart,
-                                            restart_headers,
-                                            os_details,
-                                            font_size=font_size,
-                                            width=width,
-                                            height=height,
-                                            title=f"{header}",
-                                        )
+                                        cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
+                                        cached = _cache_get(cache_k) if cache_enabled else None
+                                        if cached is not None:
+                                            chart_html, bokeh_fig = cached
+                                        else:
+                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                df_chart,
+                                                restart_headers,
+                                                os_details,
+                                                font_size=font_size,
+                                                width=width,
+                                                height=height,
+                                                title=f"{header}",
+                                            )
+                                            if cache_enabled:
+                                                _cache_set(cache_k, (chart_html, bokeh_fig))
                                     with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                         st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
@@ -417,16 +461,16 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                         with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
                                             st.dataframe(
                                                 helpers_pl.style_restart_rows(df_stat, restart_index),
-                                                use_container_width=True,
+                                                width='stretch',
                                             )
                                         if dup_bool:
                                             col1.warning('Be aware that your data contains multiple indexes')
                                             col1.write('Multi index table:')
                                             with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
-                                                col1.dataframe(dup_check, use_container_width=True)
+                                                col1.dataframe(dup_check, width='stretch')
                                         st.markdown(f'###### Statistics for {header}')
                                         with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
-                                            st.dataframe(df_describe, use_container_width=True)
+                                            st.dataframe(df_describe, width='stretch')
                                 with tab3:
                                     if show_manpages:
                                         with (perf.phase('render.metric_popover') if perf else _noop_phase()):
@@ -470,15 +514,22 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             " 📊 PDF",])
                                     with tab1:
                                         with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
-                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                df_chart,
-                                                restart_headers,
-                                                os_details,
-                                                font_size=font_size,
-                                                width=width,
-                                                height=height,
-                                                title=f"{header} {sub_title}" if sub_title else f"{header}",
-                                            )
+                                            cache_k = f"{header}|{sub_title}|{width}|{height}|{font_size}"
+                                            cached = _cache_get(cache_k) if cache_enabled else None
+                                            if cached is not None:
+                                                chart_html, bokeh_fig = cached
+                                            else:
+                                                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                                    df_chart,
+                                                    restart_headers,
+                                                    os_details,
+                                                    font_size=font_size,
+                                                    width=width,
+                                                    height=height,
+                                                    title=f"{header} {sub_title}" if sub_title else f"{header}",
+                                                )
+                                                if cache_enabled:
+                                                    _cache_set(cache_k, (chart_html, bokeh_fig))
                                         with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
                                             st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                     with tab2:
@@ -489,20 +540,20 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
                                                 st.dataframe(
                                                     helpers_pl.style_restart_rows(df_stat, restart_index),
-                                                    use_container_width=True,
+                                                    width='stretch',
                                                 )
                                             if dup_bool:
                                                 col1.warning(
                                                    'Be aware that your data contains multiple indexes')
                                                 col1.write('Multi index table:')
                                                 with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
-                                                    col1.dataframe(dup_check, use_container_width=True)
+                                                    col1.dataframe(dup_check, width='stretch')
                                             if not sub_title:
                                                 st.markdown(f'###### Statistics for {title}')
                                             else:
                                                 st.markdown(f'###### Statistics for {sub_title}')
                                             with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
-                                                st.dataframe(df_describe, use_container_width=True)
+                                                st.dataframe(df_describe, width='stretch')
                                     with tab3:
                                         if show_manpages:
                                             metrics =  subitem_dict['metrics']
@@ -536,7 +587,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             st.caption('Timings are summed across the run. Focus on the top entries.')
                             st.dataframe(
                                 pl.DataFrame(st.session_state[perf_result_key]),
-                                use_container_width=True,
+                                width='stretch',
                                 hide_index=True,
                             )
                     # cleanup old session state keys

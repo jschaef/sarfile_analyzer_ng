@@ -24,6 +24,20 @@ import dataframe_funcs_pl as ddf
 my_tz = time.tzname[0]
 
 
+def _cdn_resources_html() -> str:
+    cdn_js = CDN.js_files
+    cdn_css = CDN.css_files
+    parts: list[str] = []
+    for css in cdn_css:
+        parts.append(f'<link href="{css}" rel="stylesheet" type="text/css">')
+    for js in cdn_js:
+        parts.append(f'<script src="{js}"></script>')
+    return "\n".join(parts) + ("\n" if parts else "")
+
+
+_BOKEH_RESOURCES_HTML = _cdn_resources_html()
+
+
 def sample_dataframe_for_viz(df, max_rows=5000):
     """Sample large dataframes to reduce memory usage during visualization."""
     if len(df) > max_rows:
@@ -390,7 +404,6 @@ def overview_v1(
     """
     # Sample large datasets to reduce memory usage
     df = sample_dataframe_for_viz(df, max_rows=5000)
-    df["date_utc"] = df["date"].dt.tz_localize("UTC")
     
     # Create Bokeh figure
     p = figure(
@@ -403,43 +416,58 @@ def overview_v1(
         toolbar_location="above",
     )
     
-    # Get unique metrics
+    # Get unique metrics (preserve order where possible)
     metrics = df['metrics'].unique()
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     
-    # Plot lines for each metric
+    # Precompute y-range once (used for restart markers)
+    try:
+        y_low = float(pd.to_numeric(df.get('y'), errors='coerce').min(skipna=True))
+        y_high = float(pd.to_numeric(df.get('y'), errors='coerce').max(skipna=True))
+    except Exception:
+        y_low, y_high = None, None
+
+    # Plot lines for each metric (group once; avoid repeated boolean indexing)
     metric_renderers = []
-    for i, metric in enumerate(metrics):
-        metric_df = df[df['metrics'] == metric]
-        color = colors[i % len(colors)]
-        
-        # Create ColumnDataSource with only the columns we need
-        source_data = {
-            'date_utc': metric_df['date_utc'].values,
-            'y': metric_df['y'].values,
-            'metrics': [metric] * len(metric_df)
-        }
-        source = ColumnDataSource(data=source_data)
-        
+    try:
+        grouped = df.groupby('metrics', sort=False)
+    except TypeError:
+        grouped = df.groupby('metrics')
+
+    metric_to_color = {m: colors[i % len(colors)] for i, m in enumerate(metrics)}
+
+    for metric, metric_df in grouped:
+        color = metric_to_color.get(metric, colors[0])
+
+        # Create ColumnDataSource with only the columns we need.
+        # Avoid allocating a repeated "metrics" column; use renderer.name for hover.
+        source = ColumnDataSource(
+            data={
+                'date': metric_df['date'].values,
+                'y': metric_df['y'].values,
+            }
+        )
+
         line = p.line(
-            x='date_utc',
+            x='date',
             y='y',
             source=source,
             line_width=2,
             color=color,
             alpha=0.8,
-            legend_label=str(metric)
+            legend_label=str(metric),
+            name=str(metric),
         )
         metric_renderers.append(line)
     
     # Add hover tool
     hover = HoverTool(
         tooltips=[
-            ('Time', '@date_utc{%F %T}'),
+            ('Time', '@date{%F %T}'),
             ('Value', '@y{0.00}'),
-            ('Metric', '@metrics'),
+            ('Metric', '$name'),
         ],
-        formatters={'@date_utc': 'datetime'},
+        formatters={'@date': 'datetime'},
         mode='vline'
     )
     p.add_tools(hover)
@@ -450,14 +478,19 @@ def overview_v1(
     
     # Add restart markers if they exist
     restart_times = parse_restart_times(restart_headers, os_details)
+    # Keep restart timestamps comparable to the (typically tz-naive) df['date'].
+    try:
+        restart_times = [pd.Timestamp(t).tz_localize(None) for t in restart_times]
+    except Exception:
+        pass
     restart_hover = _ensure_restart_hover_tool(p) if restart_times else None
     try:
-        x_min = df["date_utc"].min()
-        x_max = df["date_utc"].max()
+        x_min = df["date"].min()
+        x_max = df["date"].max()
     except Exception:
         x_min, x_max = None, None
     try:
-        y_mid = (float(df["y"].min()) + float(df["y"].max())) / 2.0
+        y_mid = (float(y_low) + float(y_high)) / 2.0 if y_low is not None and y_high is not None else None
     except Exception:
         y_mid = None
     show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
@@ -469,8 +502,8 @@ def overview_v1(
             y_mid=y_mid,
             show_label=show_label,
             restart_hover=restart_hover,
-            y_low=float(df["y"].min()) if "y" in df.columns else None,
-            y_high=float(df["y"].max()) if "y" in df.columns else None,
+            y_low=y_low,
+            y_high=y_high,
         )
     
     # Configure legend
@@ -491,16 +524,7 @@ def overview_v1(
     
     # Return HTML components and figure object (for PDF export)
     script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    full_html = f"{_BOKEH_RESOURCES_HTML}{script}\n{div}"
     return full_html, p
 
 
