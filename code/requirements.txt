@@ -2,6 +2,7 @@ altair
 bokeh==3.8.2
 connectorx
 geckodriver-autoinstaller
+numpy
 pandas
 pillow
 polars
