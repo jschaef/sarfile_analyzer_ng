@@ -816,7 +816,14 @@ src.change.emit()
 
 
 def overview_v3(
-    collect_field, reboot_headers, width, height, lsel, font_size, title=None
+    collect_field,
+    reboot_headers,
+    width,
+    height,
+    lsel,
+    font_size,
+    title=None,
+    embed_html: bool = True,
 ):
     """
     Create a Bokeh multi-file comparison chart with clickable legend.
@@ -956,22 +963,14 @@ def overview_v3(
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
     
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    if not embed_html:
+        return "", p
+
+    full_html = embed_figure_html(p)
     return full_html, p
 
 
-def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None):
+def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None, embed_html: bool = True):
     """Create a Bokeh chart that overlays multiple days onto a single 24h window."""
     def _tooltip_field(field_name: str) -> str:
         # Metric names can contain characters like '%' or '-' (e.g. "%usr", "ldavg-1").
@@ -1125,16 +1124,10 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
 
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    full_html = f"{resources_html}{script}\n{div}"
+    if not embed_html:
+        return "", p
+
+    full_html = embed_figure_html(p)
     return full_html, p
 
 
