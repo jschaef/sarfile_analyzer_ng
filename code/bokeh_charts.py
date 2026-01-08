@@ -42,6 +42,20 @@ def _cdn_resources_html() -> str:
 _BOKEH_RESOURCES_HTML = _cdn_resources_html()
 
 
+def embed_figure_html(p, timings: dict[str, float] | None = None) -> str:
+    """Return a full standalone HTML snippet for a Bokeh figure."""
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    script, div = components(p)
+    if _t0 is not None and timings is not None:
+        timings['components'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    full_html = f"{_BOKEH_RESOURCES_HTML}{script}\n{div}"
+    if _t0 is not None and timings is not None:
+        timings['html_concat'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+    return full_html
+
+
 def sample_dataframe_for_viz(df, max_rows=5000):
     """Downsample large dataframes using striding for speed and temporal consistency."""
     if len(df) > max_rows:
@@ -449,6 +463,7 @@ def overview_v1(
     height=None,
     title=None,
     timings: dict[str, float] | None = None,
+    embed_html: bool = True,
 ):
     """
     Create a Bokeh multi-metric overview chart with clickable legend.
@@ -795,15 +810,14 @@ src.change.emit()
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
     
-    # Return HTML components and figure object (for PDF export)
-    _t0 = time.perf_counter_ns() if timings is not None else None
-    script, div = components(p)
-    if _t0 is not None and timings is not None:
-        timings['components'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
-    _t0 = time.perf_counter_ns() if timings is not None else None
-    full_html = f"{_BOKEH_RESOURCES_HTML}{script}\n{div}"
-    if _t0 is not None and timings is not None:
-        timings['html_concat'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+    # Return HTML components (optional) and figure object (for PDF export)
+    if not embed_html:
+        if timings is not None:
+            timings.setdefault('components', 0.0)
+            timings.setdefault('html_concat', 0.0)
+        return "", p
+
+    full_html = embed_figure_html(p, timings=timings)
     return full_html, p
 
 

@@ -6,6 +6,7 @@ import dataframe_funcs_pl as dff
 import re
 import streamlit as st
 import bokeh_charts
+from config import Config
 from typing import Any
 import time
 
@@ -184,6 +185,7 @@ def final_results(
                 height=height,
                 title=f"{header} {sub_title}" if sub_title else f"{header}",
                 timings=_bokeh_timings,
+                embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
             )
             precomputed_chart = (chart_html, bokeh_fig)
             if phase_timings is not None and _bokeh_timings:

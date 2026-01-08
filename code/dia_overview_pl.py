@@ -10,6 +10,7 @@ import dia_compute_pl as dia_compute
 import multi_pdf as mpdf
 import layout_helper_pl as lh
 import bokeh_charts
+import streamlit_bokeh_component as st_bokeh
 from config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import gc
@@ -432,7 +433,18 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                                 title=f"{header}",
                                             )
                                     with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
-                                        st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                        if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                            ok = st_bokeh.streamlit_bokeh(
+                                                bokeh_fig,
+                                                use_container_width=True,
+                                                key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}",
+                                            )
+                                            if not ok:
+                                                if not chart_html:
+                                                    chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                        else:
+                                            st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                 with tab2:
                                     if statistics:
                                         col1, col2, col3, col4 = lh.create_columns(
@@ -509,7 +521,18 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                                     title=f"{header} {sub_title}" if sub_title else f"{header}",
                                                 )
                                         with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
-                                            st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                            if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                                ok = st_bokeh.streamlit_bokeh(
+                                                    bokeh_fig,
+                                                    use_container_width=True,
+                                                    key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}_{counter}",
+                                                )
+                                                if not ok:
+                                                    if not chart_html:
+                                                        chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                                    st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                            else:
+                                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                                     with tab2:
                                         if statistics:
                                             col1, col2, col3, col4 = lh.create_columns(
