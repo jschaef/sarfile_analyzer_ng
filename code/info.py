@@ -20,6 +20,12 @@ def info():
         A fast prototyping framework for creating web apps without the need
         to know much about html and javascript""")
 
+    st.markdown("""* Bokeh - https://bokeh.org/  
+        Bokeh is a powerful interactive visualization library for modern web browsers.  
+        It provides elegant, concise construction of versatile graphics, and affords 
+        high-performance interactivity over large or streaming datasets.  
+        It is used for drawing the diagrams""")
+
     st.markdown("""* Altair - https://altair-viz.github.io/  
         Altair is a declarative statistical visualization library for Python.    
         It is used for drawing the diagrams""")
