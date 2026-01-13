@@ -48,13 +48,6 @@ def delete_redis_keys():
         for hkey in hash_keys:
             rs.hdel(hash, hkey)
 
-def delete_redis_key(rhash, rkey):
-    try:
-        rs.hdel(rhash, rkey)
-    except Exception as e:
-        print(f'could not delete {rkey} from {rhash} on Redis server')
-        print(f'Exception: {e}')
-
 def redis_tasks(col):
     cols = visf.create_columns(4,[0,1,1,1])
     col1 = cols[0]
@@ -92,7 +85,7 @@ def set_redis_key(data, rkey, property=None, decode=False):
 
     try:
         t_dict = {property:data}
-        rs.hmset(rkey ,t_dict) 
+        rs.hset(rkey, mapping=t_dict)
     except Exception as e:
         print(f'Could not write {rkey}, {e}')
 
@@ -102,12 +95,6 @@ def del_redis_key_property(rkey, property, decode=False):
         return None
     if rs.exists(rkey, property):
         rs.hdel(rkey, property)
-
-def show_redis_hash_keys(rkey):
-    rs = get_redis_conn()
-    if not rs:
-        return None
-    return rs.hkeys(rkey)
 
 def convert_df_for_redis(df):
     return df.to_pandas().to_parquet()

@@ -3,7 +3,7 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy import inspect
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import Sequence
 from sqlalchemy.orm import sessionmaker
@@ -146,10 +146,6 @@ def delete_metric(metric):
     x = session.commit()
     return x
 
-def object_as_dict(obj):
-    return {c.key: getattr(obj, c.key)
-            for c in inspect(obj).mapper.column_attrs}
-
 def add_header(header, description, alias, keywd=None):
     query = session.query(Headings.header).filter(Headings.header == header)
     if not query.first():
@@ -184,11 +180,6 @@ def ret_all_roles():
     for instance in session.query(Role).order_by(Role.role):
         r_list.append([instance.role][0])
     return r_list
-
-def delete_role(role):
-    session.query(Role).filter(Role.role == role).delete()
-    x = session.commit()
-    return x
 
 if __name__ == '__main__':
     create_tables()

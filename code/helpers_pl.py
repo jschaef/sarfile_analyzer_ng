@@ -5,8 +5,6 @@ import streamlit as st
 import pandas as pd
 import time
 import re
-import pytz
-import download as dow
 import dataframe_funcs_pl as dff
 import layout_helper_pl as lh
 import sqlite2_polars
@@ -208,14 +206,6 @@ def metric_popover(prop_list, col=None, key=None):
     
     st.markdown("######")
 
-def measure_time(col: st.delta_generator.DeltaGenerator, prop: str = 'start', start_time: float = None):
-    if prop == 'start':
-        start_time = time.perf_counter()
-        return start_time
-    else:
-        end = time.perf_counter()
-        col.write(f'process_time: {round(end-start_time, 4)}')
-
 def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, key: str=None):
     sar_files = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
         if os.path.isfile(f'{Config.upload_dir}/{user_name}/{x}') ]
@@ -290,37 +280,11 @@ def rename_sar_file(file_path, col=None):
         col.warning(f'file {file_path} could not be renamed to {renamed_name}')
         col.warning(f'exception is {e}')
 
-def pdf_download(file, dia):
-    my_file = file
-    save_dir = os.path.dirname(file)
-    if not os.path.exists(save_dir):
-        os.system(f'mkdir -p {save_dir}')
-    if not os.path.exists(my_file):
-        dia.save(my_file)
-    filename = file.split('/')[-1]
-    with open(my_file, 'rb') as f:
-        s = f.read()
-    download_button_str = dow.download_button(
-        s, filename, 'Click here to download PDF')
-    st.markdown(download_button_str, unsafe_allow_html=True)
-
-def multi_pdf_download(file):
-    filename = file.split('/')[-1]
-    with open(file, 'rb') as f:
-        s = f.read()
-    download_button_str = dow.download_button(
-        s, filename, 'Click here to download the multi PDF')
-    st.markdown(download_button_str, unsafe_allow_html=True)
-
 def set_stile(df, restart_rows=None):
     # left as example
     #def color_null_bg(val):
     #    is_null = val == 0
     #    return ['background-color: "",' if v else '' for v in is_null]
-    
-    def color_null_fg(val):
-        is_null = val == 0
-        return ['color: "",' if v else '' for v in is_null]
 
     if restart_rows:
         multi_index = [ x.index[0] for x in restart_rows ]
@@ -409,6 +373,19 @@ def restart_headers(df, os_details, restart_headers=None, display=True,
             return(set_stile(df))
 
 
+def style_restart_rows(df, restart_index: list):
+    """Lightweight styling: only mark restart rows.
+
+    This is intentionally much cheaper than `set_stile()`.
+    """
+    if not restart_index:
+        return df
+
+    styler = df.style.format(precision=4)
+    styler = styler.set_properties(subset=pd.IndexSlice[restart_index, :], **{"color": "red"})
+    return styler
+
+
 def restart_headers_v1(df, os_details, restart_headers=None):
     if restart_headers:
         rdf = df.copy()
@@ -484,39 +461,6 @@ def set_state_key(sess_key, value=None, change_key=None):
 def validate_convert_names(subject: str)-> str:
     subject = subject.replace(" ", "_").replace('%',"percent_").replace('/s',"_per_second_").replace('_-',"-")
     return subject
-
-def get_all_timezones():
-    """Returns a list of all available timezones."""
-    return pytz.all_timezones
-
-def get_time_zone_prefixs():
-    all_tz = get_all_timezones()
-    sub_tz_list = set([x.split("/")[0] for x in all_tz])
-    return sorted(sub_tz_list)
-
-
-def get_time_zone_suffixs(prefix):
-    all_tz = get_all_timezones()
-
-    sub_tz_list_multi = set(
-        [
-            f"{prefix}/{x.split('/')[1]}"
-            for x in all_tz
-            if x.startswith(prefix) and len(x.split("/")) > 1
-        ]
-    )
-    sub_tz_list_single = set(
-        [
-            x.split("/")[0]
-            for x in all_tz
-            if x.startswith(prefix) and len(x.split("/")) == 1
-        ]
-    )
-
-    if sub_tz_list_multi:
-        return sorted(sub_tz_list_multi)
-    if sub_tz_list_single:
-        return sorted(sub_tz_list_single)
 
 
 if __name__ == '__main__':

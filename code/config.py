@@ -16,3 +16,9 @@ class Config(object):
     max_header_count = int(os.getenv("MAX_HEADER_COUNT", 6))
     file_type = os.getenv("FILE_TYPE", "parquet")
     admin_communication = os.getenv("ADMIN_COMMUNICATION", "slack")
+    debug = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
+    use_streamlit_bokeh_component = os.getenv("USE_STREAMLIT_BOKEH_COMPONENT", "True").lower() in (
+        "true",
+        "1",
+        "t",
+    )

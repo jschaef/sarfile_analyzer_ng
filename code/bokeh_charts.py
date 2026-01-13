@@ -6,12 +6,16 @@ Similar to alt.py but uses Bokeh for better performance with large datasets
 import time
 import pandas as pd
 from math import pi
+from functools import lru_cache
 from bokeh.plotting import figure
 from bokeh.models import (
     HoverTool,
     Span,
     Label,
     ColumnDataSource,
+    Legend,
+    LegendItem,
+    CustomJS,
     NumeralTickFormatter,
     CrosshairTool,
     DatetimeTickFormatter,
@@ -24,11 +28,90 @@ import dataframe_funcs_pl as ddf
 my_tz = time.tzname[0]
 
 
+def _cdn_resources_html() -> str:
+    cdn_js = CDN.js_files
+    cdn_css = CDN.css_files
+    parts: list[str] = []
+    for css in cdn_css:
+        parts.append(f'<link href="{css}" rel="stylesheet" type="text/css">')
+    for js in cdn_js:
+        parts.append(f'<script src="{js}"></script>')
+    return "\n".join(parts) + ("\n" if parts else "")
+
+
+_BOKEH_RESOURCES_HTML = _cdn_resources_html()
+
+
+def embed_figure_html(p, timings: dict[str, float] | None = None) -> str:
+    """Return a full standalone HTML snippet for a Bokeh figure."""
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    script, div = components(p)
+    if _t0 is not None and timings is not None:
+        timings['components'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    full_html = f"{_BOKEH_RESOURCES_HTML}{script}\n{div}"
+    if _t0 is not None and timings is not None:
+        timings['html_concat'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+    return full_html
+
+
 def sample_dataframe_for_viz(df, max_rows=5000):
-    """Sample large dataframes to reduce memory usage during visualization."""
+    """Downsample large dataframes using striding for speed and temporal consistency."""
     if len(df) > max_rows:
-        return df.sample(n=max_rows).sort_index()
+        # Use a ceil-like stride so we actually reduce rows.
+        # Example: len=7000, max_rows=5000 -> step must be 2 (not 1).
+        step = (len(df) + max_rows - 1) // max_rows
+        step = max(1, step)
+        return df.iloc[::step]
     return df
+
+
+def _adaptive_max_rows_for_series(
+    series_count: int,
+    base_max_rows: int = 2000,
+    point_budget: int = 60_000,
+    min_rows: int = 200,
+) -> int:
+    """Pick a row budget based on number of series.
+
+    Bokeh serialization cost scales with roughly (rows × series). For charts with many
+    series (e.g. per-CPU), keep the total points bounded.
+    """
+    try:
+        series_count = int(series_count)
+    except Exception:
+        series_count = 1
+    if series_count <= 0:
+        series_count = 1
+
+    target = point_budget // series_count
+    if target < min_rows:
+        target = min_rows
+    if target > base_max_rows:
+        target = base_max_rows
+    return int(target)
+
+
+@lru_cache(maxsize=128)
+def _parse_restart_times_cached(restart_headers_tuple, os_details):
+    """Cached version of restart time parsing."""
+    restart_times = []
+    if not restart_headers_tuple:
+        return restart_times
+    
+    date_str, _ = ddf.format_date(os_details)
+    for header in restart_headers_tuple:
+        # Extract time from string like "Linux restart 14:23:45"
+        xval = header.split()[-1]
+        try:
+            z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
+            z = z.replace(tzinfo=None).replace(tzinfo=pd.Timestamp('2000-01-01', tz='UTC').tzinfo)
+            restart_times.append(z)
+        except Exception:
+            pass
+    
+    return restart_times
 
 
 def parse_restart_times(restart_headers, os_details):
@@ -41,19 +124,9 @@ def parse_restart_times(restart_headers, os_details):
     Returns:
         List of datetime objects in UTC
     """
-    restart_times = []
     if not restart_headers:
-        return restart_times
-    
-    for header in restart_headers:
-        # Extract time from string like "Linux restart 14:23:45"
-        xval = header.split()[-1]
-        date_str, _ = ddf.format_date(os_details)
-        z = pd.to_datetime(f"{date_str} {xval}", format="mixed")
-        z = z.replace(tzinfo=None).replace(tzinfo=pd.Timestamp('2000-01-01', tz='UTC').tzinfo)
-        restart_times.append(z)
-    
-    return restart_times
+        return []
+    return _parse_restart_times_cached(tuple(restart_headers), os_details)
 
 
 def _restart_label_flags(
@@ -231,6 +304,7 @@ def draw_single_chart_v1(
     ylabelpadd=10,
     font_size=None,
     title=None,
+    embed_html: bool = True,
 ):
     """
     Create a Bokeh chart for single metric visualization.
@@ -366,33 +440,55 @@ def draw_single_chart_v1(
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
     
-    # Return HTML string and figure object (for PDF export)
-    script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    # Return HTML components (optional) and figure object (for PDF export)
+    if not embed_html:
+        return "", p
+
+    full_html = embed_figure_html(p)
     return full_html, p
 
 
 def overview_v1(
-    df, restart_headers, os_details, font_size=None, width=None, height=None, title=None
+    df,
+    restart_headers,
+    os_details,
+    font_size=None,
+    width=None,
+    height=None,
+    title=None,
+    timings: dict[str, float] | None = None,
+    embed_html: bool = True,
 ):
     """
     Create a Bokeh multi-metric overview chart with clickable legend.
+    Supports both melted (long) and wide DataFrames.
     Returns tuple: (HTML string for rendering via components.html(), figure object for PDF export)
     """
-    # Sample large datasets to reduce memory usage
-    df = sample_dataframe_for_viz(df, max_rows=5000)
-    df["date_utc"] = df["date"].dt.tz_localize("UTC")
+    # Sample large datasets to reduce memory usage.
+    # Use an adaptive budget based on number of series to keep (rows × series) bounded.
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    try:
+        is_long = 'metrics' in df.columns and 'y' in df.columns
+    except Exception:
+        is_long = False
+    if is_long:
+        try:
+            series_count = int(df['metrics'].nunique())
+        except Exception:
+            series_count = 1
+    else:
+        try:
+            series_count = len(df.columns) - (1 if 'date' in df.columns else 0)
+        except Exception:
+            series_count = 1
+    df = sample_dataframe_for_viz(df, max_rows=_adaptive_max_rows_for_series(series_count))
+    if _t0 is not None and timings is not None:
+        timings['sample'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
     
     # Create Bokeh figure
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    # Bokeh's implicit default tools add noticeable overhead when creating many figures.
+    # Keep a minimal toolbar; hover/crosshair are added explicitly below.
     p = figure(
         title=title or "Metrics Overview",
         x_axis_label='Time',
@@ -400,64 +496,280 @@ def overview_v1(
         x_axis_type='datetime',
         width=width,
         height=height,
+        tools="pan,wheel_zoom,reset,save",
         toolbar_location="above",
     )
+    if _t0 is not None and timings is not None:
+        timings['figure'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
     
-    # Get unique metrics
-    metrics = df['metrics'].unique()
+    # Detect if DF is wide or long
+    is_long = 'metrics' in df.columns and 'y' in df.columns
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    
-    # Plot lines for each metric
     metric_renderers = []
-    for i, metric in enumerate(metrics):
-        metric_df = df[df['metrics'] == metric]
-        color = colors[i % len(colors)]
+    legend_items: list[tuple[str, list]] = []
+    legend: Legend | None = None
+
+    _t0 = time.perf_counter_ns() if timings is not None else None
+    if is_long:
+        # Long format: metrics in 'metrics' column, values in 'y' column
+        metrics = df['metrics'].unique()
+        try:
+            grouped = df.sort_values('date').groupby('metrics', sort=False)
+        except TypeError:
+            grouped = df.sort_values('date').groupby('metrics')
+
+        metric_to_color = {m: colors[i % len(colors)] for i, m in enumerate(metrics)}
         
-        # Create ColumnDataSource with only the columns we need
-        source_data = {
-            'date_utc': metric_df['date_utc'].values,
-            'y': metric_df['y'].values,
-            'metrics': [metric] * len(metric_df)
-        }
-        source = ColumnDataSource(data=source_data)
+        _t_lines = time.perf_counter_ns() if timings is not None else None
+        for metric, metric_df in grouped:
+            # Prefer float32 for faster/smaller binary serialization
+            try:
+                y_arr = pd.to_numeric(metric_df['y'], errors='coerce').astype('float32', copy=False).values
+            except Exception:
+                y_arr = metric_df['y'].values
+            source = ColumnDataSource(data={'date': metric_df['date'].values, 'y': y_arr})
+            line = p.line(
+                x='date',
+                y='y',
+                source=source,
+                line_width=2,
+                color=metric_to_color[metric],
+                alpha=0.8,
+                name=str(metric),
+            )
+            metric_renderers.append(line)
+            legend_items.append((str(metric), [line]))
+        if _t_lines is not None and timings is not None:
+            timings['build_glyphs.lines'] = (time.perf_counter_ns() - _t_lines) / 1_000_000_000.0
+        y_vals = df['y']
         
-        line = p.line(
-            x='date_utc',
-            y='y',
-            source=source,
-            line_width=2,
-            color=color,
-            alpha=0.8,
-            legend_label=str(metric)
+        # Add a shared hover tool for long format
+        _t_hover = time.perf_counter_ns() if timings is not None else None
+        hover = HoverTool(
+            tooltips=[
+                ('Time', '@date{%F %T}'),
+                ('Value', '@y{0.00}'),
+                ('Metric', '$name'),
+            ],
+            formatters={'@date': 'datetime'},
+            mode='vline'
         )
-        metric_renderers.append(line)
+        p.add_tools(hover)
+        _scope_hover_to_renderers(hover, metric_renderers)
+        if _t_hover is not None and timings is not None:
+            timings['build_glyphs.hover'] = (time.perf_counter_ns() - _t_hover) / 1_000_000_000.0
+    else:
+        # Wide format: Columns are metrics, index (or 'date' column) is time
+        if 'date' in df.columns:
+            x_col = 'date'
+        else:
+            df = df.reset_index().rename(columns={df.index.name or 'index': 'date'})
+            x_col = 'date'
+            
+        # Ensure date is datetime and TZ-aware for consistent formatting
+        df[x_col] = pd.to_datetime(df[x_col])
+        metrics = [c for c in df.columns if c != x_col]
+
+        # When there are many series, creating one renderer per series becomes
+        # expensive. For large wide charts, use a single MultiLine renderer.
+        # Note: MultiLine requires ragged xs/ys, which can increase serialized
+        # payload (xs is effectively repeated per series). Use MultiLine only
+        # when series-count is high enough (or row-count is small enough) that
+        # renderer/model reduction wins overall.
+        try:
+            row_count = int(len(df))
+        except Exception:
+            row_count = 0
+        series_count = len(metrics)
+        # MultiLine duplicates the x-array for each series (ragged xs), which can
+        # increase serialization time. Prefer it when we have many series and the
+        # (series-1)*rows overhead stays within a reasonable bound.
+        extra_points = max(0, (series_count - 1) * max(0, row_count))
+        use_multi_line = (
+            series_count >= 24
+            or (series_count >= 16 and extra_points <= 90_000)
+            or (series_count >= 10 and extra_points <= 35_000)
+        )
+
+        # Build numpy arrays (float32 where possible) for fast serialization.
+        _t_src = time.perf_counter_ns() if timings is not None else None
+        x_arr = df[x_col].values
+        y_arrays: list[object] = []
+        metric_names: list[str] = []
+        metric_colors: list[str] = []
+        for i, c in enumerate(metrics):
+            try:
+                s = pd.to_numeric(df[c], errors='coerce')
+                arr = s.to_numpy(dtype='float32', copy=False)
+            except Exception:
+                try:
+                    arr = df[c].to_numpy()
+                except Exception:
+                    arr = df[c].values
+            y_arrays.append(arr)
+            metric_names.append(str(c))
+            metric_colors.append(colors[i % len(colors)])
+        if _t_src is not None and timings is not None:
+            timings['coerce_float32'] = (time.perf_counter_ns() - _t_src) / 1_000_000_000.0
+
+        if use_multi_line:
+            _t_lines = time.perf_counter_ns() if timings is not None else None
+            # One row per series: xs/ys are "ragged" arrays (list-of-arrays).
+            ml_source = ColumnDataSource(
+                data={
+                    'xs': [x_arr] * len(metric_names),
+                    'ys': y_arrays,
+                    'name': metric_names,
+                    'color': metric_colors,
+                    'alpha': [0.8] * len(metric_names),
+                    'lw': [2] * len(metric_names),
+                }
+            )
+            ml = p.multi_line(
+                xs='xs',
+                ys='ys',
+                source=ml_source,
+                line_width='lw',
+                line_color='color',
+                line_alpha='alpha',
+                name='multi',
+            )
+            metric_renderers.append(ml)
+
+            # Per-series legend entries (drawn using LegendItem.index).
+            legend = Legend(
+                items=[
+                    LegendItem(label=name, renderers=[ml], index=i)
+                    for i, name in enumerate(metric_names)
+                ],
+                location="top_right",
+                click_policy="none",
+            )
+            # Custom per-series hide/show by toggling the per-line alpha.
+            legend.js_on_event(
+                'legend_item_click',
+                CustomJS(
+                    args={'src': ml_source},
+                    code="""
+const item = cb_obj.item
+if (item == null) {
+  return
+}
+const i = item.index
+const data = src.data
+const alpha = data['alpha']
+const lw = data['lw']
+if (alpha == null || i == null) {
+  return
+}
+const on = (alpha[i] > 0)
+alpha[i] = on ? 0.0 : 0.8
+if (lw != null) {
+    lw[i] = on ? 0 : 2
+}
+src.change.emit()
+""",
+                ),
+            )
+            p.add_layout(legend)
+
+            if _t_lines is not None and timings is not None:
+                timings['build_glyphs.lines'] = (time.perf_counter_ns() - _t_lines) / 1_000_000_000.0
+
+            _t_hover = time.perf_counter_ns() if timings is not None else None
+            hover = HoverTool(
+                tooltips=[
+                    ('Time', '$snap_x{%F %T}'),
+                    ('Value', '$snap_y{0.00}'),
+                    ('Metric', '@name'),
+                ],
+                formatters={'$snap_x': 'datetime'},
+                mode='vline',
+                line_policy='nearest',
+            )
+            p.add_tools(hover)
+            _scope_hover_to_renderers(hover, metric_renderers)
+            if _t_hover is not None and timings is not None:
+                timings['build_glyphs.hover'] = (time.perf_counter_ns() - _t_hover) / 1_000_000_000.0
+        else:
+            # Traditional path: one renderer per series (better built-in legend behavior).
+            _t_cds = time.perf_counter_ns() if timings is not None else None
+            source_data: dict[str, object] = {x_col: x_arr}
+            for name, arr in zip(metrics, y_arrays):
+                source_data[name] = arr
+            source = ColumnDataSource(data=source_data)
+            if _t_cds is not None and timings is not None:
+                timings['build_glyphs.cds'] = (time.perf_counter_ns() - _t_cds) / 1_000_000_000.0
+
+            _t_lines = time.perf_counter_ns() if timings is not None else None
+            for i, metric in enumerate(metrics):
+                line = p.line(
+                    x=x_col,
+                    y=metric,
+                    source=source,
+                    line_width=2,
+                    color=colors[i % len(colors)],
+                    alpha=0.8,
+                    name=str(metric),
+                )
+                metric_renderers.append(line)
+                legend_items.append((str(metric), [line]))
+            if _t_lines is not None and timings is not None:
+                timings['build_glyphs.lines'] = (time.perf_counter_ns() - _t_lines) / 1_000_000_000.0
+
+            # Unified HoverTool for all metrics.
+            _t_hover = time.perf_counter_ns() if timings is not None else None
+            hover = HoverTool(
+                tooltips=[
+                    ('Time', f'@{x_col}{{%F %T}}'),
+                    ('Value', '@$name{0.00}'),
+                    ('Metric', '$name'),
+                ],
+                formatters={f'@{x_col}': 'datetime'},
+                mode='vline'
+            )
+            p.add_tools(hover)
+            _scope_hover_to_renderers(hover, metric_renderers)
+            if _t_hover is not None and timings is not None:
+                timings['build_glyphs.hover'] = (time.perf_counter_ns() - _t_hover) / 1_000_000_000.0
+    if _t0 is not None and timings is not None:
+        timings['build_glyphs'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
+
+    # Precompute y-range once (used for restart markers)
+    try:
+        if is_long:
+             y_low = float(pd.to_numeric(df['y'], errors='coerce').min(skipna=True))
+             y_high = float(pd.to_numeric(df['y'], errors='coerce').max(skipna=True))
+        else:
+             # Prefer computing from numpy arrays (faster than DataFrame min/min)
+             import numpy as np
+             if y_arrays:
+                 y_low = float(np.nanmin([np.nanmin(a) for a in y_arrays]))
+                 y_high = float(np.nanmax([np.nanmax(a) for a in y_arrays]))
+             else:
+                 y_low, y_high = None, None
+    except Exception:
+        y_low, y_high = None, None
     
-    # Add hover tool
-    hover = HoverTool(
-        tooltips=[
-            ('Time', '@date_utc{%F %T}'),
-            ('Value', '@y{0.00}'),
-            ('Metric', '@metrics'),
-        ],
-        formatters={'@date_utc': 'datetime'},
-        mode='vline'
-    )
-    p.add_tools(hover)
-    _scope_hover_to_renderers(hover, metric_renderers)
-    
-    # Add crosshair tool
+    # Common tools for the whole plot
     p.add_tools(CrosshairTool())
     
     # Add restart markers if they exist
+    _t0 = time.perf_counter_ns() if timings is not None else None
     restart_times = parse_restart_times(restart_headers, os_details)
+    # Keep restart timestamps comparable to the (typically tz-naive) df['date'].
+    try:
+        restart_times = [pd.Timestamp(t).tz_localize(None) for t in restart_times]
+    except Exception:
+        pass
     restart_hover = _ensure_restart_hover_tool(p) if restart_times else None
     try:
-        x_min = df["date_utc"].min()
-        x_max = df["date_utc"].max()
+        x_min = df["date"].min()
+        x_max = df["date"].max()
     except Exception:
         x_min, x_max = None, None
     try:
-        y_mid = (float(df["y"].min()) + float(df["y"].max())) / 2.0
+        y_mid = (float(y_low) + float(y_high)) / 2.0 if y_low is not None and y_high is not None else None
     except Exception:
         y_mid = None
     show_flags = _restart_label_flags(sorted(restart_times), x_min, x_max, getattr(p, "width", None))
@@ -469,13 +781,16 @@ def overview_v1(
             y_mid=y_mid,
             show_label=show_label,
             restart_hover=restart_hover,
-            y_low=float(df["y"].min()) if "y" in df.columns else None,
-            y_high=float(df["y"].max()) if "y" in df.columns else None,
+            y_low=y_low,
+            y_high=y_high,
         )
+    if _t0 is not None and timings is not None:
+        timings['restart_markers'] = (time.perf_counter_ns() - _t0) / 1_000_000_000.0
     
-    # Configure legend
-    p.legend.location = "top_right"
-    p.legend.click_policy = "hide"  # Click legend to hide/show lines
+    # Configure legend (if not already added by the MultiLine path)
+    if legend is None and legend_items:
+        legend = Legend(items=legend_items, location="top_right", click_policy="hide")
+        p.add_layout(legend)
     
     # Format Y-axis to show decimal notation
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
@@ -489,23 +804,26 @@ def overview_v1(
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
     
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    # Return HTML components (optional) and figure object (for PDF export)
+    if not embed_html:
+        if timings is not None:
+            timings.setdefault('components', 0.0)
+            timings.setdefault('html_concat', 0.0)
+        return "", p
+
+    full_html = embed_figure_html(p, timings=timings)
     return full_html, p
 
 
 def overview_v3(
-    collect_field, reboot_headers, width, height, lsel, font_size, title=None
+    collect_field,
+    reboot_headers,
+    width,
+    height,
+    lsel,
+    font_size,
+    title=None,
+    embed_html: bool = True,
 ):
     """
     Create a Bokeh multi-file comparison chart with clickable legend.
@@ -645,22 +963,14 @@ def overview_v3(
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
     
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    if not embed_html:
+        return "", p
+
+    full_html = embed_figure_html(p)
     return full_html, p
 
 
-def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None):
+def overview_v6(collect_field, reboot_headers, width, height, font_size, title=None, embed_html: bool = True):
     """Create a Bokeh chart that overlays multiple days onto a single 24h window."""
     def _tooltip_field(field_name: str) -> str:
         # Metric names can contain characters like '%' or '-' (e.g. "%usr", "ldavg-1").
@@ -814,16 +1124,10 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         p.xaxis.major_label_text_font_size = f'{font_size}pt'
         p.yaxis.major_label_text_font_size = f'{font_size}pt'
 
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    full_html = f"{resources_html}{script}\n{div}"
+    if not embed_html:
+        return "", p
+
+    full_html = embed_figure_html(p)
     return full_html, p
 
 
@@ -838,6 +1142,7 @@ def overview_v5(
     font_size,
     os_details,
     title=None,
+    embed_html: bool = True,
 ):
     """Create a Bokeh chart for one file, many devices.
 
@@ -976,28 +1281,9 @@ def overview_v5(
         p.xaxis.major_label_text_font_size = f"{font_size}pt"
         p.yaxis.major_label_text_font_size = f"{font_size}pt"
 
-    script, div = components(p)
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    full_html = f"{resources_html}{script}\n{div}"
-    return full_html, p
+    if not embed_html:
+        return "", p
 
-    # Return HTML components and figure object (for PDF export)
-    script, div = components(p)
-    # Include Bokeh CDN resources for proper rendering
-    cdn_js = CDN.js_files
-    cdn_css = CDN.css_files
-    resources_html = ""
-    for css in cdn_css:
-        resources_html += f'<link href="{css}" rel="stylesheet" type="text/css">\n'
-    for js in cdn_js:
-        resources_html += f'<script src="{js}"></script>\n'
-    
-    full_html = f"{resources_html}{script}\n{div}"
+    full_html = embed_figure_html(p)
     return full_html, p
 

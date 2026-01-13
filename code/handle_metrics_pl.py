@@ -3,6 +3,7 @@
 import streamlit as st
 import alt
 import bokeh_charts
+import streamlit_bokeh_component as st_bokeh
 import polars as pl
 import pl_helpers2 as pl_helpers
 import helpers_pl as helpers
@@ -100,9 +101,22 @@ def do_metrics(
                 width=width,
                 height=hight,
                 title="Compare different metrics",
+                embed_html=not Config.use_streamlit_bokeh_component,
             )
             with chart_placeholder:
-                st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+                if Config.use_streamlit_bokeh_component:
+                    ok = st_bokeh.streamlit_bokeh(
+                        bokeh_fig,
+                        use_container_width=False,
+                        key=f"compare_metrics_bokeh_{filename}",
+                    )
+                    if (not ok) and (not chart_html):
+                        chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+
+                if not Config.use_streamlit_bokeh_component:
+                    st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+                elif chart_html:
+                    st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
         else:
             chart = alt.overview_v4(chart_field, restart_headers, width, hight, font_size)
             with chart_placeholder:

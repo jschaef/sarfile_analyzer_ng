@@ -1,9 +1,9 @@
 import streamlit as st
-import polars as pl
 import layout_helper_pl as lh
 import helpers_pl
 import alt
 import bokeh_charts
+import streamlit_bokeh_component as st_bokeh
 import re
 import pl_helpers2 as pl_h2
 import dia_compute_pl as dia_compute
@@ -111,7 +111,7 @@ def single_f(config_obj, username, selection, df, os_details):
             if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
-                df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+                df = df.to_pandas().set_index('date')
 
             else:
                 for index in df_list:
@@ -149,9 +149,29 @@ def single_f(config_obj, username, selection, df, os_details):
             
             if chart_lib == "Bokeh":
                 chart_html, bokeh_fig = bokeh_charts.draw_single_chart_v1(
-                    df_part, prop, restart_headers, os_details, width, hight, font_size=font_size, title=title)
+                    df_part,
+                    prop,
+                    restart_headers,
+                    os_details,
+                    width,
+                    hight,
+                    font_size=font_size,
+                    title=title,
+                    embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
+                )
                 with chart_placeholder.container():
-                    st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                    if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                        ok = st_bokeh.streamlit_bokeh(
+                            bokeh_fig,
+                            use_container_width=False,
+                            key=f"bokeh_single_{helpers_pl.validate_convert_names(title)}_{helpers_pl.validate_convert_names(prop)}",
+                        )
+                        if not ok:
+                            if not chart_html:
+                                chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                            st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                    else:
+                        st.components.v1.html(chart_html, height=hight+100, scrolling=True)
                 title = f"{title}_{prop}"
                 download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
                 lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
@@ -181,7 +201,7 @@ def single_f(config_obj, username, selection, df, os_details):
             if perf_intensive_metrics.search(aitem[selected]):
                 df = pl_h2.get_df_from_sub_device(large_df, 'sub_device', str(sub_item))
                 df = pl_h2.create_metrics_df(df, selected)
-                df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+                df = df.to_pandas().set_index('date')
 
             else:
                 for index in df_list:
@@ -217,10 +237,29 @@ def single_f(config_obj, username, selection, df, os_details):
             chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="overview_chart_lib", horizontal=True)
             
             if chart_lib == "Bokeh":
-                chart_html, bokeh_fig = bokeh_charts.overview_v1(df, restart_headers, os_details, font_size=font_size, width=width, 
-                    height=height, title=title)
+                chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                    df,
+                    restart_headers,
+                    os_details,
+                    font_size=font_size,
+                    width=width,
+                    height=height,
+                    title=title,
+                    embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
+                )
                 with chart_placeholder.container():
-                    st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                    if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                        ok = st_bokeh.streamlit_bokeh(
+                            bokeh_fig,
+                            use_container_width=False,
+                            key=f"bokeh_overview_{helpers_pl.validate_convert_names(title)}",
+                        )
+                        if not ok:
+                            if not chart_html:
+                                chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                            st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                    else:
+                        st.components.v1.html(chart_html, height=height+100, scrolling=True)
                 download_name = f"{selection}_{helpers_pl.validate_convert_names(title)}.pdf"
                 lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
             else:

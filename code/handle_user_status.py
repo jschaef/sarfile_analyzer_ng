@@ -22,17 +22,6 @@ def write_df_to_file(df: pl.DataFrame, filename: str = None) -> None:
         filename = load_df_from_file()[1]
     df.write_parquet(filename)
 
-def delete_records(df: pl.DataFrame, date: datetime.datetime) -> pl.DataFrame:
-    """Deletes records from the dataframe where login_time is greater than the provided date.
-    Args:
-        df: The dataframe to delete the records from
-        date: The date to compare with
-    Returns:
-        The dataframe with the deleted records
-    """
-    df = df.filter(df["login_time"] <= date)
-    write_df_to_file(df)
-
 def create_user_status_df() -> pl.DataFrame:
     """Creates prefilled dataframe including metadata about
     user login times.

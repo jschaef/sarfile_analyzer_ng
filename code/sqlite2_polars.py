@@ -4,6 +4,33 @@ import sql_stuff
 import polars as pl
 from streamlit import cache_data
 import redis_mng
+from functools import lru_cache
+
+
+@lru_cache(maxsize=32)
+def _get_table_df_threadsafe(table_name: str):
+    """Thread-safe table loader.
+
+    Important: This is used from ThreadPoolExecutor workers.
+    We intentionally avoid Streamlit's caching here to prevent
+    'missing ScriptRunContext' warnings.
+    """
+    parquet_obj = redis_mng.get_redis_val(table_name, property=table_name)
+    if parquet_obj:
+        parquet_mem = io.BytesIO(parquet_obj)
+    else:
+        parquet_mem = io.BytesIO(b"")
+
+    try:
+        df = pl.read_parquet(parquet_mem)
+    except Exception:
+        data_db = sql_stuff.find_db()
+        connection_uri = f"sqlite:///{data_db}"
+        query = f"select * from {table_name}"
+        df = pl.read_database_uri(query=query, uri=connection_uri)
+        redis_df = redis_mng.convert_df_for_redis(df)
+        redis_mng.set_redis_key(redis_df, table_name, property=table_name)
+    return df
 
 
 @cache_data
@@ -28,12 +55,6 @@ def get_table_df(table_name: str):
         redis_df = redis_mng.convert_df_for_redis(df)
         redis_mng.set_redis_key(redis_df, table_name, property=table_name)
     return df
-
-
-def get_col_list_from_filter(
-    df: pl.DataFrame, column: str, filter: str, return_column: str
-) -> list:
-    return df.filter(pl.col(column).str.contains(filter))[return_column].to_list()
 
 
 def get_exact_value_from_filter(
@@ -136,14 +157,14 @@ def get_header_prop(header, property):
                 return org_header
 
 
-@cache_data
+@lru_cache(maxsize=4096)
 def get_header_from_alias(alias):
-    headings_df = get_table_df("headingstable")
+    headings_df = _get_table_df_threadsafe("headingstable")
     return get_exact_value_from_filter(headings_df, "alias", alias, "header")
 
-@cache_data
+@lru_cache(maxsize=4096)
 def get_sub_device_from_header(header):
-    headings_df = get_table_df("headingstable")
+    headings_df = _get_table_df_threadsafe("headingstable")
     ret_search = re.compile(r"(False.*)|(None.*)", re.IGNORECASE)
     keywd = get_exact_value_from_filter(headings_df, "header", header, "keywd")
     if not keywd:

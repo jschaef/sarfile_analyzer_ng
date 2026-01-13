@@ -4,6 +4,7 @@ import polars as pl
 import helpers_pl
 import alt
 import bokeh_charts
+import streamlit_bokeh_component as st_bokeh
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
 import layout_helper_pl as lh
@@ -201,9 +202,21 @@ def show_multi(config_obj, username, selection, df, os_details):
                                 font_size,
                                 os_details,
                                 title=f"{selected} {metric}",
+                                embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
                             )
                             with chart_placeholder:
-                                st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+                                if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                    ok = st_bokeh.streamlit_bokeh(
+                                        bokeh_fig,
+                                        use_container_width=False,
+                                        key=f"bokeh_multi_devices_{helpers_pl.validate_convert_names(file_name)}_{helpers_pl.validate_convert_names(selected)}_{helpers_pl.validate_convert_names(metric)}",
+                                    )
+                                    if not ok:
+                                        if not chart_html:
+                                            chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                        st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
+                                else:
+                                    st.components.v1.html(chart_html, height=hight + 100, scrolling=True)
                             download_name = f"{helpers_pl.validate_convert_names(f'{file_name}_{selected}_{metric}')}.pdf"
                             lh.pdf_download_bokeh_direct(
                                 bokeh_fig,

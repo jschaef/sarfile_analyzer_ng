@@ -3,6 +3,7 @@
 import alt
 import bokeh_charts
 import streamlit as st
+import streamlit_bokeh_component as st_bokeh
 import helpers_pl as helpers
 import pl_helpers2 as pl_helpers
 import layout_helper_pl as lh
@@ -24,8 +25,6 @@ def delete_session_state_df_obj(skey: str):
 def single_multi(config_dict: dict, username: str, ph_list: list):
     display_field = []
     upload_dir = config_dict["upload_dir"]
-    pdf_dir = f"{Config.upload_dir}/{username}/pdf"
-    pdf_name = f"{pdf_dir}/{Config.pdf_name}"
     cpu_aliases = re.compile(r"CPU|^soft.*", re.IGNORECASE)
     st.subheader("Compare same metric on multiple Sar Files")
     lh.make_vspace(3, st)
@@ -225,6 +224,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                     "file",
                                     font_size,
                                     title=title,
+                                    embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
                                 )
                             else:
                                 chart_html, bokeh_fig = bokeh_charts.overview_v6(
@@ -234,9 +234,21 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                     hight,
                                     font_size,
                                     title=title,
+                                    embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
                                 )
                             with chart_placeholder:
-                                st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                                if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                    ok = st_bokeh.streamlit_bokeh(
+                                        bokeh_fig,
+                                        use_container_width=False,
+                                        key=f"bokeh_multi_compare_{helpers.validate_convert_names(title)}_{helpers.validate_convert_names(prop)}",
+                                    )
+                                    if not ok:
+                                        if not chart_html:
+                                            chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                        st.components.v1.html(chart_html, height=hight+100, scrolling=True)
+                                else:
+                                    st.components.v1.html(chart_html, height=hight+100, scrolling=True)
                         else:
                             if dia_type:
                                 img = alt.overview_v3(
@@ -375,9 +387,21 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                     width=width,
                                     height=height,
                                     title=title,
+                                    embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
                                 )
                                 with chart_placeholder:
-                                    st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                                    if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                        ok = st_bokeh.streamlit_bokeh(
+                                            bokeh_fig,
+                                            use_container_width=False,
+                                            key=f"bokeh_multi_overview_{helpers.validate_convert_names(key)}_{helpers.validate_convert_names(title)}",
+                                        )
+                                        if not ok:
+                                            if not chart_html:
+                                                chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                            st.components.v1.html(chart_html, height=height+100, scrolling=True)
+                                    else:
+                                        st.components.v1.html(chart_html, height=height+100, scrolling=True)
                                 dia_key = f"dia_{collect_field.index(data)}"
                                 download_name = (
                                     f"{key}_{helpers.validate_convert_names(title)}.pdf"

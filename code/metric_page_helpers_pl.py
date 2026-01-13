@@ -82,13 +82,6 @@ def build_diff_metrics_menu(headers: list, sub_device_dict, df_complete: pl.Data
     return collect_field, chart_field
 
 
-def display_select_boxes(st_col, device_list, sub_item_list, key_pref, counter):
-    sub_item = st_col.selectbox('Choose devices', [key for key in
-        device_list if key not in sub_item_list],
-        key=f'{key_pref}{counter}')
-    sub_item_list.append(sub_item)
-    return sub_item
-
 def display_diff_sboxes(col: int, pcols: st.columns, counter: int, alias_dict: dict,
         sub_item_dict: dict, prop_item_dict: dict, df_complete: pl.DataFrame, 
         key_pref: str, filename: str) -> tuple:
@@ -156,7 +149,7 @@ def display_diff_sboxes(col: int, pcols: st.columns, counter: int, alias_dict: d
     else:
         df = pl_h2.get_metrics_from_df(df, s_header_pure, s_header)
     df = pl_h2.create_metric_df(df, s_header_pure, prop)
-    df = df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
+    df = df.to_pandas().set_index('date')
     return df, prop
 
 
@@ -171,31 +164,6 @@ def build_metric_dataframes(df, prop, file, chart_field,
         collect_field.append([helpers.restart_headers_v1(df_displ, os_details,
             restart_headers=restart_headers), df_ds, prop])
         chart_field.append([df_part, prop])
-    return collect_field, chart_field
-
-
-def build_device_dataframes(header, headers_df, sub_item, alias, prop, file, chart_field, 
-        collect_field, os_details=None, reboot_headers=None,  stats=None):
-    sub_item = str(sub_item)
-    cached_obj = f"{file}_{alias}_obj"
-    header_df = pl_h2.get_complete_dataframe_from_headers([header], headers_df,
-        "header")
-    header_df = header_df.rename({"data": header}).drop(columns=['header','os_details'])
-    if st.session_state.get(cached_obj, []):
-        devices_df = st.session_state[cached_obj][0]
-    else:
-        devices_df = pl_h2.get_metrics_from_df(header_df, header, alias)
-        helpers.set_state_key(cached_obj, value=devices_df, change_key=cached_obj)
-    device_df = pl_h2.get_df_from_sub_device(devices_df, 'sub_device', sub_item)
-    device_df = pl_h2.create_metric_df(device_df, header, prop)
-    df_pandas = device_df.select(pl.all().shrink_dtype()).to_pandas().set_index('date')
-
-    if stats:
-        df_displ = df_pandas.copy().drop(columns='device')
-        df_ds = df_displ.describe()
-        collect_field.append([helpers.restart_headers_v1(df_displ, os_details,
-        restart_headers=reboot_headers), df_ds,  sub_item, alias ])
-        chart_field.append([df_pandas, prop, file, sub_item, alias])
     return collect_field, chart_field
 
 def display_stats_data(collect_field):

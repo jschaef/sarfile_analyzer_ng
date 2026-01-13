@@ -1,0 +1,13 @@
+aiofiles
+altair
+pandas
+polars
+PyPDF4
+python-magic
+redis
+SQLAlchemy
+streamlit
+streamlit-option-menu
+vl-convert-python
+wfork-streamlit-profiler
+numpy >=2.4.0rc1

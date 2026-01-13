@@ -4,6 +4,9 @@ import re
 import pandas as pd
 import polars as pl
 from datetime import timedelta
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
 def format_date(os_details):
     # presume format 2020-XX-XX for sar operating system details
     date_reg = re.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
@@ -48,52 +51,31 @@ def insert_restarts_into_df(os_details, df, restart_headers):
     # date_str like 2020-09-17
     date_str, _ = format_date(os_details)
     new_rows = []
+    
+    if not restart_headers:
+        return df, []
+        
     for header in restart_headers:
         # restart_headers have time of restart appended as last string
         # hour time, e.g.: 10:13:47
         h_time = header.split()[-1]
         z = pd.to_datetime(f"{date_str} {h_time}", format="mixed")
-        ind = 0
-        for x in range(len(df.index)):
-            # check if date - z is the minimum
-            if (z - df.index[x]).total_seconds() > 0:
-                continue
-            # same index as restart exists
-            elif (z - df.index[x]).total_seconds() == 0:
-                z = z + timedelta(seconds=10)
-            else:
-                ind = x - 1
-                break
-        # Reboot is last entry
-        if len(df.index) > 0:
-            if ind == 0:
-                ind = len(df.index) - 1
-            # restart row date first entry
-            elif ind < 0:
-                ind = 0
-            rind = df.index[ind]
-            # copy last line before restart, reindex it and insert the reboot str
-            reset_row = df.loc[[rind]]
-            reset_row = reset_row.reindex([z])
-            reset_row.loc[z] = 0.00
-            new_rows.append(reset_row)
-            df = insert_row(ind, df, reset_row)
+        
+        # Avoid duplicate index issues
+        if z in df.index:
+             z = z + timedelta(seconds=1)
+
+        # Create a row of 0.0s for the restart point
+        # This will ensure the line drops to zero in the chart
+        reset_row = pd.DataFrame(0.0, index=[z], columns=df.columns)
+        new_rows.append(reset_row)
+        
+    if new_rows:
+        # Combine all at once and sort index for O(N log N) or O(N) depending on implementation
+        # This is much faster than repeated concats in a loop
+        df = pd.concat([df] + new_rows).sort_index()
+        
     return df, new_rows
-
-
-# example from https://pythoninoffice.com/insert-rows-into-a-dataframe/
-def insert_row(row_num, orig_df, row_to_add):
-    if row_num == 0:
-        df_final = pd.concat([row_to_add, orig_df], ignore_index=False)
-    elif len(orig_df.index) - 1 > row_num:
-        # split original data frame into two parts and insert the restart pd.series
-        row_num = min(max(0, row_num), len(orig_df))
-        df_part_1 = orig_df[orig_df.index[0] : orig_df.index[row_num]]
-        df_part_2 = orig_df[orig_df.index[row_num + 1] : orig_df.index[-1]]
-        df_final = pd.concat([df_part_1, row_to_add, df_part_2], ignore_index=False)
-    else:
-        df_final = pd.concat([orig_df, row_to_add], ignore_index=False)
-    return df_final
 
 
 def replace_ymt(start_date, end_date, df):
