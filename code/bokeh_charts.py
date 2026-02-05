@@ -56,6 +56,20 @@ def embed_figure_html(p, timings: dict[str, float] | None = None) -> str:
     return full_html
 
 
+def _set_adaptive_time_ticks(p, df, time_col_name):
+    """Dynamically set the desired number of ticks for a 2-hour interval."""
+    try:
+        time_span = df[time_col_name].max() - df[time_col_name].min()
+        if time_span > pd.Timedelta(0):
+            desired_ticks = time_span.total_seconds() / (2 * 3600)
+            # Cap ticks to prevent overcrowding, but ensure at least 2.
+            num_ticks = max(2, min(int(desired_ticks), 24))
+            p.xaxis.ticker.desired_num_ticks = num_ticks
+    except Exception:
+        # Silently fail, Bokeh's default will be used.
+        pass
+
+
 def sample_dataframe_for_viz(df, max_rows=5000):
     """Downsample large dataframes using striding for speed and temporal consistency."""
     if len(df) > max_rows:
@@ -341,6 +355,8 @@ def draw_single_chart_v1(
         toolbar_location="above",
     )
 
+    _set_adaptive_time_ticks(p, df, "date_utc")
+
     # Stabilize y-axis: Bokeh's automatic DataRange can look "too high" for small float ranges.
     # Explicitly set a padded range from the data.
     if pd.notna(y_min) and pd.notna(y_max):
@@ -511,6 +527,7 @@ def overview_v1(
 
     _t0 = time.perf_counter_ns() if timings is not None else None
     if is_long:
+        _set_adaptive_time_ticks(p, df, "date")
         # Long format: metrics in 'metrics' column, values in 'y' column
         metrics = df['metrics'].unique()
         try:
@@ -568,6 +585,7 @@ def overview_v1(
             
         # Ensure date is datetime and TZ-aware for consistent formatting
         df[x_col] = pd.to_datetime(df[x_col])
+        _set_adaptive_time_ticks(p, df, x_col)
         metrics = [c for c in df.columns if c != x_col]
 
         # When there are many series, creating one renderer per series becomes
@@ -863,6 +881,8 @@ def overview_v3(
         height=height,
         toolbar_location="above",
     )
+
+    _set_adaptive_time_ticks(p, b_df, "date_utc")
     
     # Get unique files
     files = b_df[color_item].unique()
@@ -1012,6 +1032,8 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         height=height,
         toolbar_location="above",
     )
+
+    p.xaxis.ticker.desired_num_ticks = 12
 
     p.xaxis.formatter = DatetimeTickFormatter(
         hours="%H:%M",
@@ -1187,6 +1209,8 @@ def overview_v5(
         height=height,
         toolbar_location="above",
     )
+
+    _set_adaptive_time_ticks(p, b_df, "date_utc")
 
     # Stabilize y-axis range.
     if pd.notna(y_min) and pd.notna(y_max):
