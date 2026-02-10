@@ -91,8 +91,8 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     st.subheader('Overview of important metrics from SAR data')
     
     multi_pdf_chart_field = []
+    st.space("small")
     col1, col2, *_ = lh.create_columns(4, [0, 1, 1, 1])
-    st.write("#")
     if sar_file != file_chosen:
         file_chosen = sar_file
     sar_file_name = sar_file
@@ -117,7 +117,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     def metric_expander(initial_aliases: list, full_alias_l: list,
             count_lines: int, boxes_per_line: int, sel_field: list):
         col1, _ = st.columns([0.8, 0.2])
-        col1.markdown("**Select which metrics to display**")
+        col1.markdown("##### Select which metrics to display")
         h_expander = col1.expander(label='Choose SAR Metrics', expanded=True)
         with h_expander:
             fr_aliases = initial_aliases.copy()
@@ -152,27 +152,19 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     @st.fragment
     def change_time_and_dia(df, headers):
         st.space()
-        st.markdown("**Change Start/End Time and Diagram Properties and handle PDF creation**")
+        st.markdown("##### Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
         this_container = col1.container(border=True)
         df_len = 0
         tmp_dict = {}
-        col1, col2, col3 = this_container.columns([0.2, 0.2, 0.6])
-        for coumn in col1, col2, col3:
-            coumn.space()
         create_multi_pdf = 0
-        col1.space('small'), col2.space(), col3.space()
-        if col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
+        if this_container.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
             create_multi_pdf = 1
         else:
                 create_multi_pdf = 0
-        for coumn in col1, col2, col3:
-            coumn.space()
-        col1.markdown("##### Set time frame")
-        col2.space()
+        this_container.markdown("###### Set time frame")
+        col1, col2, col3 = this_container.columns([0.2, 0.2, 0.6])
 
-        for column in  col2, col3:
-            column.space("medium")
         for entry in headers:
             # findout longest hour range if in rare cases it
             # differs since a new device occured after reboot (persistent
@@ -194,20 +186,23 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
                 end = end_box.selectbox('Choose End Time',hours[hours.index(start):],
                     index=time_len)
             break
-        for coumn in col1, col2:
-            coumn.space()
-        col1.markdown("##### Customize Diagrams")
-        col2.markdown("##### ")
+
+        this_container.space("small")
+        this_container.markdown("###### Customize Diagrams")
+        col1, col2, col3 = this_container.columns([0.2, 0.2, 0.6])
         col1.space(), col2.space()
         width, height = helpers_pl.diagram_expander('Diagram Width',
             'Diagram Height', col1)
         font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", col2)
         return create_multi_pdf, start, end, width, height, font_size
 
+    
     if sel_field:
         create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
 
-    col1, col2, *_ = st.columns([0.1, 0.1, 0.8])
+    this_container = st.container(border=False)
+    this_container.space("small")
+    col1, col2, col3, *_ = this_container.columns([0.1, 0.1, 0.1, 0.7])
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
     show_state_key = f"dia_overview_show_{sar_file_name}"
     perf_toggle_key = f"dia_overview_perf_{sar_file_name}"
@@ -225,7 +220,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # Optional: lightweight timing breakdown to find bottlenecks
     # Shown only if Config has debug enabled
     if hasattr(Config, 'debug') and Config.debug:
-        st.session_state[perf_toggle_key] = col2.toggle(
+        st.session_state[perf_toggle_key] = col3.toggle(
             'Profile run',
             value=st.session_state[perf_toggle_key],
             help='Collects a timing breakdown for the diagram calculation/rendering.',
@@ -240,8 +235,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         st.session_state[show_state_key] = False
         st.session_state.pop(perf_result_key, None)
         st.rerun()
-    lh.make_vspace(1, st)
-    
+    st.space("medium")
     # Check data size and warn user about memory implications
     # Calculate actual DataFrame memory size
     if hasattr(df, 'estimated_size'):

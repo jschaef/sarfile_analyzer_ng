@@ -224,7 +224,6 @@ def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, k
 def diagram_expander(text1, text2, col=None, key=None):
     col = col if col else st
     dia_expander = col.expander('Change Diagram Size')
-    st.markdown('')
     with dia_expander:
         width = st.slider(text1,
             400, 1600, (1200), 200, key=f"{key}_w")
@@ -236,7 +235,7 @@ def diagram_expander(text1, text2, col=None, key=None):
 def font_expander(default_size, title, description, col=None, key=None):
     col = col if col else st
     font_expander = col.expander(title)
-    st.markdown('')
+    col.space("small")
     with font_expander:
         size = st.select_slider(description,
                           range(8,25), value=default_size, key=key)
