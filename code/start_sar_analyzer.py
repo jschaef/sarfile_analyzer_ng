@@ -131,9 +131,7 @@ def main_body(username: str, config_c: helpers.configuration) :
                     'people', 'info-circle', ],
                  menu_icon="yin-yang", default_index=0, orientation="horizontal",
             styles={
-                "container": {"padding": "4!important", "background-color": "#91cfec", 
-                    "margin-top" : 0,
-                    },
+                "container": {"padding": "0px 5px !important", "background-color": "#91cfec", "margin": "0px !important"},
                 "icon": {"color": "orange", "font-size": "12px"},
                 "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "#eee"},
                 "nav-link-selected": {"background-color": "#1a7c78"},
@@ -145,7 +143,7 @@ def main_body(username: str, config_c: helpers.configuration) :
                  icons=['calculator', 'receipt', 'person', 'info-circle', ],
                  menu_icon="yin-yang", default_index=0, orientation="horizontal",
             styles={
-                "container": {"padding": "4!important", "background-color": "#91cfec", "margin-top" : 0},
+                "container": {"padding": "0px 5px !important", "background-color": "#91cfec", "margin": "0px !important"},
                 "icon": {"color": "orange", "font-size": "12px"},
                 "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "#eee"},
                 "nav-link-selected": {"background-color": "#1a7c78"},
