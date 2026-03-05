@@ -623,7 +623,10 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             st.session_state.pop(key)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
-                        temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field)
+                        # Create a progress bar for the export process
+                        progress_bar = st.progress(0, text="Initializing PDF export...")
+                        temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field, st_progress_bar=progress_bar)
+                        progress_bar.empty() # Remove progress bar when done
                         
                         # Read the PDF data and provide download button directly
                         with open(temp_pdf, 'rb') as f:

@@ -3,26 +3,18 @@ from pypdf import PdfWriter
 from os import remove, path
 import os
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import io
 import time
 from PIL import Image
 
 
-def _export_worker(figures_chunk, worker_id):
+def _export_worker(figures_chunk, shared_progress_list):
     """Worker function to export a chunk of Bokeh figures to PDF bytes using a single driver instance."""
     from bokeh.io import export_png
     from selenium import webdriver
     from selenium.webdriver.firefox.options import Options
-    from selenium.webdriver.firefox.service import Service
     
-    # Try to ensure geckodriver exists (once per worker is enough)
-    try:
-        import geckodriver_autoinstaller
-        geckodriver_autoinstaller.install()
-    except Exception:
-        pass
-
     firefox_options = Options()
     firefox_options.add_argument('--headless')
     firefox_options.add_argument('--disable-gpu')
@@ -35,27 +27,25 @@ def _export_worker(figures_chunk, worker_id):
     
     try:
         for fig in figures_chunk:
-            # Export to PNG in memory if possible, but Bokeh's export_png likes filenames
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
                 png_path = tmp_png.name
             
             try:
                 export_png(fig, filename=png_path, webdriver=driver)
-                # Small sleep to ensure file is written and stable
-                time.sleep(0.1)
 
-                # Convert PNG -> PDF bytes
                 with Image.open(png_path) as image:
                     if image.mode == 'RGBA':
                         image = image.convert('RGB')
                     
                     pdf_buffer = io.BytesIO()
-                    # Resolution 100 is enough for screen-sourced data
                     image.save(pdf_buffer, format='PDF', resolution=100.0)
                     pdf_bytes_list.append(pdf_buffer.getvalue())
             finally:
                 if os.path.exists(png_path):
                     os.remove(png_path)
+            
+            # Signal progress by appending to shared list (thread-safe enough for count)
+            shared_progress_list.append(1)
                     
         return pdf_bytes_list
     finally:
@@ -65,50 +55,63 @@ def _export_worker(figures_chunk, worker_id):
             pass
 
 
-def create_multi_pdf_from_bokeh_figures(bokeh_figures: list):
+def create_multi_pdf_from_bokeh_figures(bokeh_figures: list, st_progress_bar=None):
     """Create a multi-page PDF from a list of Bokeh figures using parallel workers.
 
-    Processing is parallelized using ThreadPoolExecutor to speed up the slow 
-    Selenium-based export process.
-    
-    Returns:
-        Path to the temporary merged PDF file (caller must clean up)
+    Processing is parallelized based on CPU count (~75% of available CPUs).
+    UI updates are handled in the main thread to avoid NoSessionContext errors.
     """
     if not bokeh_figures:
         return None
 
-    # Determine optimal number of workers (max 4 to avoid overwhelming the system)
     num_figures = len(bokeh_figures)
-    num_workers = min(num_figures, 4)
     
-    # Split figures into chunks for workers
+    # Calculate workers: ~75% of CPUs, max 8
+    cpu_count = os.cpu_count() or 4
+    num_workers = max(1, min(int(cpu_count * 0.75), 8))
+    num_workers = min(num_workers, num_figures)
+    
+    # Ensure geckodriver is ready
+    try:
+        import geckodriver_autoinstaller
+        geckodriver_autoinstaller.install()
+    except Exception:
+        pass
+
+    # Split figures into chunks
     chunk_size = (num_figures + num_workers - 1) // num_workers
     chunks = [bokeh_figures[i:i + chunk_size] for i in range(0, num_figures, chunk_size)]
     
-    # Update actual num_workers based on chunks created
-    num_workers = len(chunks)
-    
+    # Shared list to track progress across threads
+    shared_progress = []
     all_pdf_bytes = []
     
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        # Submit all chunks to the executor
-        futures = [executor.submit(_export_worker, chunk, i) for i, chunk in enumerate(chunks)]
+    # Execute in background
+    with ThreadPoolExecutor(max_workers=len(chunks)) as executor:
+        futures = [executor.submit(_export_worker, chunk, shared_progress) for chunk in chunks]
         
-        # Collect results in order
+        # While threads are working, update the progress bar from the MAIN thread
+        while any(not f.done() for f in futures):
+            if st_progress_bar:
+                current_count = len(shared_progress)
+                percent = min(1.0, current_count / num_figures)
+                st_progress_bar.progress(percent, text=f"Exporting diagram {current_count} of {num_figures}...")
+            time.sleep(0.5) # Poll every 500ms
+            
+        # All done, collect results in order
         for future in futures:
-            result = future.result()
-            all_pdf_bytes.extend(result)
+            all_pdf_bytes.extend(future.result())
 
-    # Merge all PDF pages into one
+    # Final progress update
+    if st_progress_bar:
+        st_progress_bar.progress(1.0, text=f"Merging {num_figures} pages into final PDF...")
+
+    # Merge into final PDF
     merger = PdfWriter()
-    temp_pdfs = []
-    
     try:
-        for i, pdf_data in enumerate(all_pdf_bytes):
-            pdf_stream = io.BytesIO(pdf_data)
-            merger.append(pdf_stream)
+        for pdf_data in all_pdf_bytes:
+            merger.append(io.BytesIO(pdf_data))
 
-        # Output the final merged PDF
         temp_output_fd, temp_output_path = tempfile.mkstemp(suffix='.pdf')
         os.close(temp_output_fd)
         
@@ -118,4 +121,3 @@ def create_multi_pdf_from_bokeh_figures(bokeh_figures: list):
         return temp_output_path
     finally:
         merger.close()
-

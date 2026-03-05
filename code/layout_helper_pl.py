@@ -47,7 +47,6 @@ def _export_bokeh_to_pdf_bytes(plot_obj: Any) -> bytes:
     import io
     import os
     import tempfile
-    import time
     from bokeh.io import export_png
     from PIL import Image
     from selenium import webdriver
@@ -75,8 +74,6 @@ def _export_bokeh_to_pdf_bytes(plot_obj: Any) -> bytes:
             png_path = tmp_png.name
 
         export_png(plot_obj, filename=png_path, webdriver=driver)
-        # Minimal sleep to ensure file system sync
-        time.sleep(0.1)
 
         with Image.open(png_path) as image:
             if image.mode == 'RGBA':
