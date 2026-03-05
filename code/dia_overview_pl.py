@@ -432,76 +432,87 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                 metrics = sorted_df_dict[key][0][0]['metrics']
                                 restart_index = sorted_df_dict[key][0][0].get('restart_index', [])
                                 st.markdown(f'#### {header}')
-                                with (perf.phase('render.tabs_create') if perf else _noop_phase()):
-                                    tab1, tab2, tab3, tab4 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man pages", " 📊 PDF", ])
-                                with tab1:
-                                    if sub_title == 'all':
-                                        st.markdown(f'###### all of {device_num}')
-                                    with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
-                                        # Use precomputed chart if available
-                                        precomputed = sorted_df_dict[key][0][0].get('precomputed_chart')
-                                        if precomputed:
-                                            chart_html, bokeh_fig = precomputed
-                                        else:
-                                            chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                                                df_chart,
-                                                restart_headers,
-                                                os_details,
-                                                font_size=font_size,
-                                                width=width,
-                                                height=height,
-                                                title=f"{header}",
-                                            )
-                                    with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
-                                        if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
-                                            ok = st_bokeh.streamlit_bokeh(
-                                                bokeh_fig,
-                                                use_container_width=True,
-                                                key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}",
-                                            )
-                                            if not ok:
-                                                if not chart_html:
-                                                    chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
-                                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
-                                        else:
-                                            st.components.v1.html(chart_html, height=height + 100, scrolling=True)
-                                with tab2:
-                                    if statistics:
-                                        col1, col2, col3, col4 = lh.create_columns(
-                                            4, [0, 0, 1, 1])
-                                        col1.markdown(f'###### Sar Data for {header}')
-                                        with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
-                                            st.dataframe(
-                                                helpers_pl.style_restart_rows(df_stat, restart_index),
-                                                width='stretch',
-                                            )
-                                        if dup_bool:
-                                            col1.warning('Be aware that your data contains multiple indexes')
-                                            col1.write('Multi index table:')
-                                            with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
-                                                col1.dataframe(dup_check, width='stretch')
-                                        st.markdown(f'###### Statistics for {header}')
-                                        with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
-                                            st.dataframe(df_describe, width='stretch')
-                                with tab3:
-                                    if show_manpages:
-                                        with (perf.phase('render.metric_popover') if perf else _noop_phase()):
-                                            helpers_pl.metric_popover(metrics)
-                                with tab4:
-                                    # Optimize: only generate individual PDFs when not creating multi-PDF
-                                    if create_multi_pdf:
-                                        multi_pdf_chart_field.append(bokeh_fig)
-                                        st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                                # Pre-calculate chart so it's available for multiple tabs
+                                with (perf.phase('bokeh_charts.overview_v1 (total)') if perf else _noop_phase()):
+                                    # Use precomputed chart if available
+                                    precomputed = sorted_df_dict[key][0][0].get('precomputed_chart')
+                                    if precomputed:
+                                        chart_html, bokeh_fig = precomputed
                                     else:
-                                        pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
-                                        pdf_key = (
-                                            f"bokehpdf_{sar_file_name}_"
-                                            f"{helpers_pl.validate_convert_names(header)}_"
-                                            f"{helpers_pl.validate_convert_names(str(sub_title))}_"
-                                            f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                        chart_html, bokeh_fig = bokeh_charts.overview_v1(
+                                            df_chart,
+                                            restart_headers,
+                                            os_details,
+                                            font_size=font_size,
+                                            width=width,
+                                            height=height,
+                                            title=f"{header}",
                                         )
-                                        with (perf.phase('render.pdf_download_bokeh') if perf else _noop_phase()):
-                                            lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
+
+                                with (perf.phase('render.tabs_create') if perf else _noop_phase()):
+                                    tabs_key = f"tabs_{sar_file_name}_{helpers_pl.validate_convert_names(header)}"
+                                    tab1, tab2, tab3, tab4 = st.tabs(
+                                        ["📈 Chart", "🗃 Data", " 📔 man pages", " 📊 PDF"], 
+                                        on_change="rerun", 
+                                        key=tabs_key
+                                    )
+                                with tab1:
+                                    if tab1.open:
+                                        if sub_title == 'all':
+                                            st.markdown(f'###### all of {device_num}')
+                                        with (perf.phase('streamlit.html_component (total)') if perf else _noop_phase()):
+                                            if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                                                ok = st_bokeh.streamlit_bokeh(
+                                                    bokeh_fig,
+                                                    use_container_width=True,
+                                                    key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}",
+                                                )
+                                                if not ok:
+                                                    if not chart_html:
+                                                        chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
+                                                    st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                            else:
+                                                st.components.v1.html(chart_html, height=height + 100, scrolling=True)
+                                with tab2:
+                                    if tab2.open:
+                                        if statistics:
+                                            col1, col2, col3, col4 = lh.create_columns(
+                                                4, [0, 0, 1, 1])
+                                            col1.markdown(f'###### Sar Data for {header}')
+                                            with (perf.phase('render.st_write_df_stat') if perf else _noop_phase()):
+                                                st.dataframe(
+                                                    helpers_pl.style_restart_rows(df_stat, restart_index),
+                                                    width='stretch',
+                                                )
+                                            if dup_bool:
+                                                col1.warning('Be aware that your data contains multiple indexes')
+                                                col1.write('Multi index table:')
+                                                with (perf.phase('render.st_write_dup_check') if perf else _noop_phase()):
+                                                    col1.dataframe(dup_check, width='stretch')
+                                            st.markdown(f'###### Statistics for {header}')
+                                            with (perf.phase('render.st_write_df_describe') if perf else _noop_phase()):
+                                                st.dataframe(df_describe, width='stretch')
+                                with tab3:
+                                    if tab3.open:
+                                        if show_manpages:
+                                            with (perf.phase('render.metric_popover') if perf else _noop_phase()):
+                                                helpers_pl.metric_popover(metrics)
+                                with tab4:
+                                    if tab4.open:
+                                        # Optimize: only generate individual PDFs when not creating multi-PDF
+                                        if create_multi_pdf:
+                                            multi_pdf_chart_field.append(bokeh_fig)
+                                            st.info("ℹ️ Chart will be included in the combined PDF at the bottom of the page.")
+                                        else:
+                                            pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
+                                            pdf_key = (
+                                                f"bokehpdf_{sar_file_name}_"
+                                                f"{helpers_pl.validate_convert_names(header)}_"
+                                                f"{helpers_pl.validate_convert_names(str(sub_title))}_"
+                                                f"{helpers_pl.validate_convert_names(str(device_num))}"
+                                            )
+                                            with (perf.phase('render.pdf_download_bokeh') if perf else _noop_phase()):
+                                                lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
 
                                 counter += 1
                             else:
