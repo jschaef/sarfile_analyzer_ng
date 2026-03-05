@@ -408,14 +408,21 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
 
                     with (perf.phase('render.group_results') if perf else _noop_phase()):
-                        counter = 0
+                        # CRITICAL: Stable rendering order.
+                        # Parallel execution returns results in random order. We must sort them
+                        # to match the UI selection order (sel_field) and maintain device order.
+                        # This prevents diagrams from jumping around when a tab is clicked.
+                        sel_order_map = {alias: i for i, alias in enumerate(sel_field)}
+                        filtered_collect_list.sort(key=lambda x: (
+                            sel_order_map.get(x[0]['header'], 999),
+                            str(x[0].get('sub_title', ''))
+                        ))
+
                         for item in filtered_collect_list:
                             header = item[0]['header']
-                            if not sorted_df_dict.get(header):
+                            if header not in sorted_df_dict:
                                 sorted_df_dict[header] = []
-                                sorted_df_dict[header].append(item)
-                            else:
-                                sorted_df_dict[header].append(item)
+                            sorted_df_dict[header].append(item)
 
                     with (perf.phase('render.loop_total') if perf else _noop_phase()):
                         for key in sorted_df_dict.keys():
