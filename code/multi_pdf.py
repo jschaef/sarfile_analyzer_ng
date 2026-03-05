@@ -3,33 +3,22 @@ from pypdf import PdfWriter
 from os import remove, path
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+import io
+import time
+from PIL import Image
 
 
-def create_multi_pdf_from_bokeh_figures(bokeh_figures: list):
-    """Create a multi-page PDF from a list of Bokeh figures.
-
-    Each Bokeh figure is exported to PNG via Selenium (export_png) and then converted
-    to a single-page PDF. All pages are merged into one PDF.
-
-    Returns:
-        Path to the temporary merged PDF file (caller must clean up)
-    """
-    import io
-    import time
-    from PIL import Image
+def _export_worker(figures_chunk, worker_id):
+    """Worker function to export a chunk of Bokeh figures to PDF bytes using a single driver instance."""
     from bokeh.io import export_png
     from selenium import webdriver
     from selenium.webdriver.firefox.options import Options
-
-    temp_files = []
-    merger = PdfWriter()
-    temp_output_fd = None
-    temp_output_path = None
-
-    # Try to ensure geckodriver exists
+    from selenium.webdriver.firefox.service import Service
+    
+    # Try to ensure geckodriver exists (once per worker is enough)
     try:
         import geckodriver_autoinstaller
-
         geckodriver_autoinstaller.install()
     except Exception:
         pass
@@ -38,45 +27,94 @@ def create_multi_pdf_from_bokeh_figures(bokeh_figures: list):
     firefox_options.add_argument('--headless')
     firefox_options.add_argument('--disable-gpu')
     firefox_options.add_argument('--no-sandbox')
+    firefox_options.set_preference("layout.css.devPixelsPerUnit", "1.0")
 
     driver = webdriver.Firefox(options=firefox_options)
+    pdf_bytes_list = []
+    
     try:
-        for fig in bokeh_figures:
-            # Export to PNG
-            png_fd, png_path = tempfile.mkstemp(suffix='.png')
-            os.close(png_fd)
-            export_png(fig, filename=png_path, webdriver=driver)
-            time.sleep(0.2)
+        for fig in figures_chunk:
+            # Export to PNG in memory if possible, but Bokeh's export_png likes filenames
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+                png_path = tmp_png.name
+            
+            try:
+                export_png(fig, filename=png_path, webdriver=driver)
+                # Small sleep to ensure file is written and stable
+                time.sleep(0.1)
 
-            # Convert PNG -> single-page PDF
-            pdf_fd, pdf_path = tempfile.mkstemp(suffix='.pdf')
-            os.close(pdf_fd)
-            image = Image.open(png_path)
-            if image.mode == 'RGBA':
-                image = image.convert('RGB')
-            pdf_buffer = io.BytesIO()
-            image.save(pdf_buffer, format='PDF', resolution=100.0)
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf_buffer.getvalue())
-
-            # Cleanup PNG
-            if path.exists(png_path):
-                remove(png_path)
-
-            temp_files.append(pdf_path)
-            merger.append(pdf_path)
-
-        temp_output_fd, temp_output_path = tempfile.mkstemp(suffix='.pdf')
-        os.close(temp_output_fd)
-        with open(temp_output_path, 'wb') as output:
-            merger.write(output)
-        return temp_output_path
+                # Convert PNG -> PDF bytes
+                with Image.open(png_path) as image:
+                    if image.mode == 'RGBA':
+                        image = image.convert('RGB')
+                    
+                    pdf_buffer = io.BytesIO()
+                    # Resolution 100 is enough for screen-sourced data
+                    image.save(pdf_buffer, format='PDF', resolution=100.0)
+                    pdf_bytes_list.append(pdf_buffer.getvalue())
+            finally:
+                if os.path.exists(png_path):
+                    os.remove(png_path)
+                    
+        return pdf_bytes_list
     finally:
         try:
             driver.quit()
         except Exception:
             pass
-        for temp_file in temp_files:
-            if path.exists(temp_file):
-                remove(temp_file)
+
+
+def create_multi_pdf_from_bokeh_figures(bokeh_figures: list):
+    """Create a multi-page PDF from a list of Bokeh figures using parallel workers.
+
+    Processing is parallelized using ThreadPoolExecutor to speed up the slow 
+    Selenium-based export process.
+    
+    Returns:
+        Path to the temporary merged PDF file (caller must clean up)
+    """
+    if not bokeh_figures:
+        return None
+
+    # Determine optimal number of workers (max 4 to avoid overwhelming the system)
+    num_figures = len(bokeh_figures)
+    num_workers = min(num_figures, 4)
+    
+    # Split figures into chunks for workers
+    chunk_size = (num_figures + num_workers - 1) // num_workers
+    chunks = [bokeh_figures[i:i + chunk_size] for i in range(0, num_figures, chunk_size)]
+    
+    # Update actual num_workers based on chunks created
+    num_workers = len(chunks)
+    
+    all_pdf_bytes = []
+    
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        # Submit all chunks to the executor
+        futures = [executor.submit(_export_worker, chunk, i) for i, chunk in enumerate(chunks)]
+        
+        # Collect results in order
+        for future in futures:
+            result = future.result()
+            all_pdf_bytes.extend(result)
+
+    # Merge all PDF pages into one
+    merger = PdfWriter()
+    temp_pdfs = []
+    
+    try:
+        for i, pdf_data in enumerate(all_pdf_bytes):
+            pdf_stream = io.BytesIO(pdf_data)
+            merger.append(pdf_stream)
+
+        # Output the final merged PDF
+        temp_output_fd, temp_output_path = tempfile.mkstemp(suffix='.pdf')
+        os.close(temp_output_fd)
+        
+        with open(temp_output_path, 'wb') as output:
+            merger.write(output)
+            
+        return temp_output_path
+    finally:
+        merger.close()
 
