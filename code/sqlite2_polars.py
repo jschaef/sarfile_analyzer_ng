@@ -24,8 +24,7 @@ def _get_table_df_threadsafe(table_name: str):
     try:
         df = pl.read_parquet(parquet_mem)
     except Exception:
-        data_db = sql_stuff.find_db()
-        connection_uri = f"sqlite:///{data_db}"
+        connection_uri = f"sqlite:///{sql_stuff.data_db}"
         query = f"select * from {table_name}"
         df = pl.read_database_uri(query=query, uri=connection_uri)
         redis_df = redis_mng.convert_df_for_redis(df)
@@ -48,8 +47,7 @@ def get_table_df(table_name: str):
         fr'{table_name} loaded from redis'
         )
     except Exception as e:
-        data_db = sql_stuff.find_db()
-        connection_uri = f"sqlite:///{data_db}"
+        connection_uri = f"sqlite:///{sql_stuff.data_db}"
         query = f"select * from {table_name}"
         df = pl.read_database_uri(query=query, uri=connection_uri)
         redis_df = redis_mng.convert_df_for_redis(df)
@@ -68,15 +66,17 @@ def get_exact_value_from_filter(
 
 
 @cache_data
+def _get_metrics_dict():
+    """Cache the entire metrics table as a dictionary for O(1) lookups"""
+    df = get_table_df("metric")
+    return dict(zip(df["metric"].to_list(), df["description"].to_list()))
+
+@cache_data
 def ret_metric_description(
     metric: str,
 ) -> str:
-    df = get_table_df("metric")
-    description = f"no description found for {metric}"
-    result_series = df["metric"].eq(metric)
-    if result_series.any():
-        description = df.filter(result_series)["description"].to_list()[0]
-    return description
+    m_dict = _get_metrics_dict()
+    return m_dict.get(metric, f"no description found for {metric}")
 
 
 @cache_data
@@ -112,13 +112,25 @@ def ret_all_aliases(df):
     return a_list
 
 @cache_data
+def _get_headings_dict(property_name: str):
+    """Cache a specific property from headings table as a dictionary"""
+    df = get_table_df("headingstable")
+    return dict(zip(df["header"].to_list(), df[property_name].to_list()))
+
+@cache_data
 def get_header_prop(header, property):
-    # check if exact header is in df
+    # Try exact match via dictionary lookup first
+    h_dict = _get_headings_dict(property)
+    if header in h_dict:
+        return h_dict[header]
+    
+    # Fallback to expensive fuzzy search only if exact match fails
     headings_df = get_table_df("headingstable")
+    # check if exact header is in df
     result_series = headings_df["header"].eq(header)
     if result_series.any():
-        property = headings_df.filter(result_series)[property].to_list()[0]
-        return property
+        property_val = headings_df.filter(result_series)[property].to_list()[0]
+        return property_val
     # header differs from headers in df
     else:
         header_result_list = []
@@ -157,10 +169,16 @@ def get_header_prop(header, property):
                 return org_header
 
 
+@cache_data
+def _get_alias_to_header_dict():
+    """Cache alias to header mapping as a dictionary"""
+    df = get_table_df("headingstable")
+    return dict(zip(df["alias"].to_list(), df["header"].to_list()))
+
 @lru_cache(maxsize=4096)
 def get_header_from_alias(alias):
-    headings_df = _get_table_df_threadsafe("headingstable")
-    return get_exact_value_from_filter(headings_df, "alias", alias, "header")
+    a_dict = _get_alias_to_header_dict()
+    return a_dict.get(alias)
 
 @lru_cache(maxsize=4096)
 def get_sub_device_from_header(header):

@@ -13,11 +13,21 @@ from sqlalchemy.orm import relationship
 import hashing as hash
 
 def find_db():
-    curr_dir = os.getcwd()
+    curr_dir = os.path.dirname(os.path.realpath(__file__))
     db_name = "data.db"
-    for root, _, files in os.walk(curr_dir):
-        if db_name in files:
-            return os.path.join(root, db_name)
+    # 1. Check current directory of the script
+    target = os.path.join(curr_dir, db_name)
+    if os.path.exists(target):
+        return target
+    # 2. Check parent directory (project root)
+    target = os.path.join(os.path.dirname(curr_dir), db_name)
+    if os.path.exists(target):
+        return target
+    # 3. Fallback to current working directory
+    target = os.path.join(os.getcwd(), db_name)
+    if os.path.exists(target):
+        return target
+    return target # Return path even if not exists, create_engine will handle it
 data_db = find_db()
     
 def get_connection():
