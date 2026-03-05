@@ -1,7 +1,7 @@
-altair
+altair==6.0.0
 bokeh==3.8.2
-connectorx
-geckodriver-autoinstaller
+connectorx==0.4.5
+geckodriver-autoinstaller==0.1.0
 numpy
 pandas
 pillow
@@ -9,11 +9,11 @@ polars
 pypdf
 python-magic
 pytz
-redis
+redis==7.1.0
 selenium
 SQLAlchemy
 streamlit
-streamlit-bokeh==3.8.2
+streamlit-bokeh
 streamlit-option-menu
 vegafusion[embed]
 vl-convert-python
