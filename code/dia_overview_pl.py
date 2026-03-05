@@ -376,6 +376,18 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     else:
         st.session_state[perf_toggle_key] = False
 
+    # Go to bottom link
+    col3.markdown(
+        """
+        <a href="#bottom-section" 
+           style="display: inline-block; padding: 0rem 0.75rem; 
+                  text-decoration: none;">
+            ⬇️ Go to bottom
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
+
     submitted = col1.button('Show Diagrams')
     if submitted:
         st.session_state[show_state_key] = True
@@ -647,5 +659,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         unsafe_allow_html=True
                     )
                     
+                    # Target anchor for "Go to bottom"
+                    st.markdown('<div id="bottom-section"></div>', unsafe_allow_html=True)
+
                     # Final cleanup: force garbage collection after all charts displayed
                     gc.collect()
