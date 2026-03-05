@@ -350,7 +350,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
 
     this_container = st.container(border=False)
     this_container.space("small")
-    col1, col2, col3, *_ = this_container.columns([0.1, 0.1, 0.1, 0.7])
+    col1, col2, col3, col4, *_ = this_container.columns([0.15, 0.1, 0.15, 0.15, 0.45])
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
     show_state_key = f"dia_overview_show_{sar_file_name}"
     perf_toggle_key = f"dia_overview_perf_{sar_file_name}"
@@ -376,14 +376,15 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     else:
         st.session_state[perf_toggle_key] = False
 
-    # Go to bottom link
-    col3.markdown(
+    # Go to bottom link in its own column next to the toggle
+    col4.markdown(
         """
-        <a href="#bottom-section" 
-           style="display: inline-block; padding: 0rem 0.75rem; 
-                  text-decoration: none;">
-            ⬇️ Go to bottom
-        </a>
+        <div style="padding-top: 2rem;">
+            <a href="#bottom-section" 
+               style="text-decoration: none;">
+                ⬇️ Go to bottom
+            </a>
+        </div>
         """,
         unsafe_allow_html=True
     )
