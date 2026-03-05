@@ -379,7 +379,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     # Go to bottom link in its own column next to the toggle
     col4.markdown(
         """
-        <div style="padding-top: 2rem;">
+        <div style="padding-top: 0.5rem;">
             <a href="#bottom-section" 
                style="text-decoration: none;">
                 ⬇️ Go to bottom
