@@ -292,21 +292,47 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                 
                 with st.spinner(text='Please be patient until all graphs are constructed ...', show_time=True):
                     with (perf.phase('aliases + selection diff') if perf else _noop_phase()):
+                        # PRE-CALCULATE ALL TRANSLATIONS HERE (Main Thread)
+                        # This avoids the lock contention in @cache_data when called from threads
                         headers_trdict = helpers_pl.translate_aliases(sel_field, headers)
                         header_difference = [x for x in sel_field if x not in title_list]
                         remove_list = [x for x in title_list if x not in sel_field]
                         remove_set = set(remove_list)
                         new_headers_trdict = {key: headers_trdict[key] for key in header_difference if key in headers_trdict}
                         header_list = list(new_headers_trdict.values())
-                        # Create mapping to avoid st. calls in threads
+                        
+                        # Pre-fetch alias -> header and header -> alias mappings
+                        # to avoid calling cached functions inside threads
                         pure_to_alias = {v: k for k, v in new_headers_trdict.items()}
+                        
+                        # Also pre-fetch all header properties needed by workers
+                        header_props_cache = {}
+                        for h in header_list:
+                            # We pre-resolve sub_device and other metadata once
+                            header_props_cache[h] = {
+                                'alias': pure_to_alias.get(h),
+                                'sub_device_key': pl_helpers.get_sub_device_from_header(h)
+                            }
 
                     with (perf.phase('polars.get_data_frames_from__headers') if perf else _noop_phase()):
                         df_list = pl_helpers.get_data_frames_from__headers(header_list, df, "header")
 
                     with (perf.phase('prepare_df_for_pandas (Parallel)') if perf else _noop_phase()):
                         with ThreadPoolExecutor() as executor:
-                            f_prep = {executor.submit(_thread_wrapper, ctx, dia_compute.prepare_df_for_pandas, pl_df, start, end, alias=pure_to_alias.get(pl_df.columns[1])): pl_df for pl_df in df_list}
+                            # Pass the pre-resolved alias and sub-device key directly
+                            # to avoid cache-locking in threads
+                            f_prep = {
+                                executor.submit(
+                                    _thread_wrapper, 
+                                    ctx, 
+                                    dia_compute.prepare_df_for_pandas, 
+                                    pl_df, 
+                                    start, 
+                                    end, 
+                                    alias=header_props_cache.get(pl_df.columns[1], {}).get('alias'),
+                                    sub_device_key=header_props_cache.get(pl_df.columns[1], {}).get('sub_device_key')
+                                ): pl_df for pl_df in df_list
+                            }
                             for future in as_completed(f_prep):
                                 try:
                                     df_result = future.result()

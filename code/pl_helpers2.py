@@ -140,11 +140,15 @@ def df_clean_spaces(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
     return df
 
 
-def get_metrics_from_df(df: pl.DataFrame, header: str, alias: str) -> list:
-    header_in_db = get_header_from_alias(alias)
-    test_header = header if header_in_db == header else header_in_db
+def get_metrics_from_df(df: pl.DataFrame, header: str, alias: str, sub_device_key: str | bool | None = None) -> list:
+    if sub_device_key is None:
+        header_in_db = get_header_from_alias(alias)
+        test_header = header if header_in_db == header else header_in_db
+        sub_device = get_sub_device_from_header(test_header) 
+    else:
+        sub_device = sub_device_key
+
     df = df.with_columns(pl.col(header).str.split(" ").alias(header))
-    sub_device = get_sub_device_from_header(test_header) 
     if sub_device:
         df = df.with_columns(
             pl.col(header).list.get(0).alias("sub_device"),

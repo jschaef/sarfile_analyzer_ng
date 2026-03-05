@@ -16,22 +16,30 @@ def prepare_df_for_pandas(
         end: Any,
         show_subheaders_for_all: bool = False,
         alias: str | None = None,
+        sub_device_key: str | bool | None = None,
     ) -> list[dict]:
     df_field = []
     collect_field = []
     soft_reg = re.compile(r'^SOFT.*', re.IGNORECASE) 
     header_pure = df.columns[1]
     
+    # 1. Handle Alias (Prefer pre-calculated to avoid cache lock)
     if alias is None:
         header_tranlated = helpers.translate_headers([header_pure])
         alias = list(header_tranlated.values())[0]
-        
     title = alias
+    
+    # 2. Handle Sub-device (Prefer pre-calculated to avoid cache lock)
+    if sub_device_key is None:
+        sub_device = pl_h2.get_sub_device_from_header(header_pure)
+    else:
+        sub_device = sub_device_key
+
     sub_title = ""
     device_num = 1
-    df = pl_h2.get_metrics_from_df(df, header_pure, alias)
+    df = pl_h2.get_metrics_from_df(df, header_pure, alias, sub_device_key=sub_device)
 
-    if 'sub_device' not in df.columns:
+    if not sub_device:
         df_field.append([df, 0])
     elif (alias == 'CPU' or soft_reg.search(alias)) and not show_subheaders_for_all:
         device = 'all'
