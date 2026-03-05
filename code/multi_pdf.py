@@ -27,6 +27,7 @@ def _export_worker(figures_chunk, worker_id):
     firefox_options.add_argument('--headless')
     firefox_options.add_argument('--disable-gpu')
     firefox_options.add_argument('--no-sandbox')
+    firefox_options.add_argument('--disable-dev-shm-usage')
     firefox_options.set_preference("layout.css.devPixelsPerUnit", "1.0")
 
     driver = webdriver.Firefox(options=firefox_options)
