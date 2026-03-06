@@ -43,36 +43,26 @@ def pdf_download_direct(chart: Any, download_name: str, key: str = None):
     )
 
 def _export_bokeh_to_pdf_bytes(plot_obj: Any) -> bytes:
-    """Helper to export a single Bokeh plot to PDF bytes efficiently."""
+    """Helper to export a single Bokeh plot to PDF bytes efficiently using a driver pool."""
     import io
     import os
     import tempfile
     from bokeh.io import export_png
     from PIL import Image
-    from selenium import webdriver
-    from selenium.webdriver.firefox.options import Options
+    from driver_pool import get_driver_pool
 
-    # Auto-install geckodriver if needed
-    try:
-        import geckodriver_autoinstaller
-        geckodriver_autoinstaller.install()
-    except Exception:
-        pass
+    pool = get_driver_pool()
+    driver = pool.acquire()
+    
+    if driver is None:
+        raise RuntimeError("Could not acquire a Selenium driver for PDF export.")
 
-    firefox_options = Options()
-    firefox_options.add_argument('--headless')
-    firefox_options.add_argument('--disable-gpu')
-    firefox_options.add_argument('--no-sandbox')
-    firefox_options.add_argument('--disable-dev-shm-usage')
-    # Force 1:1 pixel ratio for consistent sizing
-    firefox_options.set_preference("layout.css.devPixelsPerUnit", "1.0")
-
-    driver = webdriver.Firefox(options=firefox_options)
     png_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
             png_path = tmp_png.name
 
+        # Ensure we have a valid output from export_png
         export_png(plot_obj, filename=png_path, webdriver=driver)
 
         with Image.open(png_path) as image:
@@ -83,10 +73,7 @@ def _export_bokeh_to_pdf_bytes(plot_obj: Any) -> bytes:
             image.save(pdf_buffer, format='PDF', resolution=100.0)
             return pdf_buffer.getvalue()
     finally:
-        try:
-            driver.quit()
-        except Exception:
-            pass
+        pool.release(driver)
         if png_path and os.path.exists(png_path):
             try:
                 os.unlink(png_path)

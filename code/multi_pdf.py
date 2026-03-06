@@ -10,19 +10,16 @@ from PIL import Image
 
 
 def _export_worker(figures_chunk, shared_progress_list):
-    """Worker function to export a chunk of Bokeh figures to PDF bytes using a single driver instance."""
+    """Worker function to export a chunk of Bokeh figures to PDF bytes using the shared driver pool."""
     from bokeh.io import export_png
-    from selenium import webdriver
-    from selenium.webdriver.firefox.options import Options
+    from driver_pool import get_driver_pool
     
-    firefox_options = Options()
-    firefox_options.add_argument('--headless')
-    firefox_options.add_argument('--disable-gpu')
-    firefox_options.add_argument('--no-sandbox')
-    firefox_options.add_argument('--disable-dev-shm-usage')
-    firefox_options.set_preference("layout.css.devPixelsPerUnit", "1.0")
+    pool = get_driver_pool()
+    driver = pool.acquire()
+    
+    if driver is None:
+        return []
 
-    driver = webdriver.Firefox(options=firefox_options)
     pdf_bytes_list = []
     
     try:
@@ -49,16 +46,13 @@ def _export_worker(figures_chunk, shared_progress_list):
                     
         return pdf_bytes_list
     finally:
-        try:
-            driver.quit()
-        except Exception:
-            pass
+        pool.release(driver)
 
 
 def create_multi_pdf_from_bokeh_figures(bokeh_figures: list, st_progress_bar=None):
-    """Create a multi-page PDF from a list of Bokeh figures using parallel workers.
+    """Create a multi-page PDF from a list of Bokeh figures using parallel workers and the driver pool.
 
-    Processing is parallelized based on CPU count (~75% of available CPUs).
+    Processing is parallelized based on pool availability.
     UI updates are handled in the main thread to avoid NoSessionContext errors.
     """
     if not bokeh_figures:
@@ -66,18 +60,11 @@ def create_multi_pdf_from_bokeh_figures(bokeh_figures: list, st_progress_bar=Non
 
     num_figures = len(bokeh_figures)
     
-    # Calculate workers: ~75% of CPUs, max 8
-    cpu_count = os.cpu_count() or 4
-    num_workers = max(1, min(int(cpu_count * 0.75), 8))
-    num_workers = min(num_workers, num_figures)
+    # Use the driver pool to manage concurrency
+    from driver_pool import get_driver_pool
+    pool = get_driver_pool()
+    num_workers = pool.max_drivers
     
-    # Ensure geckodriver is ready
-    try:
-        import geckodriver_autoinstaller
-        geckodriver_autoinstaller.install()
-    except Exception:
-        pass
-
     # Split figures into chunks
     chunk_size = (num_figures + num_workers - 1) // num_workers
     chunks = [bokeh_figures[i:i + chunk_size] for i in range(0, num_figures, chunk_size)]
