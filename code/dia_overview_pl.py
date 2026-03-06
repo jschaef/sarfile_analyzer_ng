@@ -232,10 +232,12 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
 
 def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGenerator,
          sar_file: str, df: pl.DataFrame, os_details: str):
-    # Clear session state and free memory
-    cleanup_chart_memory()
-    # global os_details, file_chosen
-    file_chosen = ""
+    global file_chosen
+    # Clear session state and free memory ONLY if the file has changed
+    if sar_file != file_chosen:
+        cleanup_chart_memory()
+        file_chosen = sar_file
+    
     st.subheader('Overview of important metrics from SAR data')
     
     multi_pdf_chart_field = []
@@ -623,32 +625,50 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             st.session_state.pop(key)
                     if create_multi_pdf:
                         download_name = f"{sar_file_name}_diagrams.pdf"
-                        # Create a progress bar for the export process
-                        progress_bar = st.progress(0, text="Initializing PDF export...")
-                        temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field, st_progress_bar=progress_bar)
-                        progress_bar.empty() # Remove progress bar when done
+                        multi_pdf_data_key = f"multi_pdf_bytes_{sar_file_name}"
                         
-                        # Read the PDF data and provide download button directly
-                        with open(temp_pdf, 'rb') as f:
-                            pdf_data = f.read()
+                        col1, col2 = st.columns([0.2, 0.8])
                         
-                        col1, _ = st.columns([0.2, 0.8])
-                        col1.download_button(
-                            label="Download Multi-PDF",
-                            data=pdf_data,
-                            file_name=download_name,
-                            mime="application/pdf",
-                            key="multi_pdf_download"
-                        )
+                        # Use a button to trigger generation
+                        if col1.button("Prepare Multi-PDF", key="prep_multi_pdf", 
+                                       help="Click to generate the combined PDF. This may take a moment."):
+                            # Create a progress bar for the export process
+                            progress_bar = st.progress(0, text="Initializing PDF export...")
+                            try:
+                                temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field, st_progress_bar=progress_bar)
+                                progress_bar.empty() # Remove progress bar when done
+                                
+                                # Read the PDF data and store in session state
+                                with open(temp_pdf, 'rb') as f:
+                                    st.session_state[multi_pdf_data_key] = f.read()
+                                
+                                # Clean up the temp file
+                                if os.path.exists(temp_pdf):
+                                    os.remove(temp_pdf)
+                                    
+                                st.success("Multi-PDF is ready for download!")
+                            except Exception as e:
+                                st.error(f"Failed to generate Multi-PDF: {e}")
+                                progress_bar.empty()
+
+                        # Show download button if data is ready
+                        if multi_pdf_data_key in st.session_state:
+                            col2.download_button(
+                                label="Download Multi-PDF",
+                                data=st.session_state[multi_pdf_data_key],
+                                file_name=download_name,
+                                mime="application/pdf",
+                                key="multi_pdf_download",
+                                type="primary"
+                            )
                         
-                        # Clean up the temp file after reading
-                        if os.path.exists(temp_pdf):
-                            os.remove(temp_pdf)
-                        
-                        # Clear chart objects from memory after PDF creation
+                        # Clear chart objects from memory
                         multi_pdf_chart_field.clear()
                         del multi_pdf_chart_field
                         gc.collect()
+                    else:
+                        # Clear cached PDF if toggle is turned off
+                        st.session_state.pop(f"multi_pdf_bytes_{sar_file_name}", None)
                         
                     st.markdown("___")
                     # Back to top link using HTML anchor without page refresh
