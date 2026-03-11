@@ -20,6 +20,7 @@ from bokeh.models import (
     CrosshairTool,
     DatetimeTickFormatter,
     Range1d,
+    CustomJSTickFormatter,
 )
 from bokeh.embed import components
 from bokeh.resources import CDN
@@ -1023,6 +1024,7 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
     b_df["original_time"] = b_df["date_utc"].dt.tz_localize(None)
 
     # Create figure that shows a single 24-hour window
+    base_date_naive = base_date.replace(tzinfo=None)
     p = figure(
         title=title or f"{property} Daily Overlay",
         x_axis_label="Time of Day (UTC)",
@@ -1031,15 +1033,28 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         width=width,
         height=height,
         toolbar_location="above",
+        x_range=Range1d(start=base_date_naive, end=base_date_naive + pd.Timedelta(days=1)),
     )
 
-    p.xaxis.ticker.desired_num_ticks = 12
+    p.xaxis.ticker.desired_num_ticks = 13
 
-    p.xaxis.formatter = DatetimeTickFormatter(
-        hours="%H:%M",
-        minutes="%H:%M",
-        hourmin="%H:%M",
-    )
+    # Use a custom JS formatter to handle the 24:00 case and suppress dates.
+    # Pass base_ts (ms since epoch) to help detect the 24:00 tick.
+    p.xaxis.formatter = CustomJSTickFormatter(args={'base_ts': base_date.timestamp() * 1000}, code="""
+        var d = new Date(tick);
+        var h = d.getUTCHours();
+        var m = d.getUTCMinutes();
+
+        // If it's exactly 24 hours (or slightly more) from base, show 24:00
+        // Use a 1-minute tolerance
+        if (Math.abs(tick - (base_ts + 86400000)) < 60000) {
+            return "24:00";
+        }
+
+        var hh = (h < 10 ? '0' : '') + h;
+        var mm = (m < 10 ? '0' : '') + m;
+        return hh + ":" + mm;
+    """)
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
     date_color_map = {}

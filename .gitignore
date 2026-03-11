@@ -6,3 +6,4 @@ upload/
 *.parquet
 node_modules/
 package*.json
+auth_salesforce.json
