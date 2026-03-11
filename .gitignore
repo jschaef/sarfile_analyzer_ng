@@ -7,3 +7,4 @@ upload/
 node_modules/
 package*.json
 auth_salesforce.json
+GEMINI.md
