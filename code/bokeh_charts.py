@@ -441,9 +441,43 @@ def draw_single_chart_v1(
         )
     
     # Configure legend
-    if legend_items:
-        p.legend.location = "top_right"
-        p.legend.click_policy = "hide"
+    if p.legend:
+        l = p.legend[0]
+        l.location = "top_left"
+        p.add_layout(l, "right")
+        l.click_policy = "none" # Use CustomJS
+        l.border_line_color = None
+        l.margin = 10
+        l.padding = 0
+        l.spacing = 0
+
+        l.js_on_event(
+            'legend_item_click',
+            CustomJS(
+                args={'items': l.items},
+                code="""
+const clicked_item = cb_obj.item;
+const clicked_renderers = clicked_item.renderers;
+if (clicked_renderers.length === 0) return;
+
+const target = clicked_renderers[0];
+const other_items = items.filter(it => it !== clicked_item);
+
+// Check if we are in "solo" mode for the clicked item
+const is_solo = target.visible && other_items.every(it => it.renderers.length > 0 && !it.renderers[0].visible);
+
+if (is_solo) {
+    // Already soloing? Show everyone.
+    items.forEach(it => { if(it.renderers.length > 0) it.renderers[0].visible = true; });
+} else {
+    // Solo the clicked one, hide all others.
+    items.forEach(it => {
+        if(it.renderers.length > 0) it.renderers[0].visible = (it === clicked_item);
+    });
+}
+""",
+            ),
+        )
     
     # Format Y-axis to show decimal notation instead of scientific notation
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
@@ -661,8 +695,12 @@ def overview_v1(
                     LegendItem(label=name, renderers=[ml], index=i)
                     for i, name in enumerate(metric_names)
                 ],
-                location="top_right",
+                location="top_left",
                 click_policy="none",
+                border_line_color=None,
+                margin=10,
+                padding=0,
+                spacing=0,
             )
             # Custom per-series hide/show by toggling the per-line alpha.
             legend.js_on_event(
@@ -670,27 +708,40 @@ def overview_v1(
                 CustomJS(
                     args={'src': ml_source},
                     code="""
-const item = cb_obj.item
-if (item == null) {
-  return
+const item = cb_obj.item;
+if (item == null) return;
+const i = item.index;
+const data = src.data;
+const alpha = data['alpha'];
+const lw = data['lw'];
+if (alpha == null || i == null) return;
+
+// Check if we are currently in "solo" mode for this item
+const is_solo = (alpha[i] > 0) && alpha.every((a, idx) => idx === i || a === 0);
+
+if (is_solo) {
+    // Already soloing this one? Revert to all visible
+    for (let j = 0; j < alpha.length; j++) {
+        alpha[j] = 0.8;
+        if (lw) lw[j] = 2;
+    }
+} else {
+    // Show ONLY this one
+    for (let j = 0; j < alpha.length; j++) {
+        if (j === i) {
+            alpha[j] = 0.8;
+            if (lw) lw[j] = 2;
+        } else {
+            alpha[j] = 0.0;
+            if (lw) lw[j] = 0;
+        }
+    }
 }
-const i = item.index
-const data = src.data
-const alpha = data['alpha']
-const lw = data['lw']
-if (alpha == null || i == null) {
-  return
-}
-const on = (alpha[i] > 0)
-alpha[i] = on ? 0.0 : 0.8
-if (lw != null) {
-    lw[i] = on ? 0 : 2
-}
-src.change.emit()
+src.change.emit();
 """,
                 ),
             )
-            p.add_layout(legend)
+            p.add_layout(legend, 'right')
 
             if _t_lines is not None and timings is not None:
                 timings['build_glyphs.lines'] = (time.perf_counter_ns() - _t_lines) / 1_000_000_000.0
@@ -808,8 +859,43 @@ src.change.emit()
     
     # Configure legend (if not already added by the MultiLine path)
     if legend is None and legend_items:
-        legend = Legend(items=legend_items, location="top_right", click_policy="hide")
-        p.add_layout(legend)
+        legend = Legend(
+            items=legend_items,
+            location="top_left",
+            click_policy="none",  # Use CustomJS instead
+            border_line_color=None,
+            margin=10,
+            padding=0,
+            spacing=0,
+        )
+        legend.js_on_event(
+            'legend_item_click',
+            CustomJS(
+                args={'items': legend_items},
+                code="""
+const clicked_item = cb_obj.item;
+const clicked_renderers = clicked_item.renderers;
+if (clicked_renderers.length === 0) return;
+
+const target = clicked_renderers[0];
+const other_items = items.filter(it => it !== clicked_item);
+
+// Check if we are in "solo" mode for the clicked item
+const is_solo = target.visible && other_items.every(it => !it.renderers[0].visible);
+
+if (is_solo) {
+    // Already soloing? Show everyone.
+    items.forEach(it => { it.renderers[0].visible = true; });
+} else {
+    // Solo the clicked one, hide all others.
+    items.forEach(it => {
+        it.renderers[0].visible = (it === clicked_item);
+    });
+}
+""",
+            ),
+        )
+        p.add_layout(legend, 'right')
     
     # Format Y-axis to show decimal notation
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
@@ -969,8 +1055,43 @@ def overview_v3(
                         break
     
     # Configure legend
-    p.legend.location = "top_right"
-    p.legend.click_policy = "hide"
+    if p.legend:
+        l = p.legend[0]
+        l.location = "top_left"
+        p.add_layout(l, "right")
+        l.click_policy = "none" # Use CustomJS
+        l.border_line_color = None
+        l.margin = 10
+        l.padding = 0
+        l.spacing = 0
+
+        l.js_on_event(
+            'legend_item_click',
+            CustomJS(
+                args={'items': l.items},
+                code="""
+const clicked_item = cb_obj.item;
+const clicked_renderers = clicked_item.renderers;
+if (clicked_renderers.length === 0) return;
+
+const target = clicked_renderers[0];
+const other_items = items.filter(it => it !== clicked_item);
+
+// Check if we are in "solo" mode for the clicked item
+const is_solo = target.visible && other_items.every(it => it.renderers.length > 0 && !it.renderers[0].visible);
+
+if (is_solo) {
+    // Already soloing? Show everyone.
+    items.forEach(it => { if(it.renderers.length > 0) it.renderers[0].visible = true; });
+} else {
+    // Solo the clicked one, hide all others.
+    items.forEach(it => {
+        if(it.renderers.length > 0) it.renderers[0].visible = (it === clicked_item);
+    });
+}
+""",
+            ),
+        )
     
     # Format Y-axis
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
@@ -1149,8 +1270,43 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
                     y_high=y_high,
                 )
 
-    p.legend.location = "top_right"
-    p.legend.click_policy = "hide"
+    if p.legend:
+        l = p.legend[0]
+        l.location = "top_left"
+        p.add_layout(l, "right")
+        l.click_policy = "none" # Use CustomJS
+        l.border_line_color = None
+        l.margin = 10
+        l.padding = 0
+        l.spacing = 0
+
+        l.js_on_event(
+            'legend_item_click',
+            CustomJS(
+                args={'items': l.items},
+                code="""
+const clicked_item = cb_obj.item;
+const clicked_renderers = clicked_item.renderers;
+if (clicked_renderers.length === 0) return;
+
+const target = clicked_renderers[0];
+const other_items = items.filter(it => it !== clicked_item);
+
+// Check if we are in "solo" mode for the clicked item
+const is_solo = target.visible && other_items.every(it => it.renderers.length > 0 && !it.renderers[0].visible);
+
+if (is_solo) {
+    // Already soloing? Show everyone.
+    items.forEach(it => { if(it.renderers.length > 0) it.renderers[0].visible = true; });
+} else {
+    // Solo the clicked one, hide all others.
+    items.forEach(it => {
+        if(it.renderers.length > 0) it.renderers[0].visible = (it === clicked_item);
+    });
+}
+""",
+            ),
+        )
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
 
     if font_size is not None:
@@ -1308,8 +1464,43 @@ def overview_v5(
             y_high=getattr(getattr(p, "y_range", None), "end", None),
         )
 
-    p.legend.location = "top_right"
-    p.legend.click_policy = "hide"
+    if p.legend:
+        l = p.legend[0]
+        l.location = "top_left"
+        p.add_layout(l, "right")
+        l.click_policy = "none" # Use CustomJS
+        l.border_line_color = None
+        l.margin = 10
+        l.padding = 0
+        l.spacing = 0
+
+        l.js_on_event(
+            'legend_item_click',
+            CustomJS(
+                args={'items': l.items},
+                code="""
+const clicked_item = cb_obj.item;
+const clicked_renderers = clicked_item.renderers;
+if (clicked_renderers.length === 0) return;
+
+const target = clicked_renderers[0];
+const other_items = items.filter(it => it !== clicked_item);
+
+// Check if we are in "solo" mode for the clicked item
+const is_solo = target.visible && other_items.every(it => it.renderers.length > 0 && !it.renderers[0].visible);
+
+if (is_solo) {
+    // Already soloing? Show everyone.
+    items.forEach(it => { if(it.renderers.length > 0) it.renderers[0].visible = true; });
+} else {
+    // Solo the clicked one, hide all others.
+    items.forEach(it => {
+        if(it.renderers.length > 0) it.renderers[0].visible = (it === clicked_item);
+    });
+}
+""",
+            ),
+        )
     p.yaxis.formatter = NumeralTickFormatter(format="0,0.00")
 
     if font_size is not None:
