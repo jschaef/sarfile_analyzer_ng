@@ -454,8 +454,9 @@ def draw_single_chart_v1(
         l.js_on_event(
             'legend_item_click',
             CustomJS(
-                args={'items': l.items},
+                args={'legend': l},
                 code="""
+const items = legend.items;
 const clicked_item = cb_obj.item;
 const clicked_renderers = clicked_item.renderers;
 if (clicked_renderers.length === 0) return;
@@ -1069,8 +1070,9 @@ def overview_v3(
         l.js_on_event(
             'legend_item_click',
             CustomJS(
-                args={'items': l.items},
+                args={'legend': l},
                 code="""
+const items = legend.items;
 const clicked_item = cb_obj.item;
 const clicked_renderers = clicked_item.renderers;
 if (clicked_renderers.length === 0) return;
@@ -1284,8 +1286,9 @@ def overview_v6(collect_field, reboot_headers, width, height, font_size, title=N
         l.js_on_event(
             'legend_item_click',
             CustomJS(
-                args={'items': l.items},
+                args={'legend': l},
                 code="""
+const items = legend.items;
 const clicked_item = cb_obj.item;
 const clicked_renderers = clicked_item.renderers;
 if (clicked_renderers.length === 0) return;
@@ -1478,8 +1481,9 @@ def overview_v5(
         l.js_on_event(
             'legend_item_click',
             CustomJS(
-                args={'items': l.items},
+                args={'legend': l},
                 code="""
+const items = legend.items;
 const clicked_item = cb_obj.item;
 const clicked_renderers = clicked_item.renderers;
 if (clicked_renderers.length === 0) return;
