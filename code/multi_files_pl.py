@@ -250,7 +250,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 else:
                                     st.components.v1.html(chart_html, height=hight+100, scrolling=True)
                         else:
-                            if dia_type:
+                            if not dia_type:
                                 img = alt.overview_v3(
                                     chart_field,
                                     reboot_headers,
