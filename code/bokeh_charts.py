@@ -871,8 +871,9 @@ src.change.emit();
         legend.js_on_event(
             'legend_item_click',
             CustomJS(
-                args={'items': legend_items},
+                args={'legend': legend},
                 code="""
+const items = legend.items;
 const clicked_item = cb_obj.item;
 const clicked_renderers = clicked_item.renderers;
 if (clicked_renderers.length === 0) return;
@@ -881,15 +882,15 @@ const target = clicked_renderers[0];
 const other_items = items.filter(it => it !== clicked_item);
 
 // Check if we are in "solo" mode for the clicked item
-const is_solo = target.visible && other_items.every(it => !it.renderers[0].visible);
+const is_solo = target.visible && other_items.every(it => it.renderers.length > 0 && !it.renderers[0].visible);
 
 if (is_solo) {
     // Already soloing? Show everyone.
-    items.forEach(it => { it.renderers[0].visible = true; });
+    items.forEach(it => { if(it.renderers.length > 0) it.renderers[0].visible = true; });
 } else {
     // Solo the clicked one, hide all others.
     items.forEach(it => {
-        it.renderers[0].visible = (it === clicked_item);
+        if(it.renderers.length > 0) it.renderers[0].visible = (it === clicked_item);
     });
 }
 """,
