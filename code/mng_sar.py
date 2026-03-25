@@ -229,7 +229,7 @@ def file_mng(upload_dir: str, username:str):
             
             st.success("Files uploaded and processed successfully!")
             st.markdown('### Next Steps')
-            b_col1, b_col2 = st.columns(2)
+            b_col1, b_col2, _, _ = st.columns(4)
             b_col1.button("Go to Graphical Overview 📊", on_click=nav_to_overview)
             b_col2.button("Go to Multiple Sar Files 📂", on_click=nav_to_multi)
                                 
