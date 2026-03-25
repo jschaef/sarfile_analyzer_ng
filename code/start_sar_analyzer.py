@@ -121,27 +121,38 @@ def main_body(username: str, config_c: helpers.configuration) :
     sar_files = os.listdir(upload_dir)
     st.sidebar.success(f"Logged in as {username}")
     
+    # Handle programmatic navigation override via signal
+    if st.session_state.get('nav_top'):
+        st.session_state['top_choice'] = st.session_state.pop('nav_top')
+
     col1, col2 = st.columns(2)
     config_c.update_conf({'username': username, 'upload_dir': upload_dir,
         'sar_files':sar_files, 'cols':[col1, col2]})
+    
+    tasks_admin = ["Analyze Data", "Manage Sar Files", "DB Management",
+            "Redis Management", "TODO", "Self Service", "User Management", "Info"]
+    tasks_user = ["Analyze Data", "Manage Sar Files", "Self Service", "Info"]
+    
     if sql_stuff.get_role(username) == "admin":
-        top_choice = option_menu("Tasks",  ["Analyze Data", "Manage Sar Files", "DB Management",
-            "Redis Management", "TODO", "Self Service", "User Management", "Info"],
-                 icons=['calculator', 'receipt', 'bank', 'hdd-stack','clipboard','person', 
-                    'people', 'info-circle', ],
-                 menu_icon="yin-yang", default_index=0, orientation="horizontal",
-            styles={
-                "container": {"padding": "0px 5px !important", "background-color": "#91cfec", "margin": "0px !important"},
-                "icon": {"color": "orange", "font-size": "12px"},
-                "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "#eee"},
-                "nav-link-selected": {"background-color": "#1a7c78"},
-            }
-        )
+        tasks = tasks_admin
+        icons = ['calculator', 'receipt', 'bank', 'hdd-stack','clipboard','person', 'people', 'info-circle']
     else:
-        top_choice = option_menu("Tasks",  ["Analyze Data", "Manage Sar Files",
-            "Self Service", "Info"],
-                 icons=['calculator', 'receipt', 'person', 'info-circle', ],
-                 menu_icon="yin-yang", default_index=0, orientation="horizontal",
+        tasks = tasks_user
+        icons = ['calculator', 'receipt', 'person', 'info-circle']
+
+    # Sync state
+    if 'top_choice' not in st.session_state:
+        st.session_state['top_choice'] = tasks[0]
+    
+    try:
+        d_idx = tasks.index(st.session_state['top_choice'])
+    except ValueError:
+        d_idx = 0
+
+    # Render menu WITHOUT key to ensure manual control is respected
+    top_choice = option_menu("Tasks", tasks,
+                 icons=icons,
+                 menu_icon="yin-yang", default_index=d_idx, orientation="horizontal",
             styles={
                 "container": {"padding": "0px 5px !important", "background-color": "#91cfec", "margin": "0px !important"},
                 "icon": {"color": "orange", "font-size": "12px"},
@@ -149,6 +160,12 @@ def main_body(username: str, config_c: helpers.configuration) :
                 "nav-link-selected": {"background-color": "#1a7c78"},
             }
         )
+    
+    # Force update and rerun if manually changed via widget
+    if top_choice != st.session_state['top_choice']:
+        st.session_state['top_choice'] = top_choice
+        st.rerun()
+    
     if top_choice == "Manage Sar Files":
         mng_sar.file_mng(upload_dir, username)
     elif top_choice == "Analyze Data":
