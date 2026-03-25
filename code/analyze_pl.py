@@ -14,8 +14,20 @@ import parse_into_polars as parse_polars
 import pl_helpers2 as pl_helpers
 
 def analyze(config_c: helpers.configuration, username: str):
+    # present existing files, default latest uploaded
+    analysis_options = ['Graphical Overview', 'Detailed Metrics View', 
+                       'Multiple Sar Files', 'Metrics on many devices', 'Compare Metrics']
+
+    # Synchronization logic
+    if 'analysis_mode' not in st.session_state:
+        st.session_state['analysis_mode'] = analysis_options[0]
+
+    # Handle programmatic navigation override via signal
+    if st.session_state.get('nav_analysis'):
+        st.session_state['analysis_mode'] = st.session_state.pop('nav_analysis')
+
     # Track current analysis mode for cleanup on mode change
-    current_mode = st.session_state.get('analysis_mode', None)
+    current_mode = st.session_state['analysis_mode']
     
     config = config_c.get_dict()
     upload_dir = config ['upload_dir']
@@ -25,28 +37,32 @@ def analyze(config_c: helpers.configuration, username: str):
     ph3 = col3.empty()
     ph4 = col4.empty()
     ph41 = col4.empty()
-    # present existing files, default latest uploaded
-    # TODO do sanity checks for size or number of files
+    
     sar_files = os.listdir(upload_dir)
-    # exclude pickle files
+    
+    try:
+        d_idx = analysis_options.index(current_mode)
+    except ValueError:
+        d_idx = 0
+
     with ph1:
         lh.make_vspace(1, ph1)
-        single_multi = st.selectbox('**Analyze/Compare**', ['Graphical Overview',
-         'Detailed Metrics View', 'Multiple Sar Files', 
-         'Metrics on many devices', 'Compare Metrics'])
+        # Render selectbox WITHOUT key to avoid widget internal state issues
+        single_multi = st.selectbox('**Analyze/Compare**', 
+                                  options=analysis_options,
+                                  index=d_idx)
     
-    # Clear memory when switching analysis modes
-    if current_mode and current_mode != single_multi:
-        # Clear chart-related session state
+    # Update state if changed via widget
+    if single_multi != st.session_state['analysis_mode']:
+        st.session_state['analysis_mode'] = single_multi
+        # Clear chart-related session state on mode change
         keys_to_remove = [key for key in list(st.session_state.keys()) 
                           if any(x in str(key) for x in ['_obj', '_chart', 'collect_list', '_pdf'])]
         for key in keys_to_remove:
             st.session_state.pop(key, None)
         gc.collect()
+        st.rerun()
     
-    # Update current mode
-    st.session_state['analysis_mode'] = single_multi
-
     sar_file = helpers_pl.get_sar_files(username, col=ph3, key="get_sarfiles")
     
     # Clear memory when switching SAR files
