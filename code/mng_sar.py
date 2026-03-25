@@ -136,11 +136,13 @@ def nav_to_overview():
     st.session_state['nav_top'] = "Analyze Data"
     st.session_state['nav_analysis'] = "Graphical Overview"
     st.session_state['upload_success'] = False # Reset flag
+    st.session_state['upload_warnings'] = [] # Clear warnings
 
 def nav_to_multi():
     st.session_state['nav_top'] = "Analyze Data"
     st.session_state['nav_analysis'] = "Multiple Sar Files"
     st.session_state['upload_success'] = False # Reset flag
+    st.session_state['upload_warnings'] = [] # Clear warnings
 
 def file_mng(upload_dir: str, username:str):
     col1, _, _, _ = visf.create_columns(4,[0,1,1,1])
@@ -171,13 +173,12 @@ def file_mng(upload_dir: str, username:str):
         if col1.button('Submit'):
             if uploaded_files:
                 upload_count = 0
+                upload_warnings = []
                 for u_file in uploaded_files:
                     if u_file is not None:
-                        # Check if this file name (or its expected renamed version) already exists
-                        # We need to peek into the file to know the renamed name, 
-                        # but we can at least check if the current name exists.
+                        # Check if this file name already exists
                         if u_file.name in os.listdir(upload_dir):
-                            col1.warning(f"File {u_file.name} already exists. Overwriting...")
+                            upload_warnings.append(f"File **{u_file.name}** already exists and has been overwritten.")
 
                         f_check = Magic()
                         bytes_data = u_file.read()
@@ -198,20 +199,15 @@ def file_mng(upload_dir: str, username:str):
                                 continue
                         
                         if "ASCII text" in res:
-                            # Write to temp first to determine final name
                             temp_path = f'{upload_dir}/.tmp_{u_file.name}'
                             with open(temp_path, 'wb') as targetf:
                                 targetf.write(bytes_data)
                             
-                            # Determine expected name without actually renaming yet if possible, 
-                            # or just use rename and handle it.
-                            # helpers.rename_sar_file uses 'mv', so it overwrites.
                             renamed_name = helpers.rename_sar_file(temp_path, col=None)
                             
                             # Check if the renamed file already exists as parquet
                             if os.path.exists(f"{upload_dir}/{renamed_name}.parquet"):
-                                col1.info(f"A processed version of {u_file.name} already exists ({renamed_name}.parquet).")
-                                # Optional: could skip here, but usually overwriting ASCII is fine.
+                                upload_warnings.append(f"A processed Parquet version of **{u_file.name}** already existed and was updated.")
                             
                             upload_count += 1
                             
@@ -223,13 +219,17 @@ def file_mng(upload_dir: str, username:str):
                 
                 if upload_count > 0:
                     st.session_state['upload_success'] = True
+                    st.session_state['upload_warnings'] = list(set(upload_warnings)) # Deduplicate
                     st.rerun()
 
-        # Show navigation buttons outside the 'if Submit' block
+        # Show navigation buttons and persistent warnings
         if st.session_state.get('upload_success'):
+            for warning in st.session_state.get('upload_warnings', []):
+                st.warning(warning)
+            
             st.success("Files uploaded and processed successfully!")
             st.markdown('### Next Steps')
-            b_col1, b_col2, _, _= st.columns(4)
+            b_col1, b_col2 = st.columns(2)
             b_col1.button("Go to Graphical Overview 📊", on_click=nav_to_overview)
             b_col2.button("Go to Multiple Sar Files 📂", on_click=nav_to_multi)
                                 
