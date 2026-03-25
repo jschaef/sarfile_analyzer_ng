@@ -132,6 +132,16 @@ def convert_openpgp_sar_file(file_content: bytes, original_filename: str) -> tup
         return None, None
 
 
+def nav_to_overview():
+    st.session_state['nav_top'] = "Analyze Data"
+    st.session_state['nav_analysis'] = "Graphical Overview"
+    st.session_state['upload_success'] = False # Reset flag
+
+def nav_to_multi():
+    st.session_state['nav_top'] = "Analyze Data"
+    st.session_state['nav_analysis'] = "Multiple Sar Files"
+    st.session_state['upload_success'] = False # Reset flag
+
 def file_mng(upload_dir: str, username:str):
     col1, _, _, _ = visf.create_columns(4,[0,1,1,1])
     manage_files = ['Show Sar Files','Add Sar Files', 'Delete Sar Files']
@@ -154,71 +164,54 @@ def file_mng(upload_dir: str, username:str):
         sar_files = [col1.file_uploader(
             "Please upload your SAR files", key='sar_uploader',
             accept_multiple_files=True, help=sar_convert_hint,)]
+        
         if col1.button('Submit'):
             if sar_files:
+                upload_count = 0
                 for multi_files in sar_files:
                     for u_file in multi_files:
                         if u_file is not None:
-                            #st.write(dir(sar_file))
                             f_check = Magic()
-                            #stringio = io.StringIO(sar_file.decode("utf-8"))
                             bytes_data = u_file.read()
                             res = f_check.from_buffer(bytes_data)
                             
-                            # Enhanced detection: check both magic result and binary patterns
                             is_openpgp_detected = "OpenPGP Secret Key" in res
                             is_generic_data = "data" in res.lower()
                             is_binary_sar = is_sar_binary_file(bytes_data, u_file.name)
                             
-                            print(f"File: {u_file.name}")
-                            print(f"Magic result: '{res}'")
-                            print(f"Binary SAR detection: {is_binary_sar}")
-                            
-                            # Check if it's a binary SAR file that needs conversion
                             if is_openpgp_detected or (is_generic_data and is_binary_sar):
-                                conversion_reason = "OpenPGP Secret Key" if is_openpgp_detected else "Binary SAR file"
-                                col1.info(f"Detected {conversion_reason}: {u_file.name}. Converting to ASCII format...")
                                 converted_data, new_filename = convert_openpgp_sar_file(bytes_data, u_file.name)
-                                
                                 if converted_data is not None:
-                                    col1.success(f"Successfully converted {u_file.name} to {new_filename}")
                                     bytes_data = converted_data
-                                    # Update the filename for processing
                                     u_file.name = new_filename
-                                    
-                                    # Re-check the converted file
                                     res = f_check.from_buffer(bytes_data)
-                                    print(f"After conversion: '{res}'")
                                 else:
-                                    col1.error(f"Failed to convert {u_file.name}. Skipping file.")
+                                    col1.error(f"Failed to convert {u_file.name}.")
                                     continue
-                            if "ASCII text" not in res:
-                                col1.warning(
-                                    f"""File is not a valid sar ASCII data file. Instead {res}.
-                                    If you attempted to upload a binary sar file, please convert it to ASCII format first with the command:\
-                                    {convert_cmd}""")
-                                continue
-                            else:
-                                #TODO check if Linux Header is present and if sar 
-                                # sections are present
-                                col1.write(
-                                    f"Sar file is valid. Renaming {u_file.name}")
+                            
+                            if "ASCII text" in res:
                                 with open(f'{upload_dir}/{u_file.name}', 'wb') as targetf:
                                     targetf.write(bytes_data)
-                                #remove name
-                                col1, _ = visf.create_columns(2,[0,1])
-                                renamed_name = helpers.rename_sar_file(f'{upload_dir}/{u_file.name}', col=col1)
+                                renamed_name = helpers.rename_sar_file(f'{upload_dir}/{u_file.name}', col=None)
+                                upload_count += 1
                                 
-                                # Clean up existing Redis cache entries for this file
                                 try:
                                     rkey = f"{Config.rkey_pref}:{username}"
-                                    # Get just the basename and construct Redis property key
-                                    basename = renamed_name.split("/")[-1]  # Get just filename without path
-                                    r_item = f'{basename}_parquet'  # Construct Redis property key
-                                    print(f'Cleaning up Redis cache for {rkey}, {r_item} at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}')
-                                    redis_mng.del_redis_key_property(rkey, r_item)
-                                except Exception as e:
-                                    print(f'Could not clean Redis cache for {rkey}, {r_item}: {e}')
+                                    basename = renamed_name.split("/")[-1]
+                                    redis_mng.del_redis_key_property(rkey, f'{basename}_parquet')
+                                except: pass
+                
+                if upload_count > 0:
+                    st.session_state['upload_success'] = True
+                    st.rerun()
+
+        # Show navigation buttons outside the 'if Submit' block
+        if st.session_state.get('upload_success'):
+            st.success("Files uploaded and processed successfully!")
+            st.markdown('### Next Steps')
+            b_col1, b_col2 = st.columns(2)
+            b_col1.button("Go to Graphical Overview 📊", on_click=nav_to_overview)
+            b_col2.button("Go to Multiple Sar Files 📂", on_click=nav_to_multi)
                                 
     elif managef_options == 'Delete Sar Files':
         if sar_files:
