@@ -36,6 +36,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
     sar_files_pre = [x for x in sar_files if not x.endswith(".parquet")]
     sar_files = [x.replace(".parquet", "") for x in sar_files if x.endswith(".parquet")]
     sar_files.extend(sar_files_pre)
+    sar_files = sorted(list(set(sar_files))) # Ensure uniqueness to avoid DuplicateElementId
 
     sel_all = st.checkbox("***Select All***", key="select_all")
     st.write("\n")

@@ -207,11 +207,11 @@ def metric_popover(prop_list, col=None, key=None):
     st.markdown("######")
 
 def get_sar_files(user_name: str, col: st.delta_generator.DeltaGenerator=None, key: str=None):
-    sar_files = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
+    sar_files_raw = [x for x in os.listdir(f'{Config.upload_dir}/{user_name}') \
         if os.path.isfile(f'{Config.upload_dir}/{user_name}/{x}') ]
-    sar_files_pre = [x for x in sar_files if not x.endswith('.parquet') ]
-    sar_files = [x.replace(".parquet", "") for x in sar_files if x.endswith('.parquet')]
-    sar_files.extend(sar_files_pre)
+    sar_files_pre = [x for x in sar_files_raw if not x.endswith('.parquet') ]
+    sar_files_parquet = [x.replace(".parquet", "") for x in sar_files_raw if x.endswith('.parquet')]
+    sar_files = sorted(list(set(sar_files_parquet + sar_files_pre)))
     lh.make_vspace(1, col)
     if not col:
         col1, col2, col3 = st.columns([2,1, 1])

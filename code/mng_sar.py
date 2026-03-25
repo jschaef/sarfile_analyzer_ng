@@ -146,11 +146,14 @@ def file_mng(upload_dir: str, username:str):
     col1, _, _, _ = visf.create_columns(4,[0,1,1,1])
     manage_files = ['Show Sar Files','Add Sar Files', 'Delete Sar Files']
     sar_files = [ x for x in os.listdir(upload_dir) if os.path.isfile(f'{upload_dir}/{x}')]
-    file_size = [os.path.getsize(f'{upload_dir}/{x}') for x in sar_files]
-    # Separate ASCII SAR files from parquet files
+    
+    # Separate ASCII SAR files from parquet files and ensure uniqueness
     sar_files_uploaded = [x for x in sar_files if not x.endswith(('.parquet'))]
     sar_files_parquet = [x.replace('.parquet', '') for x in sar_files if x.endswith('.parquet')]
-    sar_files = sar_files_parquet + sar_files_uploaded
+    sar_files = sorted(list(set(sar_files_parquet + sar_files_uploaded)))
+    
+    file_size = [os.path.getsize(f'{upload_dir}/{x}') if os.path.exists(f'{upload_dir}/{x}') 
+                else os.path.getsize(f'{upload_dir}/{x}.parquet') for x in sar_files]
 
     managef_options = col1.selectbox(
         'Show/Add/Delete', manage_files)
@@ -161,45 +164,62 @@ def file_mng(upload_dir: str, username:str):
         convert_cmd = "```unset LANG; sar -A -t -f <binary_file> > <ascii_file>```"
         sar_convert_hint = f"""{upload_hint} \
         \nManual conversion command: {convert_cmd}"""
-        sar_files = [col1.file_uploader(
+        uploaded_files = col1.file_uploader(
             "Please upload your SAR files", key='sar_uploader',
-            accept_multiple_files=True, help=sar_convert_hint,)]
+            accept_multiple_files=True, help=sar_convert_hint,)
         
         if col1.button('Submit'):
-            if sar_files:
+            if uploaded_files:
                 upload_count = 0
-                for multi_files in sar_files:
-                    for u_file in multi_files:
-                        if u_file is not None:
-                            f_check = Magic()
-                            bytes_data = u_file.read()
-                            res = f_check.from_buffer(bytes_data)
+                for u_file in uploaded_files:
+                    if u_file is not None:
+                        # Check if this file name (or its expected renamed version) already exists
+                        # We need to peek into the file to know the renamed name, 
+                        # but we can at least check if the current name exists.
+                        if u_file.name in os.listdir(upload_dir):
+                            col1.warning(f"File {u_file.name} already exists. Overwriting...")
+
+                        f_check = Magic()
+                        bytes_data = u_file.read()
+                        res = f_check.from_buffer(bytes_data)
+                        
+                        is_openpgp_detected = "OpenPGP Secret Key" in res
+                        is_generic_data = "data" in res.lower()
+                        is_binary_sar = is_sar_binary_file(bytes_data, u_file.name)
+                        
+                        if is_openpgp_detected or (is_generic_data and is_binary_sar):
+                            converted_data, new_filename = convert_openpgp_sar_file(bytes_data, u_file.name)
+                            if converted_data is not None:
+                                bytes_data = converted_data
+                                u_file.name = new_filename
+                                res = f_check.from_buffer(bytes_data)
+                            else:
+                                col1.error(f"Failed to convert {u_file.name}.")
+                                continue
+                        
+                        if "ASCII text" in res:
+                            # Write to temp first to determine final name
+                            temp_path = f'{upload_dir}/.tmp_{u_file.name}'
+                            with open(temp_path, 'wb') as targetf:
+                                targetf.write(bytes_data)
                             
-                            is_openpgp_detected = "OpenPGP Secret Key" in res
-                            is_generic_data = "data" in res.lower()
-                            is_binary_sar = is_sar_binary_file(bytes_data, u_file.name)
+                            # Determine expected name without actually renaming yet if possible, 
+                            # or just use rename and handle it.
+                            # helpers.rename_sar_file uses 'mv', so it overwrites.
+                            renamed_name = helpers.rename_sar_file(temp_path, col=None)
                             
-                            if is_openpgp_detected or (is_generic_data and is_binary_sar):
-                                converted_data, new_filename = convert_openpgp_sar_file(bytes_data, u_file.name)
-                                if converted_data is not None:
-                                    bytes_data = converted_data
-                                    u_file.name = new_filename
-                                    res = f_check.from_buffer(bytes_data)
-                                else:
-                                    col1.error(f"Failed to convert {u_file.name}.")
-                                    continue
+                            # Check if the renamed file already exists as parquet
+                            if os.path.exists(f"{upload_dir}/{renamed_name}.parquet"):
+                                col1.info(f"A processed version of {u_file.name} already exists ({renamed_name}.parquet).")
+                                # Optional: could skip here, but usually overwriting ASCII is fine.
                             
-                            if "ASCII text" in res:
-                                with open(f'{upload_dir}/{u_file.name}', 'wb') as targetf:
-                                    targetf.write(bytes_data)
-                                renamed_name = helpers.rename_sar_file(f'{upload_dir}/{u_file.name}', col=None)
-                                upload_count += 1
-                                
-                                try:
-                                    rkey = f"{Config.rkey_pref}:{username}"
-                                    basename = renamed_name.split("/")[-1]
-                                    redis_mng.del_redis_key_property(rkey, f'{basename}_parquet')
-                                except: pass
+                            upload_count += 1
+                            
+                            try:
+                                rkey = f"{Config.rkey_pref}:{username}"
+                                basename = renamed_name.split("/")[-1]
+                                redis_mng.del_redis_key_property(rkey, f'{basename}_parquet')
+                            except: pass
                 
                 if upload_count > 0:
                     st.session_state['upload_success'] = True
@@ -209,7 +229,7 @@ def file_mng(upload_dir: str, username:str):
         if st.session_state.get('upload_success'):
             st.success("Files uploaded and processed successfully!")
             st.markdown('### Next Steps')
-            b_col1, b_col2 = st.columns(2)
+            b_col1, b_col2, _, _= st.columns(4)
             b_col1.button("Go to Graphical Overview 📊", on_click=nav_to_overview)
             b_col2.button("Go to Multiple Sar Files 📂", on_click=nav_to_multi)
                                 
