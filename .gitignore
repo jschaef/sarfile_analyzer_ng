@@ -17,3 +17,4 @@ mcp/.venv/
 .suse_credentials.json
 .happy_sar_credentials.json
 auth_salesforce.json
+/sar20*
