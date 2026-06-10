@@ -32,7 +32,7 @@ def analyze(config_c: helpers.configuration, username: str):
     config = config_c.get_dict()
     upload_dir = config ['upload_dir']
     lh.make_vspace(1, st)
-    col1, _, col3, col4, _  = st.columns([1,0.2, 0.8, 1.2, 1],gap="medium")
+    col1, _, col3, col4, _  = st.columns([1,0.2, 1.6, 1.2, 0.2],gap="medium")
     ph1 = col1.empty()
     ph3 = col3.empty()
     ph4 = col4.empty()
