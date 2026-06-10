@@ -83,8 +83,36 @@ def cleanup_chart_memory():
     gc.collect()
 
 @st.fragment
-def render_metric_section_fragment(header, metric_items, sar_file_name, restart_headers, 
-                                 os_details, font_size, width, height, statistics, 
+def build_overview_stats_csv(filtered_collect_list):
+    """Build a CSV holding the statistics (df_describe) of every displayed data
+    set. Mirrors the on-screen "Statistics for X" tables: one wide block per
+    data set (statistic rows x metric columns), each prefixed with the data-set
+    name and separated by a blank line so multi-device exports stay unambiguous.
+    """
+    blocks = []
+    for item in filtered_collect_list:
+        d = item[0]
+        header = d.get('header', '')
+        sub_title = d.get('sub_title', '')
+        desc = d.get('df_describe')
+        if desc is None or isinstance(desc, int):
+            # statistics disabled or not computed for this data set
+            continue
+
+        label = header if sub_title in (None, '', 'all') else f"{header} - {sub_title}"
+        if isinstance(desc, pl.DataFrame):
+            # Polars describe(): first column is the statistic name, rest metrics.
+            table_csv = desc.write_csv().rstrip('\n')
+        else:
+            # Pandas describe(): index holds the statistic name, columns metrics.
+            table_csv = desc.to_csv(index_label='statistic').rstrip('\n')
+        blocks.append(f"{label}\n{table_csv}")
+
+    return ("\n\n".join(blocks) + "\n").encode('utf-8')
+
+
+def render_metric_section_fragment(header, metric_items, sar_file_name, restart_headers,
+                                 os_details, font_size, width, height, statistics,
                                  show_manpages, create_multi_pdf):
     """
     Isolate each metric group in a fragment. 
@@ -308,10 +336,13 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         df_len = 0
         tmp_dict = {}
         create_multi_pdf = 0
-        if this_container.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
+        create_csv = 0
+        toggle_col1, toggle_col2 = this_container.columns(2)
+        if toggle_col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
             create_multi_pdf = 1
-        else:
-                create_multi_pdf = 0
+        if toggle_col2.toggle('Generate csv for all statistical data',
+                help='Generate a CSV containing the statistics of every displayed data set'):
+            create_csv = 1
         this_container.markdown("###### Set time frame")
         col1, col2, col3 = this_container.columns([0.2, 0.2, 0.6])
 
@@ -344,11 +375,12 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         width, height = helpers_pl.diagram_expander('Diagram Width',
             'Diagram Height', col1)
         font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", col2)
-        return create_multi_pdf, start, end, width, height, font_size
+        return create_multi_pdf, create_csv, start, end, width, height, font_size
 
-    
+
+    create_csv = 0
     if sel_field:
-        create_multi_pdf, start, end, width, height, font_size = change_time_and_dia(df, headers)
+        create_multi_pdf, create_csv, start, end, width, height, font_size = change_time_and_dia(df, headers)
 
     this_container = st.container(border=False)
     this_container.space("small")
@@ -669,7 +701,18 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     else:
                         # Clear cached PDF if toggle is turned off
                         st.session_state.pop(f"multi_pdf_bytes_{sar_file_name}", None)
-                        
+
+                    if create_csv:
+                        csv_bytes = build_overview_stats_csv(filtered_collect_list)
+                        st.download_button(
+                            label="⬇️ Download statistics CSV",
+                            data=csv_bytes,
+                            file_name=f"{sar_file_name}_statistics.csv",
+                            mime="text/csv",
+                            key=f"stats_csv_download_{sar_file_name}",
+                            type="primary",
+                        )
+
                     st.markdown("___")
                     # Back to top link using HTML anchor without page refresh
                     st.markdown(
