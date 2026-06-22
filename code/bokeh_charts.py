@@ -84,8 +84,8 @@ def sample_dataframe_for_viz(df, max_rows=5000):
 
 def _adaptive_max_rows_for_series(
     series_count: int,
-    base_max_rows: int = 2000,
-    point_budget: int = 60_000,
+    base_max_rows: int = 1000,
+    point_budget: int = 30_000,
     min_rows: int = 200,
 ) -> int:
     """Pick a row budget based on number of series.

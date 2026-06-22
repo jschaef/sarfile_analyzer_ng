@@ -111,6 +111,21 @@ def build_overview_stats_csv(filtered_collect_list):
     return ("\n\n".join(blocks) + "\n").encode('utf-8')
 
 
+def _cached_figure_json(item_dict, bokeh_fig):
+    """Serialize a Bokeh figure to JSON once and cache it on the item dict.
+
+    The item dicts live in st.session_state across reruns, so this turns the
+    GIL-bound json.dumps(json_item(...)) into a one-time cost instead of paying
+    it on every tab click / rerun. A fresh compute creates new dicts (no cached
+    key), so the cache invalidates naturally when the figure changes.
+    """
+    fig_json = item_dict.get('_bokeh_json')
+    if fig_json is None:
+        fig_json = st_bokeh.serialize_figure(bokeh_fig)
+        item_dict['_bokeh_json'] = fig_json
+    return fig_json
+
+
 def render_metric_section_fragment(header, metric_items, sar_file_name, restart_headers,
                                  os_details, font_size, width, height, statistics,
                                  show_manpages, create_multi_pdf):
@@ -158,6 +173,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                 if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                     ok = st_bokeh.streamlit_bokeh(
                         bokeh_fig, use_container_width=True,
+                        figure_json=_cached_figure_json(item_dict, bokeh_fig),
                         key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}",
                     )
                     if not ok:
@@ -226,6 +242,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                     if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                         ok = st_bokeh.streamlit_bokeh(
                             bokeh_fig, use_container_width=True,
+                            figure_json=_cached_figure_json(subitem_dict, bokeh_fig),
                             key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}_{counter}",
                         )
                         if not ok:
@@ -513,6 +530,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         df_list = pl_helpers.get_data_frames_from__headers(header_list, df, "header")
 
                     with (perf.phase('prepare_df_for_pandas (Parallel)') if perf else _noop_phase()):
+                        # polars/pandas work here releases the GIL and scales well with
+                        # more workers, so keep the default (large) pool.
                         with ThreadPoolExecutor() as executor:
                             # Pass the pre-resolved alias and sub-device key directly
                             # to avoid cache-locking in threads
@@ -541,65 +560,56 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     ]
                     collect_list_titles = [item[0]['title'] for index, item in enumerate(collect_list)] if collect_list else []
                     with (perf.phase('final_results (executor total)') if perf else _noop_phase()):
-                        with ThreadPoolExecutor() as executor:
-                            futures = []
-                            for outer_index in collect_list_pandas:
-                                for inner_index in outer_index:
-                                    df = inner_index['df']
-                                    header = inner_index['title']
-                                    sub_title = inner_index['sub_title']
-                                    device_num = inner_index['device_num']
-                                    stats_pl = inner_index.get('stats_pl')
-                                    if header not in collect_list_titles:
-                                        if perf:
-                                            fut = executor.submit(
-                                                _thread_wrapper,
-                                                ctx,
-                                                _timed_final_results,
-                                                df,
-                                                header,
-                                                statistics,
-                                                os_details,
-                                                restart_headers,
-                                                font_size,
-                                                width,
-                                                height,
-                                                show_manpages,
-                                                device_num,
-                                                sub_title,
-                                                stats_pl=stats_pl,
-                                                precompute_chart=True
-                                            )
-                                        else:
-                                            fut = executor.submit(
-                                                _thread_wrapper,
-                                                ctx,
-                                                dia_compute.final_results,
-                                                df,
-                                                header,
-                                                statistics,
-                                                os_details,
-                                                restart_headers,
-                                                font_size,
-                                                width,
-                                                height,
-                                                show_manpages,
-                                                device_num,
-                                                sub_title,
-                                                stats_pl=stats_pl,
-                                                precompute_chart=True
-                                            )
-                                        futures.append(fut)
-                            for future in as_completed(futures):
-                                if perf:
-                                    results, elapsed, phase_timings = future.result()
-                                    collect_results(results)
-                                    perf.add('final_results (per-task compute)', elapsed)
-                                    for phase_name, seconds in phase_timings.items():
-                                        perf.add(f"final_results.{phase_name}", seconds)
-                                else:
-                                    results = future.result()
-                                    collect_results(results)
+                        # precompute_chart builds Bokeh models in pure Python (GIL-bound)
+                        # and no longer serializes (embed_html=False). The actual work is
+                        # tiny (~50ms total); a ThreadPoolExecutor added a constant ~800ms
+                        # of fixed overhead (Streamlit context propagation / GIL contention
+                        # with the server thread) that dwarfed it. Run serially instead.
+                        for outer_index in collect_list_pandas:
+                            for inner_index in outer_index:
+                                df = inner_index['df']
+                                header = inner_index['title']
+                                sub_title = inner_index['sub_title']
+                                device_num = inner_index['device_num']
+                                stats_pl = inner_index.get('stats_pl')
+                                if header not in collect_list_titles:
+                                    if perf:
+                                        results, elapsed, phase_timings = _timed_final_results(
+                                            df,
+                                            header,
+                                            statistics,
+                                            os_details,
+                                            restart_headers,
+                                            font_size,
+                                            width,
+                                            height,
+                                            show_manpages,
+                                            device_num,
+                                            sub_title,
+                                            stats_pl=stats_pl,
+                                            precompute_chart=True
+                                        )
+                                        collect_results(results)
+                                        perf.add('final_results (per-task compute)', elapsed)
+                                        for phase_name, seconds in phase_timings.items():
+                                            perf.add(f"final_results.{phase_name}", seconds)
+                                    else:
+                                        results = dia_compute.final_results(
+                                            df,
+                                            header,
+                                            statistics,
+                                            os_details,
+                                            restart_headers,
+                                            font_size,
+                                            width,
+                                            height,
+                                            show_manpages,
+                                            device_num,
+                                            sub_title,
+                                            stats_pl=stats_pl,
+                                            precompute_chart=True
+                                        )
+                                        collect_results(results)
                     filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
 
                     with (perf.phase('render.group_results') if perf else _noop_phase()):

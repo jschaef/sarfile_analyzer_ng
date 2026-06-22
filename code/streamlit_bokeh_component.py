@@ -37,14 +37,27 @@ def _get_component_callable():
     return st.components.v1.declare_component("streamlit_bokeh", path=str(build_dir))
 
 
+def serialize_figure(figure) -> str:
+    """Serialize a Bokeh figure to the JSON string the frontend expects.
+
+    Kept separate so callers can precompute (and cache) the JSON once instead of
+    paying the GIL-bound serialization on every rerun.
+    """
+    return json.dumps(json_item(figure))
+
+
 def streamlit_bokeh(
     figure,
     *,
     use_container_width: bool = True,
     theme: str = "streamlit",
     key: str | None = None,
+    figure_json: str | None = None,
 ) -> bool:
     """Render a Bokeh figure via the streamlit-bokeh custom component.
+
+    If ``figure_json`` is given it is used as-is and ``figure`` is not
+    serialized again — let callers cache the (expensive) JSON across reruns.
 
     Returns True if the component rendered, False if it failed.
     """
@@ -52,7 +65,7 @@ def streamlit_bokeh(
     try:
         component = _get_component_callable()
         component(
-            figure=json.dumps(json_item(figure)),
+            figure=figure_json if figure_json is not None else serialize_figure(figure),
             use_container_width=use_container_width,
             bokeh_theme=theme,
             key=key,
