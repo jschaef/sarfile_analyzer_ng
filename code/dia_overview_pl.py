@@ -296,7 +296,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
             count_lines: int, boxes_per_line: int, sel_field: list):
         col1, _ = st.columns([0.8, 0.2])
         col1.markdown("##### Select which metrics to display")
-        h_expander = col1.expander(label='Choose SAR Metrics', expanded=True)
+        h_expander = col1.expander(label='Choose SAR Metrics', expanded=True, type="compact")
         with h_expander:
             fr_aliases = initial_aliases.copy()
             fr_full_alias = full_alias_l.copy()
@@ -332,7 +332,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         st.space()
         st.markdown("##### Change Start/End Time and Diagram Properties and handle PDF creation**")
         col1, _ = st.columns([0.8, 0.2])
-        this_container = col1.container(border=True)
+        this_container = col1.container(border=False)
         df_len = 0
         tmp_dict = {}
         create_multi_pdf = 0
@@ -474,7 +474,7 @@ This may consume significant browser memory (potentially 5-15 GB).
 Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser memory issues.""")
                 st.stop()
             
-            with col1.container(border=True):
+            with col1.container(border=False):
                 sorted_df_dict = {}
                 st_collect_list_pandas = st.session_state.get(
                     f"{sar_file_name}_collect_list_pandas", []
