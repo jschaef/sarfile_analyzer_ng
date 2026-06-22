@@ -643,7 +643,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                         st.session_state[perf_result_key] = perf.summary_rows()
 
                     if st.session_state.get(perf_result_key):
-                        with st.expander('Performance breakdown', expanded=False):
+                        with st.expander('Performance Breakdown', expanded=False, type="compact"):
                             st.caption('Timings are summed across the run. Focus on the top entries.')
                             st.dataframe(
                                 pl.DataFrame(st.session_state[perf_result_key]),
