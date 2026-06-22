@@ -560,11 +560,12 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                     ]
                     collect_list_titles = [item[0]['title'] for index, item in enumerate(collect_list)] if collect_list else []
                     with (perf.phase('final_results (executor total)') if perf else _noop_phase()):
-                        # precompute_chart builds Bokeh models in pure Python (GIL-bound)
-                        # and no longer serializes (embed_html=False). The actual work is
-                        # tiny (~50ms total); a ThreadPoolExecutor added a constant ~800ms
-                        # of fixed overhead (Streamlit context propagation / GIL contention
-                        # with the server thread) that dwarfed it. Run serially instead.
+                        # precompute_chart builds Bokeh models in pure Python, which is
+                        # GIL-bound, so a ThreadPoolExecutor gave no real wall-clock speedup
+                        # (~916ms serial vs ~968ms threaded) while building many figures
+                        # concurrently inflated peak memory. Run serially: same speed, less
+                        # memory, simpler. (The JSON serialization that *would* parallelize
+                        # is deferred and cached at render time via _cached_figure_json.)
                         for outer_index in collect_list_pandas:
                             for inner_index in outer_index:
                                 df = inner_index['df']
