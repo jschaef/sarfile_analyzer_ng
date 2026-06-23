@@ -194,3 +194,17 @@ if __name__ == "__main__":
     start()
     end = time.perf_counter()
     st.write(f'process_time: {round(end-start_time, 4)}')
+    with st.bottom:
+        # Official "Made with Streamlit" badge (Streamlit's own CDN asset,
+        # intended for this trademark/attribution use), centered and small.
+        st.markdown(
+            """
+            <div style="text-align: center; padding: 0.25rem 0;">
+                <a href="https://streamlit.io" target="_blank" rel="noopener noreferrer">
+                    <img src="https://static.streamlit.io/badges/streamlit_badge_black_red.svg"
+                         alt="Made with Streamlit" height="16">
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
