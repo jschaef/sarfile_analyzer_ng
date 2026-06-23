@@ -58,13 +58,16 @@ def embed_figure_html(p, timings: dict[str, float] | None = None) -> str:
 
 
 def _set_adaptive_time_ticks(p, df, time_col_name):
-    """Dynamically set the desired number of ticks for a 2-hour interval."""
+    """Dynamically set the desired number of ticks, ~one per 2-hour interval."""
     try:
         time_span = df[time_col_name].max() - df[time_col_name].min()
         if time_span > pd.Timedelta(0):
             desired_ticks = time_span.total_seconds() / (2 * 3600)
-            # Cap ticks to prevent overcrowding, but ensure at least 2.
-            num_ticks = max(2, min(int(desired_ticks), 24))
+            # Cap ticks to prevent overcrowding. The floor must stay high enough
+            # (>=6): with only 2-3 desired ticks Bokeh's DatetimeTicker picks a
+            # far too coarse scale for short spans (e.g. a 3h capture rendered a
+            # single "2026" year label instead of hour ticks).
+            num_ticks = max(6, min(int(desired_ticks), 24))
             p.xaxis.ticker.desired_num_ticks = num_ticks
     except Exception:
         # Silently fail, Bokeh's default will be used.
