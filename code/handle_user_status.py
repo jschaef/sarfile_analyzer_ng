@@ -3,11 +3,18 @@ import datetime
 import os
 from config import Config
 
-def load_df_from_file() -> pl.DataFrame:
-    upload_dir = Config.upload_dir
-    config_dir = os.path.join(upload_dir, "config")
+# User whose successful logins must not be counted (the app owner).
+COUNTER_EXCLUDED_USER = "jschaef"
+
+def get_config_dir() -> str:
+    """Returns the config directory below the upload dir, creating it if needed."""
+    config_dir = os.path.join(Config.upload_dir, "config")
     if not os.path.exists(config_dir):
         os.makedirs(config_dir)
+    return config_dir
+
+def load_df_from_file() -> pl.DataFrame:
+    config_dir = get_config_dir()
     filename = os.path.join(config_dir,"user_df.parquet")
     df = pl.DataFrame()
     if not os.path.exists(filename):
@@ -78,3 +85,38 @@ def get_user_status_df() -> pl.DataFrame:
 def remove_old_logins(df: pl.DataFrame, date: datetime.date) -> pl.DataFrame:
     df = df.filter(pl.col("login_time") > date)
     return df
+
+def load_counter_from_file() -> tuple[pl.DataFrame, str]:
+    """Loads the login-counter dataframe, creating it (count = 0) if missing.
+    Returns:
+        A tuple of the dataframe (single column "count") and its filename.
+    """
+    config_dir = get_config_dir()
+    filename = os.path.join(config_dir, "login_counter.parquet")
+    if not os.path.exists(filename):
+        df = pl.DataFrame({"count": [0]})
+        df.write_parquet(filename)
+    else:
+        df = pl.read_parquet(filename)
+    return df, filename
+
+def get_login_counter() -> int:
+    """Returns the current number of counted successful logins."""
+    df = load_counter_from_file()[0]
+    return int(df["count"][0])
+
+def increment_login_counter(user_name: str) -> int:
+    """Increments the successful-login counter by one and persists it.
+    Logins of COUNTER_EXCLUDED_USER (the app owner) are not counted.
+    Args:
+        user_name: The user who just logged in successfully.
+    Returns:
+        The counter value after this call.
+    """
+    df, filename = load_counter_from_file()
+    count = int(df["count"][0])
+    if user_name == COUNTER_EXCLUDED_USER:
+        return count
+    count += 1
+    pl.DataFrame({"count": [count]}).write_parquet(filename)
+    return count

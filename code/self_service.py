@@ -29,7 +29,9 @@ def admin_service():
     cols = visf.create_columns(4, [0,1,1,1])
     col1 = cols[0]
     col1.header('User Management')
-    menu_items = ['Show Users', 'User Password Change', 'Roles Management', 
+    col1.metric('Successful User Logins', handle_user_status.get_login_counter(),
+        help='Total successful logins, excluding jschaef')
+    menu_items = ['Show Users', 'User Password Change', 'Roles Management',
         'Delete User', 'Login History']
     choice = col1.selectbox('Take your Choice',menu_items)
     if choice == 'Show Users':

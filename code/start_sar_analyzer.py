@@ -89,6 +89,7 @@ def start():
                     ph_password.empty()
                     ph_login.empty()
                     handle_user_status.add_record(username, now, True)
+                    handle_user_status.increment_login_counter(username)
                     main_body(username, config_c)
                 else:
                     st.warning("You don't exist or your password does not match")
