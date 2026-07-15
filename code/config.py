@@ -4,6 +4,7 @@ import os
 
 class Config(object):
     upload_dir = os.getenv("UPLOAD_DIR", "upload")
+    redis_enabled = os.getenv("REDIS_ENABLED", "True").lower() in ("true", "1", "t")
     redis_host = os.getenv("REDIS_HOST", "localhost")
     redis_port = int(os.getenv("REDIS_PORT", 6379))
     redis_user = os.getenv("REDIS_USER", "")

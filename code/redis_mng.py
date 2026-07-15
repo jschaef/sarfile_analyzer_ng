@@ -11,10 +11,10 @@ _redis_disabled = False
 
 def get_redis_conn(decode=True):
     global _redis_disabled
-    
-    if _redis_disabled:
+
+    if _redis_disabled or not Config.redis_enabled:
         return None
-        
+
     cache_key = f"conn_{decode}"
     if cache_key in _redis_cache:
         return _redis_cache[cache_key]
@@ -32,11 +32,13 @@ def get_redis_conn(decode=True):
         connection_params["username"] = Config.redis_user
     if Config.redis_password:
         connection_params["password"] = Config.redis_password
-        
+
     try:
         rs = redis.StrictRedis(**connection_params)
-        # We avoid rs.ping() here because it's synchronous and slow.
-        # The connection will fail on the first actual operation if Redis is down.
+        # Probe reachability exactly once. The 1s connect timeout applies only
+        # to this ping; on failure we disable Redis for the whole process so no
+        # later operation pays the timeout again (and callers fall back cleanly).
+        rs.ping()
         _redis_cache[cache_key] = rs
         return rs
     except Exception:

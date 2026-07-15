@@ -1,12 +1,14 @@
 import re
 import io
+import logging
 import os.path
 from pathlib import Path
-from datetime import datetime
 import redis_mng
 import polars as pl
 import pl_helpers2
 import config as Config
+
+logger = logging.getLogger(__name__)
 
 #@cache_data  # Disabled to allow proper Redis cleanup on file re-upload
 def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
@@ -29,12 +31,7 @@ def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
             parquet_mem = io.BytesIO(b'')
         try:
             df = pl.read_parquet(parquet_mem)
-            # print(
-            #     f'{r_item}, {file_name_parquet} \
-            #     loaded from redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
-            # )
         except Exception as e:
-            #print(e)
             try:
                 df = pl.read_parquet(parquet_file)
             except Exception as e:
@@ -46,15 +43,13 @@ def get_data_frame(file_name: str, user_name: str) -> pl.DataFrame:
                     r_item,
                     property=file_name_parquet,
                 )
-                print(
-                    f'{r_item}, {file_name_parquet} saved to redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
-                )
-                print(f"{r_item} {file_name_parquet} saved")
+                logger.debug("%s, %s saved to redis", r_item, file_name_parquet)
             except Exception as e:
-                print(
-                    f"could not connect to redis server or save {file_name_parquet} to redis server"
+                logger.warning(
+                    "could not connect to redis server or save %s to redis server: %s",
+                    file_name_parquet,
+                    e,
                 )
-                print(f"exception is {e}")
             else:
                 return df
     elif os.path.exists(parquet_file):
@@ -189,14 +184,13 @@ def parse_sar_file(file_path: str, username: str, DEBUG: bool = False) -> pl.Dat
             try:
                 mem_obj = df.to_pandas().to_parquet()
                 redis_mng.set_redis_key(mem_obj, r_item, property=file_name_parquet)
-                print(
-                    f'{r_item}, {file_name_parquet} saved to redis at {datetime.now().strftime("%m/%d/%y %H:%M:%S")}'
-                )
+                logger.debug("%s, %s saved to redis", r_item, file_name_parquet)
             except Exception as e:
-                print(
-                    f"could not connect to redis server or save {file_name_parquet} to redis server",
+                logger.warning(
+                    "could not connect to redis server or save %s to redis server: %s",
+                    file_name_parquet,
+                    e,
                 )
-                print(f"exception is {e}")
 
     if not DEBUG:
         os.system(f"rm -rf {real_path}")
