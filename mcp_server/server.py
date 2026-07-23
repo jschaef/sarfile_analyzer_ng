@@ -220,8 +220,12 @@ def upload_sar_file(
     """Upload a SAR file (ASCII or binary 'saXXXXXXXX') and convert it to
     parquet.
 
-    Provide either file_path (a path readable by this MCP server) or
-    content_base64 together with filename.
+    Prefer file_path: it is read where THIS MCP server runs and streamed to
+    the API without base64. When the server runs locally (stdio), a normal
+    local path just works. Only use content_base64 (+ filename) as a
+    fallback when the file is not reachable from the server's filesystem;
+    avoid it for large files (it inflates the request by ~33% and is passed
+    inline).
     """
     if file_path:
         path = Path(file_path).expanduser()
@@ -445,4 +449,10 @@ def compare_files(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    # streamable-http (default): remote server on the host, zero client
+    #   install, but client-local file uploads must go base64-through-context.
+    # stdio: run this same server LOCALLY (per user, in the gemini/claude
+    #   config), pointed at the remote SAR_API_URL. Then upload_sar_file with
+    #   a LOCAL file_path streams the bytes straight to the API (no base64).
+    transport = os.getenv("SAR_MCP_TRANSPORT", "streamable-http")
+    mcp.run(transport=transport)
