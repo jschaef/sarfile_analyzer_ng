@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.utilities.types import Image
 
 API_URL = os.getenv("SAR_API_URL", "http://127.0.0.1:8100").rstrip("/")
@@ -46,40 +46,71 @@ mcp = FastMCP(
     ),
 )
 
-_token: str | None = None
-_token_expiry: float = 0.0
+# Per-MCP-session credentials: sessions start on the service account from the
+# environment; the `login` tool switches a single session to another analyzer
+# user without affecting other connected clients. Key 0 = env default.
+_DEFAULT_KEY = 0
+_sessions: dict[int, dict] = {}
 
 
-def _login(client: httpx.Client) -> str:
-    global _token, _token_expiry
-    username = os.getenv("SAR_API_USERNAME")
-    password = os.getenv("SAR_API_PASSWORD")
-    if not username or not password:
-        raise RuntimeError("SAR_API_USERNAME / SAR_API_PASSWORD not configured")
+def _default_creds() -> dict:
+    return {
+        "username": os.getenv("SAR_API_USERNAME"),
+        "password": os.getenv("SAR_API_PASSWORD"),
+        "token": None,
+        "expiry": 0.0,
+    }
+
+
+def _session_key(ctx: Context | None) -> int:
+    session = getattr(ctx, "session", None) if ctx else None
+    return id(session) if session is not None else _DEFAULT_KEY
+
+
+def _creds(session_key: int) -> dict:
+    if session_key not in _sessions:
+        _sessions[session_key] = _default_creds()
+    return _sessions[session_key]
+
+
+def _login_creds(client: httpx.Client, creds: dict) -> str:
+    if not creds["username"] or not creds["password"]:
+        raise RuntimeError(
+            "No credentials: configure SAR_API_USERNAME/PASSWORD "
+            "or use the login tool"
+        )
     response = client.post(
         f"{API_URL}{API_PREFIX}/token",
-        json={"username": username, "password": password},
+        json={"username": creds["username"], "password": creds["password"]},
     )
+    if response.status_code == 401:
+        raise RuntimeError(f"Login failed for {creds['username']!r}: invalid credentials")
     response.raise_for_status()
     data = response.json()
-    _token = data["access_token"]
-    _token_expiry = data.get("expires_at", time.time() + 3600)
-    return _token
+    creds["token"] = data["access_token"]
+    creds["expiry"] = data.get("expires_at", time.time() + 3600)
+    return creds["token"]
 
 
 def _request(
-    method: str, path: str, *, expect_json: bool = True, **kwargs
+    method: str,
+    path: str,
+    *,
+    session_key: int = _DEFAULT_KEY,
+    expect_json: bool = True,
+    **kwargs,
 ) -> Any | httpx.Response:
-    """Authenticated API call with automatic (re-)login."""
+    """Authenticated API call with automatic (re-)login for the session's user."""
+    creds = _creds(session_key)
     with httpx.Client(timeout=300.0) as client:
-        if _token is None or time.time() > _token_expiry - 60:
-            _login(client)
-        headers = {"Authorization": f"Bearer {_token}"}
+        if not creds["token"] or time.time() > creds["expiry"] - 60:
+            _login_creds(client, creds)
+        headers = {"Authorization": f"Bearer {creds['token']}"}
         response = client.request(
             method, f"{API_URL}{API_PREFIX}{path}", headers=headers, **kwargs
         )
         if response.status_code == 401:
-            headers = {"Authorization": f"Bearer {_login(client)}"}
+            headers = {"Authorization": f"Bearer {_login_creds(client, creds)}"}
             response = client.request(
                 method, f"{API_URL}{API_PREFIX}{path}", headers=headers, **kwargs
             )
@@ -124,31 +155,64 @@ def _chart_result(response: httpx.Response, fallback_name: str) -> list:
 # tools
 # --------------------------------------------------------------------------
 @mcp.tool()
-def create_user(username: str, password: str, role: str = "user") -> dict:
+def login(username: str, password: str, ctx: Context) -> dict:
+    """Log this MCP session in as a different analyzer user.
+
+    Only affects the current session: uploads, files and charts then belong
+    to that user (upload/<username>/). Other connected clients keep their
+    own login. Without login, the session uses the configured service
+    account."""
+    creds = {"username": username, "password": password, "token": None, "expiry": 0.0}
+    with httpx.Client(timeout=60.0) as client:
+        _login_creds(client, creds)
+    _sessions[_session_key(ctx)] = creds
+    me = _request("GET", "/users/me", session_key=_session_key(ctx))
+    return {"logged_in_as": me["username"], "role": me["role"]}
+
+
+@mcp.tool()
+def logout(ctx: Context) -> dict:
+    """Reset this MCP session back to the configured service account."""
+    _sessions.pop(_session_key(ctx), None)
+    default_user = os.getenv("SAR_API_USERNAME")
+    return {"logged_in_as": default_user, "note": "back to service account"}
+
+
+@mcp.tool()
+def whoami(ctx: Context) -> dict:
+    """Show which analyzer user this MCP session currently acts as."""
+    return _request("GET", "/users/me", session_key=_session_key(ctx))
+
+
+@mcp.tool()
+def create_user(username: str, password: str, ctx: Context, role: str = "user") -> dict:
     """Create a new analyzer user (web UI + API login).
 
-    Requires the MCP server's configured API account to have the admin role.
-    Roles: 'user' or 'admin'.
+    The session's current user needs the admin role. Roles: 'user' or 'admin'.
     """
     return _request(
-        "POST", "/users", json={"username": username, "password": password, "role": role}
+        "POST",
+        "/users",
+        session_key=_session_key(ctx),
+        json={"username": username, "password": password, "role": role},
     )
 
 
 @mcp.tool()
-def list_users() -> dict:
+def list_users(ctx: Context) -> dict:
     """List all analyzer users and their roles (admin only)."""
-    return _request("GET", "/users")
+    return _request("GET", "/users", session_key=_session_key(ctx))
 
 
 @mcp.tool()
-def list_sar_files() -> dict:
+def list_sar_files(ctx: Context) -> dict:
     """List the SAR files (parquet) available for analysis."""
-    return _request("GET", "/files")
+    return _request("GET", "/files", session_key=_session_key(ctx))
 
 
 @mcp.tool()
 def upload_sar_file(
+    ctx: Context,
     file_path: str | None = None,
     content_base64: str | None = None,
     filename: str | None = None,
@@ -170,33 +234,38 @@ def upload_sar_file(
         name = filename
     else:
         raise RuntimeError("Provide file_path or (content_base64 and filename)")
-    return _request("POST", "/files", files={"files": (name, content)})
+    return _request(
+        "POST", "/files", session_key=_session_key(ctx), files={"files": (name, content)}
+    )
 
 
 @mcp.tool()
-def delete_sar_file(name: str) -> dict:
+def delete_sar_file(name: str, ctx: Context) -> dict:
     """Delete an uploaded SAR file (parquet) from the server."""
-    return _request("DELETE", f"/files/{name}")
+    return _request("DELETE", f"/files/{name}", session_key=_session_key(ctx))
 
 
 @mcp.tool()
-def get_file_info(name: str) -> dict:
+def get_file_info(name: str, ctx: Context) -> dict:
     """OS details, time range, restarts and all headers (with aliases and
     metrics) of a SAR file."""
-    return _request("GET", f"/files/{name}")
+    return _request("GET", f"/files/{name}", session_key=_session_key(ctx))
 
 
 @mcp.tool()
-def get_header_details(name: str, header: str) -> dict:
+def get_header_details(name: str, header: str, ctx: Context) -> dict:
     """Metrics, sub-devices (CPUs, disks, NICs, ...) and time range for one
     header of a SAR file. `header` accepts an alias like 'CPU' or 'Load'."""
-    return _request("GET", f"/files/{name}/headers/{header}")
+    return _request(
+        "GET", f"/files/{name}/headers/{header}", session_key=_session_key(ctx)
+    )
 
 
 @mcp.tool()
 def get_statistics(
     name: str,
     header: str,
+    ctx: Context,
     metric: str | None = None,
     device: str | None = None,
     start: str | None = None,
@@ -215,13 +284,16 @@ def get_statistics(
         }.items()
         if v is not None
     }
-    return _request("GET", f"/files/{name}/statistics", params=params)
+    return _request(
+        "GET", f"/files/{name}/statistics", session_key=_session_key(ctx), params=params
+    )
 
 
 @mcp.tool()
 def get_data(
     name: str,
     header: str,
+    ctx: Context,
     metric: str | None = None,
     device: str | None = None,
     start: str | None = None,
@@ -241,7 +313,9 @@ def get_data(
         }.items()
         if v is not None
     }
-    data = _request("GET", f"/files/{name}/data", params=params)
+    data = _request(
+        "GET", f"/files/{name}/data", session_key=_session_key(ctx), params=params
+    )
     if data["rows"] > max_rows:
         data["data"] = data["data"][:max_rows]
         data["truncated_to"] = max_rows
@@ -252,6 +326,7 @@ def get_data(
 def generate_chart(
     file: str,
     header: str,
+    ctx: Context,
     metric: str | None = None,
     device: str | None = None,
     start: str | None = None,
@@ -282,13 +357,20 @@ def generate_chart(
         "height": height,
         "font_size": font_size,
     }
-    response = _request("POST", "/charts/single", json=body, expect_json=False)
+    response = _request(
+        "POST",
+        "/charts/single",
+        session_key=_session_key(ctx),
+        json=body,
+        expect_json=False,
+    )
     return _chart_result(response, f"{file}_{header}.{format}")
 
 
 @mcp.tool()
 def generate_overview(
     file: str,
+    ctx: Context,
     aliases: list[str] | None = None,
     start: str | None = None,
     end: str | None = None,
@@ -312,7 +394,13 @@ def generate_overview(
         "width": width,
         "height": height,
     }
-    response = _request("POST", "/charts/overview", json=body, expect_json=False)
+    response = _request(
+        "POST",
+        "/charts/overview",
+        session_key=_session_key(ctx),
+        json=body,
+        expect_json=False,
+    )
     suffix = "pdf" if format == "pdf" else "zip"
     return _chart_result(response, f"{file}_overview.{suffix}")
 
@@ -322,6 +410,7 @@ def compare_files(
     files: list[str],
     header: str,
     metric: str,
+    ctx: Context,
     device: str | None = None,
     mode: str = "overlay",
     backend: str = "bokeh",
@@ -345,7 +434,13 @@ def compare_files(
         "width": width,
         "height": height,
     }
-    response = _request("POST", "/charts/multi", json=body, expect_json=False)
+    response = _request(
+        "POST",
+        "/charts/multi",
+        session_key=_session_key(ctx),
+        json=body,
+        expect_json=False,
+    )
     return _chart_result(response, f"multi_{header}_{metric}.{format}")
 
 

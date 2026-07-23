@@ -59,6 +59,13 @@ class CreateUserRequest(BaseModel):
     role: str = "user"
 
 
+@app.get(f"{PREFIX}/users/me")
+def get_me(username: str = Depends(auth.get_current_user)):
+    import sql_stuff
+
+    return {"username": username, "role": sql_stuff.get_role(username)}
+
+
 @app.get(f"{PREFIX}/users")
 def list_users(username: str = Depends(auth.get_current_user)):
     import sql_stuff

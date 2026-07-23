@@ -36,6 +36,9 @@ Client config example (Claude Code):
 
 ## Tools
 
+- `login(username, password)` / `logout()` / `whoami()` — switch THIS MCP
+  session to another analyzer user (per-session; other clients keep their
+  login; without login the session acts as the configured service account)
 - `upload_sar_file(file_path | content_base64+filename)` — ASCII or binary SAR file, auto-converted to parquet
 - `list_sar_files()` / `delete_sar_file(name)`
 - `get_file_info(name)` — OS details, time range, restarts, headers
