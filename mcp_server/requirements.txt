@@ -1,2 +1,9 @@
-mcp
-httpx
+# Standalone dependencies for the SAR Analyzer MCP server (mcp_server/).
+# The package imports nothing from code/ or api/ — it is a thin HTTP client of
+# the REST API, so these two files (__init__.py + server.py) plus this file are
+# all you need on an external host.
+#
+# Minimum Python: 3.10 (mcp SDK requirement + PEP 604 "X | None" syntax used in
+# the code). Tested on 3.12.
+mcp>=1.26
+httpx>=0.27

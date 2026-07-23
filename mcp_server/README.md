@@ -35,6 +35,36 @@ MCP endpoint: `http://<host>:8200/mcp` (stateful). Client config:
 { "mcpServers": { "sar-analyzer": { "type": "http", "url": "http://<host>:8200/mcp" } } }
 ```
 
+### Standalone on another host (no rest of sarfile_analyzer_ng)
+
+`mcp_server/` imports nothing from `code/` or `api/` — it is a thin HTTP client
+of the REST API. To run it on a separate "toolset" host, copy just the package
+and its requirements:
+
+```
+mcp_server/__init__.py
+mcp_server/server.py
+mcp_server/requirements.txt   # only: mcp>=1.26, httpx>=0.27
+```
+
+plus the root CA file for `SSL_CERT_FILE`. Then:
+
+```bash
+python3 -m venv venv          # Python >= 3.10 required
+venv/bin/pip install -r mcp_server/requirements.txt
+# run from the PARENT dir of mcp_server/:
+SAR_MCP_TRANSPORT=stdio SAR_API_URL=https://dus-lab-sar.lab.dus.suse.com:8443 \
+SAR_API_USERNAME=... SAR_API_PASSWORD=... \
+SSL_CERT_FILE=/path/to/premium-support-dus-ca.pem \
+venv/bin/python -m mcp_server.server
+```
+
+Note on uploads: in stdio mode `upload_sar_file(file_path=...)` reads the path
+**on the host where this server runs**. On a toolset host that means the SAR
+files must be present there (copied/collected on that host) — a path on your
+laptop is not reachable. The rest of the tools (analysis, charts) work
+regardless, since they only call the remote API.
+
 ### B) stdio (local, uploads your own files seamlessly)
 
 Run the same server locally, pointed at the remote API. No server process to
