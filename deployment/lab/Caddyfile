@@ -1,0 +1,37 @@
+# Caddy TLS terminator for the SAR analyzer API/MCP (rootless podman,
+# Network=host). Certs are copies of the nginx server certs (see
+# README-lab.md). Env: SAR_MCP_GATE_TOKEN from ~/.config/sar-analyzer/caddy.env
+{
+	auto_https off
+	# Node/undici clients (gemini-cli, TS SDK) hang over h2 once the
+	# standalone GET SSE stream is open -> force HTTP/1.1 on the MCP site.
+	servers :9443 {
+		protocols h1
+	}
+}
+
+# REST API - auth handled by the API itself (bearer tokens from /api/v1/token)
+https://:8443 {
+	tls /certs/server.crt.pem /certs/server.key.pem
+	reverse_proxy 127.0.0.1:8100
+	log
+}
+
+# MCP server - static bearer-token gate at the proxy
+https://:9443 {
+	tls /certs/server.crt.pem /certs/server.key.pem
+
+	@unauthorized not header Authorization "Bearer {$SAR_MCP_GATE_TOKEN}"
+	respond @unauthorized 401
+
+	# No server-initiated events -> reject the idle GET SSE stream (405 is
+	# MCP-spec-conform; avoids VPN/NAT idle-timeout errors in clients).
+	@idle_get method GET
+	respond @idle_get 405
+
+	# Avoid the 307 /mcp -> /mcp/ redirect (Location would downgrade to http)
+	rewrite /mcp /mcp/
+
+	reverse_proxy 127.0.0.1:8200
+	log
+}

@@ -1,0 +1,16 @@
+# User unit: ~/.config/systemd/user/sar-mcp.service
+# Rootless MCP server (Streamable HTTP) talking to the local REST API.
+[Unit]
+Description=SAR File Analyzer MCP Server (rootless)
+After=sar-api.service
+Wants=sar-api.service
+
+[Service]
+WorkingDirectory=%h/data1/sarfile_analyzer_ng
+EnvironmentFile=%h/.config/sar-analyzer/mcp.env
+ExecStart=%h/data1/sarfile_analyzer_ng/code/venv/bin/python -m mcp_server.server
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

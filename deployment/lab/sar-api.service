@@ -1,0 +1,17 @@
+# User unit: ~/.config/systemd/user/sar-api.service
+# Rootless REST API for the SAR file analyzer (binds 127.0.0.1 only,
+# exposed via the system nginx vhost). Boot persistence needs
+# `loginctl enable-linger <user>`.
+[Unit]
+Description=SAR File Analyzer REST API (uvicorn, rootless)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/data1/sarfile_analyzer_ng
+EnvironmentFile=%h/.config/sar-analyzer/api.env
+ExecStart=%h/data1/sarfile_analyzer_ng/code/venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8100
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

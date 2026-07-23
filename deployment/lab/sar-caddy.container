@@ -1,0 +1,21 @@
+# Quadlet: ~/.config/containers/systemd/sar-caddy.container
+# Rootless Caddy terminating TLS for the SAR API (:8443) and MCP (:9443).
+# Network=host so the container reaches the loopback-bound services and
+# binds the (unprivileged) host ports directly.
+[Unit]
+Description=Caddy TLS proxy for SAR Analyzer API/MCP
+After=network-online.target
+
+[Container]
+Image=docker.io/library/caddy:2-alpine
+Network=host
+Volume=%h/sar-analyzer/Caddyfile:/etc/caddy/Caddyfile:ro
+Volume=%h/sar-analyzer/certs:/certs:ro
+EnvironmentFile=%h/.config/sar-analyzer/caddy.env
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
