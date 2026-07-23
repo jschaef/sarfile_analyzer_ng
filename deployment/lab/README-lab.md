@@ -30,16 +30,31 @@ Linger → Health-Check. Am Ende gibt es das MCP-Gate-Token aus.
 
 ## Einmalige Root-Schritte
 
-Nur die TLS-Zertifikate (Key unter `/etc/nginx/ssl` ist root-only):
+Caddy braucht ein eigenes Server-Zertifikat unter
+`~/sar-analyzer/certs/server.{crt,key}.pem`. Aktuell liegt dort ein
+**direkt von der Root-CA** signiertes Leaf-Zertifikat (SAN
+`DNS:dus-lab-sar.lab.dus.suse.com, IP:10.156.60.24`, mit AKI, strict-clean):
 
-```bash
-sudo install -o jschaef -g users -m 644 /etc/nginx/ssl/dus-lab-sar.lab.dus.suse.com.crt.pem /home/jschaef/sar-analyzer/certs/server.crt.pem
-sudo install -o jschaef -g users -m 600 /etc/nginx/ssl/dus-lab-sar.lab.dus.suse.com.key.pem /home/jschaef/sar-analyzer/certs/server.key.pem
-```
+- `server.crt.pem` = **nur das Leaf** (keine Fullchain — die Root ist der
+  Vertrauensanker beim Client, es gibt keine Zwischen-CA).
+- `server.key.pem` = passender Private Key, `chmod 600`.
 
-Danach `systemctl --user restart sar-caddy` (bzw. `deploy.sh` erneut).
-Bei Cert-Erneuerung des nginx-Certs die Kopie manuell nachziehen — sie
-wird NICHT automatisch aktualisiert.
+Da root-signiert und strict-sauber, braucht der stdio-Client **kein**
+`SAR_MCP_TLS_RELAX_STRICT`. Client-Trust weiterhin nur die Root-CA
+(`premium-support-dus-ca.pem`).
+
+Cert bauen (Extension-Datei mit `subjectAltName = @alt` /
+`[alt]\nDNS.1=...\nIP.1=...`, dazu `authorityKeyIdentifier=keyid,issuer`,
+`subjectKeyIdentifier=hash`, `basicConstraints=CA:FALSE`,
+`extendedKeyUsage=serverAuth`), von der Root-CA signieren, dann nach
+`~/sar-analyzer/certs/` kopieren und `systemctl --user restart sar-caddy`.
+Prüfen: `openssl verify -x509_strict -verify_hostname dus-lab-sar.lab.dus.suse.com
+-CAfile <root-ca> server.crt.pem` muss OK sein.
+
+Frühere Variante (überholt): eine Kopie des nginx-Certs (`/etc/nginx/ssl`,
+root-only) — die war von der Sub-CA signiert und **nicht** strict-clean
+(basicConstraints nicht critical), daher der Relax-Workaround. Mit dem
+root-signierten Cert entfällt das.
 
 ## Secrets (alle unter ~/.config/sar-analyzer/, chmod 600)
 
