@@ -31,6 +31,10 @@ https://:9443 {
 
 	# Note: current FastMCP serves exactly /mcp (no trailing slash) and
 	# redirects /mcp/ back to /mcp - no rewrite needed here.
-	reverse_proxy 127.0.0.1:8200
+	# Host header rewritten to the local endpoint: the MCP SDK's
+	# DNS-rebinding protection only accepts 127.0.0.1/localhost (else 421).
+	reverse_proxy 127.0.0.1:8200 {
+		header_up Host "127.0.0.1:8200"
+	}
 	log
 }
