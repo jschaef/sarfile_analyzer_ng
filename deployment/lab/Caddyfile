@@ -29,9 +29,8 @@ https://:9443 {
 	@idle_get method GET
 	respond @idle_get 405
 
-	# Avoid the 307 /mcp -> /mcp/ redirect (Location would downgrade to http)
-	rewrite /mcp /mcp/
-
+	# Note: current FastMCP serves exactly /mcp (no trailing slash) and
+	# redirects /mcp/ back to /mcp - no rewrite needed here.
 	reverse_proxy 127.0.0.1:8200
 	log
 }
