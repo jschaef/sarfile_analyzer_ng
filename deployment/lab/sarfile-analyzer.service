@@ -1,0 +1,28 @@
+# Reference copy of the live SYSTEM unit that runs the SAR Analyzer WEB UI
+# across reboots: /etc/systemd/system/sarfile-analyzer.service (root-managed,
+# predates the rootless API/MCP deploy).
+#
+# Starts Streamlit inside a detached screen session, bound to 127.0.0.1:8501
+# (fronted by the system nginx on :443). Survives reboot because it is enabled
+# (WantedBy=multi-user.target) and Restart=always brings it back if it dies.
+#
+# Install/enable as root:
+#   sudo cp sarfile-analyzer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sarfile-analyzer.service
+[Unit]
+Description=Start sar-analyzer in Screen
+After=network.target
+
+[Service]
+User=jschaef
+Type=forking
+WorkingDirectory=/home/jschaef/data1/sarfile_analyzer_ng/code
+ExecStart=/bin/bash -c 'cd /home/jschaef/data1/sarfile_analyzer_ng/code && source ./venv/bin/activate && screen -dmS sar-analyzer streamlit run start_sar_analyzer.py --server.headless true --server.address 127.0.0.1'
+RemainAfterExit=false
+Restart=always
+RestartSec=10s
+ExecStop=/usr/bin/screen -S sar-analyzer -p 0 -X stuff "exit^M"
+SuccessExitStatus=1
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,18 @@ Client (VPN) ── https://dus-lab-sar.lab.dus.suse.com
 MCP → API läuft lokal über `127.0.0.1:8100` mit dem Service-Account
 `mcp-agent` (admin, wird vom Deploy-Skript angelegt).
 
+### System-nginx (Web-UI, root-verwaltet, unabhängig von diesem Deploy)
+
+Die Streamlit-Web-UI läuft weiter über den System-nginx auf `:443` — separat
+vom rootless Caddy (der nur `:8443`/`:9443` bedient). Config:
+`/etc/nginx/conf.d/sarfile-analyzer.conf`, Referenzkopie im Repo:
+[`nginx-sarfile-analyzer-ui.conf`](nginx-sarfile-analyzer-ui.conf). Ein
+`server`-Block, `:443 ssl` → `proxy_pass http://127.0.0.1:8501` mit
+WebSocket-Upgrade (für Streamlit nötig) und `client_max_body_size 2048M` (große
+SAR-Uploads über die UI). Eigenes nginx-Cert unter `/etc/nginx/ssl/`
+(unabhängig vom root-signierten Caddy-Cert). Kein Port-80-Redirect. Änderungen
+als root: `sudo nginx -t && sudo systemctl reload nginx`.
+
 ## Deployment / Update (rootless, idempotent)
 
 ```bash
@@ -66,6 +78,51 @@ root-signierten Cert entfällt das.
 
 Anzeigen: `grep SAR_MCP_GATE_TOKEN ~/.config/sar-analyzer/caddy.env`
 
+## Reboot-Persistenz (was startet nach einem Neustart automatisch)
+
+Zwei Ebenen, beide aktiv:
+
+**System-Units (root, `systemctl is-enabled` = enabled):**
+
+| Unit | Zweck | Repo-Referenz |
+|---|---|---|
+| `sarfile-analyzer.service` | Streamlit-UI via `screen` → `127.0.0.1:8501`, `Restart=always`, `WantedBy=multi-user.target` | [`sarfile-analyzer.service`](sarfile-analyzer.service) |
+| `nginx.service` | Reverse Proxy `:443` → 8501 | [`nginx-sarfile-analyzer-ui.conf`](nginx-sarfile-analyzer-ui.conf) |
+| `redis@sar-crafter.service` | Redis-Cache (Parquet), von der App genutzt | — |
+
+**User-Units (rootless `jschaef`, laufen nach Reboot dank `Linger=yes`):**
+
+| Unit | Zustand | Autostart über |
+|---|---|---|
+| `sar-api.service` | enabled | `WantedBy=default.target` |
+| `sar-mcp.service` | enabled | `WantedBy=default.target` |
+| `sar-caddy.service` | `generated` (normal für Quadlets) | `[Install] WantedBy=default.target` im `.container` |
+
+Voraussetzung für die User-Ebene: `loginctl show-user jschaef -p Linger` = `yes`
+(sonst laufen die User-Units erst beim nächsten Login an, nicht beim Boot).
+`deploy.sh` setzt Linger idempotent.
+
+Prüfen nach einem Reboot:
+```bash
+systemctl is-active sarfile-analyzer nginx redis@sar-crafter
+systemctl --user is-active sar-api sar-mcp sar-caddy
+```
+
+## Backup (was für einen vollständigen Wiederaufbau gesichert sein muss)
+
+Der Code + `deployment/lab/` liegen in Git — die folgenden, bewusst NICHT
+versionierten Dinge gehören ins Backup:
+
+| Pfad | Inhalt | Im DR ohne Backup |
+|---|---|---|
+| `~/data1/sarfile_analyzer_ng/code/data.db` | **Analyzer-Benutzer** (userstable), Header-/Metrik-Metadaten | `deploy.sh` legt nur `mcp-agent` neu an — alle echten Benutzer wären weg |
+| `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
+| `~/sar-analyzer/certs/server.{crt,key}.pem` | TLS-Cert/Key (root-signiert) | neu von der Root-CA ausstellen (Rezept: `sar-cert-root-signiert`) |
+| `~/data1/sarfile_analyzer_ng/code/upload/<user>/` | hochgeladene SAR-Dateien + Parquet | Nutzerdaten, erneut hochladbar |
+
+Mindest-Backup für schmerzfreien Wiederaufbau: **`data.db`** und
+**`~/.config/sar-analyzer/`**.
+
 ## Client-Zugriff (VPN nötig)
 
 - API: `https://dus-lab-sar.lab.dus.suse.com:8443/api/v1/...`
@@ -87,10 +144,19 @@ claude mcp add --transport http sar-analyzer https://dus-lab-sar.lab.dus.suse.co
 1. VM mit SLES 15-SP6+, User jschaef, podman, git, python3.12
 2. `git clone git@github.com:jschaef/sarfile_analyzer_ng.git ~/data1/sarfile_analyzer_ng`
 3. `cd ~/data1/sarfile_analyzer_ng/code && python3.12 -m venv venv && venv/bin/pip install -r requirements.txt`
-4. Streamlit-UI wie gehabt (System-Unit `sarfile-analyzer.service` + nginx-Vhost, siehe Repo-README) — unabhängig von API/MCP
-5. `deployment/lab/deploy.sh` ausführen (erzeugt alle Secrets neu → neue Tokens an Clients verteilen; `data.db` mit Benutzern ggf. aus Backup, sonst legt das Skript `mcp-agent` neu an)
-6. Root: Cert-Kopie (oben), dann `systemctl --user restart sar-caddy`
-7. Test: `curl https://.../8443/api/v1/health` + MCP-Smoke (unten)
+4. `data.db` aus Backup zurückspielen (sonst nur `mcp-agent`, alle echten Benutzer fehlen)
+5. Streamlit-UI (unabhängig von API/MCP): System-Unit + nginx-Vhost als root
+   installieren — `sudo cp deployment/lab/sarfile-analyzer.service /etc/systemd/system/`,
+   `sudo cp deployment/lab/nginx-sarfile-analyzer-ui.conf /etc/nginx/conf.d/sarfile-analyzer.conf`,
+   nginx-Cert unter `/etc/nginx/ssl/` bereitstellen, dann
+   `sudo systemctl enable --now sarfile-analyzer`, `sudo nginx -t && sudo systemctl reload nginx`,
+   `sudo systemctl enable --now redis@sar-crafter`
+6. TLS-Cert für Caddy nach `~/sar-analyzer/certs/server.{crt,key}.pem` (aus Backup
+   oder neu von der Root-CA, Rezept: concepts `sar-cert-root-signiert`)
+7. `deployment/lab/deploy.sh` ausführen (Secrets aus Backup wiederherstellen ODER
+   neu erzeugen lassen → dann neue Tokens an Clients verteilen; setzt Linger, startet
+   user-Units + Caddy)
+8. Test: `curl https://…:8443/api/v1/health` + MCP-Smoke (`deployment/lab/mcp_smoke_lab.py`)
 
 ## Troubleshooting
 
