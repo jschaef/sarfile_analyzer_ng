@@ -56,6 +56,7 @@ gemini-cli (`~/.gemini/settings.json`) / Claude Code (`~/.claude.json`):
         "SAR_API_USERNAME": "<your-analyzer-user>",
         "SAR_API_PASSWORD": "<your-password>",
         "SSL_CERT_FILE": "/path/to/premium-support-dus-ca.pem",
+        "SAR_MCP_TLS_RELAX_STRICT": "1",
         "SAR_MCP_OUTPUT_DIR": "/path/to/where/charts/should/land"
       }
     }
@@ -66,9 +67,14 @@ gemini-cli (`~/.gemini/settings.json`) / Claude Code (`~/.claude.json`):
 Notes for stdio against the remote API:
 - `SAR_API_URL` is the API port `:8443` (not the MCP `:9443`), and no MCP gate
   token is needed — you speak to the API directly.
-- `SSL_CERT_FILE` gives Python the internal CA. If the cert lacks the AKI
-  extension, Python's strict TLS may reject it — see the cert notes in
-  `deployment/lab/README-lab.md`.
+- `SSL_CERT_FILE` points to the **root CA** (`premium-support-dus-ca.pem`);
+  the server serves the full chain, so the root is the only trust anchor
+  needed.
+- `SAR_MCP_TLS_RELAX_STRICT=1` is required as long as the signing Sub-CA is
+  not strict-clean (its basicConstraints are not marked critical, which
+  Python >=3.13 rejects). CA pinning stays; only the RFC format check is
+  relaxed. Drop this once the Sub-CA is re-issued with critical
+  basicConstraints — see `deployment/lab/README-lab.md`.
 - Credentials can also be omitted here and set at runtime with the `login`
   tool.
 
@@ -82,6 +88,8 @@ Notes for stdio against the remote API:
 | `SAR_MCP_HOST` / `SAR_MCP_PORT` | `127.0.0.1` / `8200` | bind address (HTTP mode only) |
 | `SAR_MCP_OUTPUT_DIR` | `mcp_server/output` | where generated PNG/PDF files are written |
 | `SAR_MCP_MAX_INLINE_IMAGE` | `800000` | max PNG size (bytes) returned inline as MCP image |
+| `SAR_MCP_TLS_RELAX_STRICT` | unset | `1` keeps CA pinning but clears Python's strict TLS check; needed for a not-strict-clean CA chain (Sub-CA without critical basicConstraints) |
+| `SSL_CERT_FILE` | system default | Python CA bundle / root CA for the API's TLS (stdio-against-remote) |
 
 ## Tools
 

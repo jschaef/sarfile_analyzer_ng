@@ -34,6 +34,31 @@ OUTPUT_DIR = Path(
 )
 MAX_INLINE_IMAGE_BYTES = int(os.getenv("SAR_MCP_MAX_INLINE_IMAGE", 800_000))
 
+_verify_setting: object | None = None
+
+
+def _ssl_verify() -> object:
+    """TLS verification for the httpx client talking to the API.
+
+    Default: httpx default (certifi + SSL_CERT_FILE if set), i.e. Python's
+    strict RFC-5280 checks. Set SAR_MCP_TLS_RELAX_STRICT=1 to keep CA pinning
+    but clear VERIFY_X509_STRICT — needed when the CA chain is not
+    strict-clean (e.g. a private Sub-CA whose basicConstraints are not marked
+    critical, which Python >=3.13 rejects). Trust is unchanged; only the RFC
+    format nitpick is relaxed (same leniency curl/Node have by default).
+    """
+    global _verify_setting
+    if _verify_setting is None:
+        if os.getenv("SAR_MCP_TLS_RELAX_STRICT", "").lower() in ("1", "true", "yes"):
+            import ssl
+
+            ctx = ssl.create_default_context(cafile=os.getenv("SSL_CERT_FILE"))
+            ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+            _verify_setting = ctx
+        else:
+            _verify_setting = True
+    return _verify_setting
+
 mcp = FastMCP(
     "sar-analyzer",
     host=os.getenv("SAR_MCP_HOST", "127.0.0.1"),
@@ -102,7 +127,7 @@ def _request(
 ) -> Any | httpx.Response:
     """Authenticated API call with automatic (re-)login for the session's user."""
     creds = _creds(session_key)
-    with httpx.Client(timeout=300.0) as client:
+    with httpx.Client(timeout=300.0, verify=_ssl_verify()) as client:
         if not creds["token"] or time.time() > creds["expiry"] - 60:
             _login_creds(client, creds)
         headers = {"Authorization": f"Bearer {creds['token']}"}
@@ -163,7 +188,7 @@ def login(username: str, password: str, ctx: Context) -> dict:
     own login. Without login, the session uses the configured service
     account."""
     creds = {"username": username, "password": password, "token": None, "expiry": 0.0}
-    with httpx.Client(timeout=60.0) as client:
+    with httpx.Client(timeout=60.0, verify=_ssl_verify()) as client:
         _login_creds(client, creds)
     _sessions[_session_key(ctx)] = creds
     me = _request("GET", "/users/me", session_key=_session_key(ctx))
