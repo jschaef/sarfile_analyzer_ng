@@ -51,6 +51,16 @@ bash~: pip install -r requirements.txt
 * change password of admin
 * upload your first ASCII sar file via option menu "Manage Sar Files"
 
+## REST API and MCP server
+
+Besides the web UI the analyzer can be driven programmatically:
+
+* [api/](api/README.md) — FastAPI service: upload/convert SAR files,
+  headers/metrics, statistics, PNG/PDF charts (Bokeh and Altair), user
+  management. Auth against the existing user DB.
+* [mcp_server/](mcp_server/README.md) — MCP server (Streamable HTTP) for AI
+  agents, talks to the REST API.
+
 ## note
 
 Newer versions of sarfile_analyzer_ng may rely on the latest streamlit version.

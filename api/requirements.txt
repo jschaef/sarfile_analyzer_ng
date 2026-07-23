@@ -1,0 +1,4 @@
+# API-specific dependencies; the analyzer itself needs code/requirements.txt
+fastapi
+uvicorn[standard]
+python-multipart
