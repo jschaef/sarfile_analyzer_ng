@@ -110,18 +110,25 @@ systemctl --user is-active sar-api sar-mcp sar-caddy
 
 ## Backup (was für einen vollständigen Wiederaufbau gesichert sein muss)
 
-Der Code + `deployment/lab/` liegen in Git — die folgenden, bewusst NICHT
-versionierten Dinge gehören ins Backup:
+Der Code + `deployment/lab/` liegen in Git. Wichtig zu `data.db`: die im Repo
+versionierte `code/data.db` ist ein **Seed** (nur `admin` + 39 Headings + 294
+Metrics, keine anderen Benutzer). Auf dem Server enthält `data.db` die **echten
+Benutzer** und ist mit `git update-index --skip-worktree code/data.db`
+geschützt, damit `git pull` sie nie überschreibt — diese produktive `data.db`
+gehört ins Backup (das Repo-Seed reicht dafür nicht).
+
+Was ins Backup gehört (nicht bzw. nur als Seed in Git):
 
 | Pfad | Inhalt | Im DR ohne Backup |
 |---|---|---|
-| `~/data1/sarfile_analyzer_ng/code/data.db` | **Analyzer-Benutzer** (userstable), Header-/Metrik-Metadaten | `deploy.sh` legt nur `mcp-agent` neu an — alle echten Benutzer wären weg |
+| `~/data1/sarfile_analyzer_ng/code/data.db` | **echte Analyzer-Benutzer** (userstable) | Repo-Checkout liefert nur `admin` + Metadaten; `deploy.sh` ergänzt `mcp-agent` — alle anderen Benutzer wären weg |
 | `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
 | `~/sar-analyzer/certs/server.{crt,key}.pem` | TLS-Cert/Key (root-signiert) | neu von der Root-CA ausstellen (Rezept: `sar-cert-root-signiert`) |
 | `~/data1/sarfile_analyzer_ng/code/upload/<user>/` | hochgeladene SAR-Dateien + Parquet | Nutzerdaten, erneut hochladbar |
 
-Mindest-Backup für schmerzfreien Wiederaufbau: **`data.db`** und
-**`~/.config/sar-analyzer/`**.
+Mindest-Backup für schmerzfreien Wiederaufbau: die produktive **`data.db`** und
+**`~/.config/sar-analyzer/`**. (Header-/Metrik-Metadaten kommen notfalls aus dem
+Repo-Seed, die echten Benutzer nur aus dem Backup.)
 
 ## Client-Zugriff (VPN nötig)
 
@@ -144,7 +151,9 @@ claude mcp add --transport http sar-analyzer https://dus-lab-sar.lab.dus.suse.co
 1. VM mit SLES 15-SP6+, User jschaef, podman, git, python3.12
 2. `git clone git@github.com:jschaef/sarfile_analyzer_ng.git ~/data1/sarfile_analyzer_ng`
 3. `cd ~/data1/sarfile_analyzer_ng/code && python3.12 -m venv venv && venv/bin/pip install -r requirements.txt`
-4. `data.db` aus Backup zurückspielen (sonst nur `mcp-agent`, alle echten Benutzer fehlen)
+4. `data.db`: der Checkout bringt den Seed (admin + Headings + Metrics) mit.
+   Für die echten Benutzer die produktive `data.db` aus dem Backup einspielen und
+   auf dem Server `git update-index --skip-worktree code/data.db` setzen
 5. Streamlit-UI (unabhängig von API/MCP): System-Unit + nginx-Vhost als root
    installieren — `sudo cp deployment/lab/sarfile-analyzer.service /etc/systemd/system/`,
    `sudo cp deployment/lab/nginx-sarfile-analyzer-ui.conf /etc/nginx/conf.d/sarfile-analyzer.conf`,

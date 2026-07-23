@@ -12,7 +12,9 @@ package*.json
 auth_salesforce.json
 GEMINI.md
 .playwright-mcp/
-code/data.db
+# NOTE: code/data.db is intentionally TRACKED as a seed DB (admin user +
+# 39 headings + 294 metrics, no other users) so a fresh checkout works.
+# On a server with real users, protect it: git update-index --skip-worktree code/data.db
 # agentic tooling / old browser-automation MCP experiments (superseded by mcp_server/)
 .agents/
 .claude/
