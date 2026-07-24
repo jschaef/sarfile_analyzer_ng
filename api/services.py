@@ -20,6 +20,7 @@ import helpers_pl as helpers
 import parse_into_polars as parse_polars
 import pl_helpers2 as pl_h2
 import redis_mng
+import sar_ingest
 from config import Config
 from mng_sar import convert_openpgp_sar_file, is_sar_binary_file
 
@@ -87,6 +88,15 @@ def upload_sar_file(username: str, filename: str, content: bytes) -> dict:
 
     directory = user_dir(username)
     warnings: list[str] = []
+
+    # xz archives are unpacked, sadf JSON is converted to classic sar text
+    try:
+        content, filename, ingest_warnings = sar_ingest.preprocess_upload(
+            content, filename
+        )
+    except ValueError as exc:
+        raise ServiceError(str(exc))
+    warnings.extend(ingest_warnings)
 
     detected = Magic().from_buffer(content)
     is_openpgp = "OpenPGP Secret Key" in detected

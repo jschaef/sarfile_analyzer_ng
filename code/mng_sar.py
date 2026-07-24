@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import redis_mng
 import helpers_pl as helpers
+import sar_ingest
 from config import Config
 import visual_funcs as visf
 
@@ -162,7 +163,7 @@ def file_mng(upload_dir: str, username:str):
 
     st.markdown('___')
     if managef_options == 'Add Sar Files':
-        upload_hint = "SAR files must be in Posix format, decimal seperator has to be '.'. OpenPGP Secret Key files (binary SAR files) will be automatically converted."
+        upload_hint = "SAR files must be in Posix format, decimal seperator has to be '.'. OpenPGP Secret Key files (binary SAR files), sadf JSON exports (sadf -j) and xz-compressed files will be automatically converted."
         convert_cmd = "```unset LANG; sar -A -t -f <binary_file> > <ascii_file>```"
         sar_convert_hint = f"""{upload_hint} \
         \nManual conversion command: {convert_cmd}"""
@@ -182,8 +183,20 @@ def file_mng(upload_dir: str, username:str):
 
                         f_check = Magic()
                         bytes_data = u_file.read()
+
+                        # xz entpacken / sadf-JSON in sar-Text konvertieren
+                        try:
+                            bytes_data, new_name, ingest_warns = (
+                                sar_ingest.preprocess_upload(bytes_data, u_file.name)
+                            )
+                            u_file.name = new_name
+                            upload_warnings.extend(ingest_warns)
+                        except ValueError as e:
+                            col1.error(str(e))
+                            continue
+
                         res = f_check.from_buffer(bytes_data)
-                        
+
                         is_openpgp_detected = "OpenPGP Secret Key" in res
                         is_generic_data = "data" in res.lower()
                         is_binary_sar = is_sar_binary_file(bytes_data, u_file.name)

@@ -127,6 +127,10 @@ def parse_sar_file(file_path: str, username: str, DEBUG: bool = False) -> pl.Dat
             if reg_filesystem.search(line):
                 filesystem = True
                 line = handle_fibre_and_fs(line)
+            else:
+                # reset like fc_host: otherwise every data line after the
+                # first FILESYSTEM section gets rotated by handle_fibre_and_fs
+                filesystem = False
             header_str = " ".join(line.split()[1:])
             if not file_dict.get(header_str):
                 file_dict[header_str] = []

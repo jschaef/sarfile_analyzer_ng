@@ -75,6 +75,19 @@ else:
 PYEOF
 )
 
+echo "== 4b. seed maintenance (headings the server data.db may lack) =="
+# Server data.db is skip-worktree-protected, so new seed rows from the repo
+# never arrive via git pull - add them idempotently here.
+(cd "$REPO/code" && "$VENV/bin/python" - <<'PYEOF'
+import sql_stuff
+sql_stuff.add_header(
+    '%user %nice %system %iowait %steal %idle',
+    'CPU utilization (short format, sar -u / sadf without -A)',
+    'CPU', keywd='CPU')
+print("short CPU header ensured")
+PYEOF
+)
+
 echo "== 5. API + MCP user units =="
 mkdir -p "$UNIT_DIR"
 cp "$REPO/deployment/lab/sar-api.service" "$REPO/deployment/lab/sar-mcp.service" "$UNIT_DIR/"
