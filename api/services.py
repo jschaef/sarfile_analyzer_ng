@@ -37,6 +37,13 @@ DEFAULT_OVERVIEW_ALIASES = [
 _CPU_LIKE = re.compile(r"^CPU|SOFT.*", re.IGNORECASE)
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
+# Usernames may be plain logins or e-mail addresses. The first character must
+# be alphanumeric, which rules out '.', '..' and hidden names - important
+# because the username becomes a directory under UPLOAD_DIR. Path separators
+# are not part of the character class, so traversal is impossible.
+USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._@+-]*$"
+_SAFE_USERNAME = re.compile(USERNAME_PATTERN)
+
 
 class ServiceError(Exception):
     """Raised for user-facing errors (bad file name, unknown header, ...)."""
@@ -53,6 +60,10 @@ class _LogCol:
 
 
 def user_dir(username: str) -> Path:
+    # Defense in depth: usernames reach this from signed tokens, but the
+    # directory is built from them, so validate here as well.
+    if not _SAFE_USERNAME.match(username):
+        raise ServiceError(f"Invalid username: {username!r}")
     directory = Path(Config.upload_dir) / username
     directory.mkdir(parents=True, exist_ok=True)
     return directory

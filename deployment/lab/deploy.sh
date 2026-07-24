@@ -48,6 +48,9 @@ add_env() {   # add_env <file> <key> <value>
 add_env "$CONF_DIR/api.env" SAR_SSO_SECRET "$(openssl rand -hex 32)"
 add_env "$CONF_DIR/api.env" SAR_SSO_DEFAULT_PASSWORD "$(openssl rand -hex 12)"
 add_env "$CONF_DIR/api.env" SAR_UI_BASE_URL "https://dus-lab-sar.lab.dus.suse.com"
+# 15 min: long enough that a big upload can happen between minting the
+# redirect URL and the user actually following it; still single-use.
+add_env "$CONF_DIR/api.env" SAR_SSO_UI_TTL "900"
 
 if [ ! -f "$CONF_DIR/mcp.env" ]; then
     cat > "$CONF_DIR/mcp.env" <<EOF

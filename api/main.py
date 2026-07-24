@@ -67,8 +67,8 @@ UI_BASE_URL = os.getenv(
 class SsoTokenRequest(BaseModel):
     username: str = Field(
         min_length=2,
-        pattern=r"^[A-Za-z0-9._-]+$",
-        description="Platform user; provisioned on first use",
+        pattern=services.USERNAME_PATTERN,
+        description="Platform user (plain login or e-mail); provisioned on first use",
     )
     file: str | None = Field(
         default=None, description="Optional SAR file to preselect after the redirect"
@@ -128,7 +128,7 @@ def sso_validate(username: str = Depends(auth.consume_ui_token)):
 # user management (admin only)
 # --------------------------------------------------------------------------
 class CreateUserRequest(BaseModel):
-    username: str = Field(min_length=2, pattern=r"^[A-Za-z0-9._-]+$")
+    username: str = Field(min_length=2, pattern=services.USERNAME_PATTERN)
     password: str = Field(min_length=6)
     role: str = "user"
 
