@@ -97,8 +97,22 @@ Akzeptierte Formate — die Erkennung erfolgt über den **Dateiinhalt**, nicht
 |---|---|---|
 | SAR-ASCII (`sar -A -t`) | `sar20260714` | direkt |
 | SAR-Binär | `sa20260714` | serverseitig via `sar -A -t -f` konvertiert |
-| sadf-JSON (`sadf -j`) | `sar20260714.json` | in SAR-Text konvertiert |
+| sadf-JSON | `sar20260714.json` | in SAR-Text konvertiert |
 | alle obigen als xz | `sar20260714.json.xz` | entpackt, dann wie oben |
+
+### Wichtig: JSON richtig exportieren
+
+```bash
+sadf -j -t <sa-datei> -- -A > report.json
+```
+
+- **`-- -A`** reicht „alle Aktivitäten" an sar durch. Ohne das exportiert
+  `sadf -j` **nur die CPU-Auslastung** — im Analyzer taucht dann bloß eine
+  einzige Sektion auf.
+- **`-t`** behält die lokale Zeit der Datei. Ohne `-t` schreibt sadf **UTC**
+  (`"utc": 1` im JSON), wodurch die gesamte Zeitachse um den Zeitzonen-Offset
+  verschoben wäre. Solche Dateien werden zwar akzeptiert, erzeugen aber die
+  Warnung „timestamps are UTC" in der Upload-Antwort.
 
 Antwort `201`:
 

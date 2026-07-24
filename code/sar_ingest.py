@@ -1,10 +1,18 @@
 """Shared upload preprocessing: xz decompression and sadf-JSON conversion.
 
 Used by both the REST API (api/services.py) and the Streamlit UI (mng_sar.py).
-The sadf JSON (``sadf -j [-- -A]``) is rendered back into the classic
-``sar -A`` text layout so that parse_into_polars.parse_sar_file stays the
-single parsing authority - headers, metrics and devices come out identical to
-a text upload by construction.
+The sadf JSON is rendered back into the classic ``sar -A`` text layout so that
+parse_into_polars.parse_sar_file stays the single parsing authority - headers,
+metrics and devices come out identical to a text upload by construction.
+
+Recommended export on the source host::
+
+    sadf -j -t <sa-file> -- -A > report.json
+
+``-- -A`` passes the "all activities" flag through to sar (a plain ``sadf -j``
+only exports CPU utilisation), and ``-t`` keeps the file's original local time
+(without it sadf writes UTC, which would shift the whole time axis; such files
+are still accepted but produce a warning).
 
 Sections the text parser ignores anyway (interrupts, CPU MHz) are skipped.
 Unknown sections/fields are skipped with a warning instead of failing.
@@ -383,9 +391,17 @@ def sadf_json_to_sar_text(content: bytes) -> tuple[str, list[str]]:
     warnings: set[str] = set()
 
     for entry in host.get("statistics", []):
-        time = entry.get("timestamp", {}).get("time")
+        timestamp = entry.get("timestamp", {})
+        time = timestamp.get("time")
         if not time:
             continue
+        if timestamp.get("utc"):
+            # sadf without -t writes UTC; the analyzer treats the times as
+            # local (like sar -t does), so the axis would be shifted.
+            warnings.add(
+                "timestamps are UTC - export with 'sadf -j -t <file> -- -A' "
+                "to keep the original local time"
+            )
         for section, payload in entry.items():
             if section in ("timestamp",) or section in _SKIPPED_SECTIONS:
                 continue
