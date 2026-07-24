@@ -13,6 +13,26 @@ def get_config_dir() -> str:
         os.makedirs(config_dir)
     return config_dir
 
+def atomic_write_parquet(df: pl.DataFrame, filename: str) -> None:
+    """Writes a parquet file so readers never observe a partial file.
+
+    Streamlit serves every browser session in its own thread, so a login can
+    write these files while another session reads them. Writing to a
+    temporary file in the same directory and renaming it into place makes the
+    swap atomic on POSIX.
+
+    Note: this prevents torn reads, not lost updates - two callers doing
+    read-modify-write concurrently can still overwrite each other.
+    """
+    tmp = f"{filename}.tmp-{os.getpid()}"
+    try:
+        df.write_parquet(tmp)
+        os.replace(tmp, filename)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
 def load_df_from_file() -> pl.DataFrame:
     config_dir = get_config_dir()
     filename = os.path.join(config_dir,"user_df.parquet")
@@ -27,7 +47,7 @@ def load_df_from_file() -> pl.DataFrame:
 def write_df_to_file(df: pl.DataFrame, filename: str = None) -> None:
     if not filename:
         filename = load_df_from_file()[1]
-    df.write_parquet(filename)
+    atomic_write_parquet(df, filename)
 
 def create_user_status_df() -> pl.DataFrame:
     """Creates prefilled dataframe including metadata about
@@ -70,7 +90,7 @@ def add_record(
         }
     )
     df = df.vstack(df1)
-    df.write_parquet(filename)
+    atomic_write_parquet(df, filename)
 
 def get_user_status_df() -> pl.DataFrame:
     """Gets the dataframe with the user status.
@@ -95,7 +115,7 @@ def load_counter_from_file() -> tuple[pl.DataFrame, str]:
     filename = os.path.join(config_dir, "login_counter.parquet")
     if not os.path.exists(filename):
         df = pl.DataFrame({"count": [0]})
-        df.write_parquet(filename)
+        atomic_write_parquet(df, filename)
     else:
         df = pl.read_parquet(filename)
     return df, filename
@@ -118,5 +138,5 @@ def increment_login_counter(user_name: str) -> int:
     if user_name == COUNTER_EXCLUDED_USER:
         return count
     count += 1
-    pl.DataFrame({"count": [count]}).write_parquet(filename)
+    atomic_write_parquet(pl.DataFrame({"count": [count]}), filename)
     return count

@@ -1,92 +1,93 @@
+import os
 import re
-import io
 import sql_stuff
 import polars as pl
-from streamlit import cache_data
-import redis_mng
 from functools import lru_cache
+from handle_user_status import atomic_write_parquet, get_config_dir
+
+# Tables cached on disk. SQLite stays the single source of truth; these
+# parquet files are a derived copy that every process (UI, API, MCP server)
+# shares through the upload/config directory - no Redis involved, so the
+# cache also works when Redis is absent.
+CACHED_TABLES = ("headingstable", "metric")
 
 
-@lru_cache(maxsize=32)
-def _get_table_df_threadsafe(table_name: str):
-    """Thread-safe table loader.
+def table_parquet_path(table_name: str) -> str:
+    return os.path.join(get_config_dir(), f"{table_name}.parquet")
 
-    Important: This is used from ThreadPoolExecutor workers.
-    We intentionally avoid Streamlit's caching here to prevent
-    'missing ScriptRunContext' warnings.
+
+def _table_mtime(table_name: str) -> int:
+    """Modification time of the cached file, 0 when it does not exist.
+
+    Used as part of every cache key: when any process rewrites the file, the
+    key changes and all other processes reload on their next access. That is
+    what makes the cache consistent across processes without Redis.
     """
-    parquet_obj = redis_mng.get_redis_val(table_name, property=table_name)
-    if parquet_obj:
-        parquet_mem = io.BytesIO(parquet_obj)
-    else:
-        parquet_mem = io.BytesIO(b"")
-
     try:
-        df = pl.read_parquet(parquet_mem)
-    except Exception:
-        connection_uri = f"sqlite:///{sql_stuff.data_db}"
-        query = f"select * from {table_name}"
-        df = pl.read_database_uri(query=query, uri=connection_uri)
-        redis_df = redis_mng.convert_df_for_redis(df)
-        redis_mng.set_redis_key(redis_df, table_name, property=table_name)
+        return os.stat(table_parquet_path(table_name)).st_mtime_ns
+    except OSError:
+        return 0
+
+
+def refresh_table_parquet(table_name: str) -> pl.DataFrame:
+    """Rebuild the cached parquet file from SQLite and return the table."""
+    connection_uri = f"sqlite:///{sql_stuff.data_db}"
+    df = pl.read_database_uri(query=f"select * from {table_name}", uri=connection_uri)
+    atomic_write_parquet(df, table_parquet_path(table_name))
     return df
 
 
-@cache_data
-def get_table_df(table_name: str):
-    parquet_obj = redis_mng.get_redis_val(table_name, property=table_name)
-    if parquet_obj:
-        parquet_mem = io.BytesIO(parquet_obj)
+@lru_cache(maxsize=16)
+def _read_table(table_name: str, mtime: int) -> pl.DataFrame:
+    """Read one table; `mtime` is only part of the cache key (see above)."""
+    if mtime:
+        try:
+            return pl.read_parquet(table_parquet_path(table_name))
+        except Exception:
+            pass  # missing or damaged - fall through and rebuild it
+    return refresh_table_parquet(table_name)
 
-    else:
-        parquet_mem = io.BytesIO(b'')
 
-    try:
-        df = pl.read_parquet(parquet_mem)
-        print(
-        fr'{table_name} loaded from redis'
-        )
-    except Exception as e:
-        connection_uri = f"sqlite:///{sql_stuff.data_db}"
-        query = f"select * from {table_name}"
-        df = pl.read_database_uri(query=query, uri=connection_uri)
-        redis_df = redis_mng.convert_df_for_redis(df)
-        redis_mng.set_redis_key(redis_df, table_name, property=table_name)
-    return df
+def get_table_df(table_name: str) -> pl.DataFrame:
+    return _read_table(table_name, _table_mtime(table_name))
+
+
+# Kept as an alias: callers in worker threads used to need a separate,
+# Streamlit-free loader. Nothing here touches Streamlit anymore.
+_get_table_df_threadsafe = get_table_df
+
+
+def refresh_all_tables() -> None:
+    """Rebuild every cached table from SQLite - call this on process start."""
+    for table_name in CACHED_TABLES:
+        try:
+            refresh_table_parquet(table_name)
+        except Exception:
+            pass  # empty/missing DB must not stop the app from starting
+    _clear_memory_caches()
+
+
+def _clear_memory_caches() -> None:
+    for cached in (
+        _read_table,
+        _headings_dict,
+        _alias_to_header_dict,
+        _metrics_dict,
+        _header_prop,
+        _sub_device_from_header,
+    ):
+        cached.cache_clear()
 
 
 def invalidate_table_cache(table_name: str) -> None:
-    """Drop every cached copy of a DB table after it was written to.
+    """Rebuild a table's cached copy after it was written to in SQLite.
 
-    A table is served from three layers: the Redis blob written by
-    get_table_df(), Streamlit's cache_data, and the per-process lru_caches.
-    Without dropping all of them a change made in SQLite (Manage Headings,
-    Manage Metrics, or the seed maintenance in deploy.sh) stays invisible
-    until every process is restarted.
+    Every write path (Manage Headings, Manage Metrics, the seed maintenance
+    in deploy.sh) has to call this, otherwise the change stays invisible to
+    the running processes.
     """
-    try:
-        redis_mng.del_redis_key_property(table_name, table_name)
-    except Exception:
-        pass
-
-    _get_table_df_threadsafe.cache_clear()
-    get_header_from_alias.cache_clear()
-    get_sub_device_from_header.cache_clear()
-
-    # Streamlit cache_data wrappers; .clear() also works without a runtime.
-    for cached in (
-        get_table_df,
-        _get_metrics_dict,
-        ret_metric_description,
-        view_all_metrics,
-        _get_headings_dict,
-        get_header_prop,
-        _get_alias_to_header_dict,
-    ):
-        try:
-            cached.clear()
-        except Exception:
-            pass
+    refresh_table_parquet(table_name)
+    _clear_memory_caches()
 
 
 def get_exact_value_from_filter(
@@ -99,21 +100,20 @@ def get_exact_value_from_filter(
         return None
 
 
-@cache_data
-def _get_metrics_dict():
-    """Cache the entire metrics table as a dictionary for O(1) lookups"""
-    df = get_table_df("metric")
+@lru_cache(maxsize=8)
+def _metrics_dict(mtime: int) -> dict:
+    """The whole metrics table as a dictionary for O(1) lookups."""
+    df = _read_table("metric", mtime)
     return dict(zip(df["metric"].to_list(), df["description"].to_list()))
 
-@cache_data
+
 def ret_metric_description(
     metric: str,
 ) -> str:
-    m_dict = _get_metrics_dict()
+    m_dict = _metrics_dict(_table_mtime("metric"))
     return m_dict.get(metric, f"no description found for {metric}")
 
 
-@cache_data
 def view_all_metrics() -> list:
     df = get_table_df("metric")
     m_list = []
@@ -145,21 +145,26 @@ def ret_all_aliases(df):
         a_list.append(alias)
     return a_list
 
-@cache_data
-def _get_headings_dict(property_name: str):
-    """Cache a specific property from headings table as a dictionary"""
-    df = get_table_df("headingstable")
+@lru_cache(maxsize=16)
+def _headings_dict(property_name: str, mtime: int) -> dict:
+    """One property of the headings table as a dictionary."""
+    df = _read_table("headingstable", mtime)
     return dict(zip(df["header"].to_list(), df[property_name].to_list()))
 
-@cache_data
+
 def get_header_prop(header, property):
+    return _header_prop(header, property, _table_mtime("headingstable"))
+
+
+@lru_cache(maxsize=4096)
+def _header_prop(header, property, mtime):
     # Try exact match via dictionary lookup first
-    h_dict = _get_headings_dict(property)
+    h_dict = _headings_dict(property, mtime)
     if header in h_dict:
         return h_dict[header]
-    
+
     # Fallback to expensive fuzzy search only if exact match fails
-    headings_df = get_table_df("headingstable")
+    headings_df = _read_table("headingstable", mtime)
     # check if exact header is in df
     result_series = headings_df["header"].eq(header)
     if result_series.any():
@@ -203,20 +208,24 @@ def get_header_prop(header, property):
                 return org_header
 
 
-@cache_data
-def _get_alias_to_header_dict():
-    """Cache alias to header mapping as a dictionary"""
-    df = get_table_df("headingstable")
+@lru_cache(maxsize=8)
+def _alias_to_header_dict(mtime: int) -> dict:
+    """Alias to header mapping as a dictionary."""
+    df = _read_table("headingstable", mtime)
     return dict(zip(df["alias"].to_list(), df["header"].to_list()))
 
-@lru_cache(maxsize=4096)
+
 def get_header_from_alias(alias):
-    a_dict = _get_alias_to_header_dict()
-    return a_dict.get(alias)
+    return _alias_to_header_dict(_table_mtime("headingstable")).get(alias)
+
+
+def get_sub_device_from_header(header):
+    return _sub_device_from_header(header, _table_mtime("headingstable"))
+
 
 @lru_cache(maxsize=4096)
-def get_sub_device_from_header(header):
-    headings_df = _get_table_df_threadsafe("headingstable")
+def _sub_device_from_header(header, mtime):
+    headings_df = _read_table("headingstable", mtime)
     ret_search = re.compile(r"(False.*)|(None.*)", re.IGNORECASE)
     keywd = get_exact_value_from_filter(headings_df, "header", header, "keywd")
     if not keywd:

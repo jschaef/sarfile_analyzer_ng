@@ -21,6 +21,20 @@ from .services import ServiceError
 
 logging.basicConfig(level=logging.INFO)
 
+import sqlite2_polars
+
+
+def _refresh_table_cache() -> None:
+    """Rebuild the cached headings/metrics tables from SQLite on startup.
+
+    The parquet copies under upload/config are shared with the web UI, so the
+    API picks up database changes made while it was down.
+    """
+    try:
+        sqlite2_polars.refresh_all_tables()
+    except Exception as exc:  # a fresh/empty DB must not block startup
+        logging.getLogger("sar_api").warning("table cache refresh failed: %s", exc)
+
 app = FastAPI(
     title="SAR File Analyzer API",
     version="1.0.0",
@@ -32,6 +46,11 @@ app = FastAPI(
 )
 
 PREFIX = "/api/v1"
+
+
+@app.on_event("startup")
+def _on_startup() -> None:
+    _refresh_table_cache()
 
 
 @app.exception_handler(ServiceError)

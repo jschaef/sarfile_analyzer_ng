@@ -6,6 +6,7 @@ import os
 import time
 import datetime
 import sql_stuff
+import sqlite2_polars
 from config import Config
 import helpers_pl as helpers
 import redis_mng
@@ -41,6 +42,23 @@ def get_user_status_df():
         st.session_state.user_status_df = handle_user_status.load_df_from_file()[0]
     return st.session_state.user_status_df
 
+_TABLE_CACHE_REFRESHED = False
+
+
+def _refresh_table_cache_once():
+    """Rebuild the cached headings/metrics tables from SQLite on app start.
+
+    Process-wide (not per session): the parquet copies under upload/config
+    are shared with the API and MCP server, so one rebuild per process is
+    enough and keeps them in sync with the database after a restart.
+    """
+    global _TABLE_CACHE_REFRESHED
+    if _TABLE_CACHE_REFRESHED:
+        return
+    _TABLE_CACHE_REFRESHED = True
+    sqlite2_polars.refresh_all_tables()
+
+
 def start():
     """Sar analyzeer App"""
     st.title = "SAR Analyzer"
@@ -65,8 +83,9 @@ def start():
     cached_obj = "sql_connection_obj"
     if not st.session_state.get(cached_obj, []):
         sql_stuff.create_tables()
-        helpers.set_state_key(cached_obj, value=True, 
+        helpers.set_state_key(cached_obj, value=True,
             change_key='sql_connection')
+    _refresh_table_cache_once()
     config_c = helpers.configuration({})
 
     if choice == "Help":
