@@ -67,6 +67,25 @@ def refresh_all_tables() -> None:
     _clear_memory_caches()
 
 
+_TABLES_REFRESHED = False
+
+
+def refresh_all_tables_once() -> None:
+    """Rebuild every cached table, but only the first time in this process.
+
+    The guard has to live here rather than in the Streamlit script: Streamlit
+    executes the main script in a *fresh* module namespace on every rerun, so
+    a module global there resets on every widget click. The rebuild would then
+    run constantly and, by changing the files' mtime, invalidate exactly the
+    caches this module is built on. Imported modules survive the reruns.
+    """
+    global _TABLES_REFRESHED
+    if _TABLES_REFRESHED:
+        return
+    _TABLES_REFRESHED = True
+    refresh_all_tables()
+
+
 def _clear_memory_caches() -> None:
     for cached in (
         _read_table,
