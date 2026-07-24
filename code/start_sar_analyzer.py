@@ -12,6 +12,7 @@ import redis_mng
 import help
 import info
 import handle_user_status
+import sso_login
 
 st.set_page_config(
     page_title="Happy SAR Analyzer",
@@ -43,6 +44,9 @@ def get_user_status_df():
 def start():
     """Sar analyzeer App"""
     st.title = "SAR Analyzer"
+    # Log in automatically when the support platform redirected here with a
+    # valid SSO token; no-op for a normal visit.
+    sso_login.handle_sso_login()
     with st.sidebar:
         choice = option_menu("Menu", ["Login", "Signup", "Help", "Logout"],
                              icons=['arrow-right-circle-fill',
@@ -70,6 +74,10 @@ def start():
     if choice == 'Logout':
         if st.session_state.get('username'):
             st.session_state.pop('username')
+        st.session_state.pop('auth_via_sso', None)
+    elif choice == "Login" and st.session_state.get('auth_via_sso'):
+        # Already authenticated through the support platform - no form needed
+        main_body(st.session_state['username'], config_c)
     elif choice == "Login":
         ph_username = st.sidebar.empty()
         ph_password = st.sidebar.empty()

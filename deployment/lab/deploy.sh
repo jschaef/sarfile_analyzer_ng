@@ -40,6 +40,15 @@ EOF
     echo "created api.env"
 fi
 
+# SSO settings are appended to an existing api.env too (added after the
+# initial rollout), so upgrades pick them up without manual editing.
+add_env() {   # add_env <file> <key> <value>
+    grep -q "^$2=" "$1" || { printf '%s=%s\n' "$2" "$3" >> "$1"; echo "added $2"; }
+}
+add_env "$CONF_DIR/api.env" SAR_SSO_SECRET "$(openssl rand -hex 32)"
+add_env "$CONF_DIR/api.env" SAR_SSO_DEFAULT_PASSWORD "$(openssl rand -hex 12)"
+add_env "$CONF_DIR/api.env" SAR_UI_BASE_URL "https://dus-lab-sar.lab.dus.suse.com"
+
 if [ ! -f "$CONF_DIR/mcp.env" ]; then
     cat > "$CONF_DIR/mcp.env" <<EOF
 SAR_API_URL=http://127.0.0.1:8100

@@ -2,6 +2,7 @@ altair==6.0.0
 bokeh==3.8.2
 connectorx==0.4.5
 geckodriver-autoinstaller==0.1.0
+httpx
 numpy
 pandas
 pillow

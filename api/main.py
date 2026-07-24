@@ -4,10 +4,14 @@ Run from the repo root:
     uvicorn api.main:app --host 0.0.0.0 --port 8100
 """
 
+import hmac
 import io
 import logging
+import os
+import secrets
+from urllib.parse import quote, urlencode
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
@@ -48,6 +52,76 @@ def issue_token(request: TokenRequest):
     if not auth.verify_credentials(request.username, request.password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     return auth.create_token(request.username)
+
+
+# --------------------------------------------------------------------------
+# SSO for the support platform (server-to-server, shared secret)
+# --------------------------------------------------------------------------
+SSO_SECRET = os.getenv("SAR_SSO_SECRET", "")
+SSO_DEFAULT_PASSWORD = os.getenv("SAR_SSO_DEFAULT_PASSWORD", "")
+UI_BASE_URL = os.getenv(
+    "SAR_UI_BASE_URL", "https://dus-lab-sar.lab.dus.suse.com"
+).rstrip("/")
+
+
+class SsoTokenRequest(BaseModel):
+    username: str = Field(
+        min_length=2,
+        pattern=r"^[A-Za-z0-9._-]+$",
+        description="Platform user; provisioned on first use",
+    )
+    file: str | None = Field(
+        default=None, description="Optional SAR file to preselect after the redirect"
+    )
+
+
+@app.post(f"{PREFIX}/sso/token")
+def sso_token(
+    request: SsoTokenRequest,
+    x_sso_secret: str = Header(default="", alias="X-SSO-Secret"),
+):
+    """Exchange a shared secret for an API token plus a UI redirect URL.
+
+    Called server-to-server by the support platform after it authenticated the
+    user itself. Unknown users are provisioned just-in-time with role 'user'.
+    """
+    import sql_stuff
+
+    if not SSO_SECRET:
+        raise HTTPException(status_code=503, detail="SSO is not configured")
+    if not hmac.compare_digest(x_sso_secret, SSO_SECRET):
+        raise HTTPException(status_code=401, detail="Invalid SSO secret")
+
+    created = False
+    if request.username not in sql_stuff.view_all_users(kind="list"):
+        password = SSO_DEFAULT_PASSWORD or secrets.token_urlsafe(24)
+        if not sql_stuff.add_userdata(request.username, password, "user"):
+            raise HTTPException(
+                status_code=500, detail=f"Could not provision user {request.username!r}"
+            )
+        created = True
+        services.user_dir(request.username)
+
+    api_token = auth.create_token(request.username, purpose="api")
+    ui_token = auth.create_token(request.username, purpose="ui")
+    params = {"sso_token": ui_token["access_token"]}
+    if request.file:
+        params["file"] = request.file
+    return {
+        "username": request.username,
+        "provisioned": created,
+        "api_token": api_token,
+        "ui_redirect_url": f"{UI_BASE_URL}/?{urlencode(params, quote_via=quote)}",
+        "ui_token_expires_at": ui_token["expires_at"],
+    }
+
+
+@app.get(f"{PREFIX}/sso/validate")
+def sso_validate(username: str = Depends(auth.consume_ui_token)):
+    """Validate (and consume) an SSO UI token. Used by the Streamlit app."""
+    import sql_stuff
+
+    return {"username": username, "role": sql_stuff.get_role(username)}
 
 
 # --------------------------------------------------------------------------
