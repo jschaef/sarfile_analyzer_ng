@@ -293,6 +293,39 @@ _NETWORK_SECTIONS = {
 }
 
 
+# Legacy fields sadf still exports but ``sar -A`` no longer prints: dropping
+# them is intentional, so they must not be reported as unknown.
+_IGNORED_FIELDS = {"rd_sec", "wr_sec", "avgrq-sz", "avgqu-sz"}
+
+
+def _known_fields(spec: dict) -> set[str]:
+    fields = {json_field for json_field, _ in spec["fields"]}
+    for key in ("device", "device_last"):
+        if key in spec:
+            fields.add(spec[key][0])
+    fields.update(spec.get("flatten", []))
+    return fields
+
+
+def _build_known_map() -> dict[str, set[str]]:
+    """Fields consumed per JSON section, unioned over every spec fed by it.
+
+    Needed because one JSON object can feed several text sections - 'memory'
+    supplies both the memory and the swap-utilisation block - and a field
+    handled by the sibling spec must not be flagged as unknown.
+    """
+    known: dict[str, set[str]] = {}
+    for name, spec in _SECTIONS.items():
+        source = spec.get("source", name)
+        known.setdefault(source, set()).update(_known_fields(spec))
+    for name, spec in _NETWORK_SECTIONS.items():
+        known.setdefault(f"network.{name}", set()).update(_known_fields(spec))
+    return known
+
+
+_KNOWN_FIELDS = _build_known_map()
+
+
 def maybe_decompress_xz(content: bytes, filename: str) -> tuple[bytes, str]:
     """Transparently decompress single-file .xz uploads (with a size cap)."""
     if not content.startswith(XZ_MAGIC):
@@ -327,7 +360,9 @@ def _fmt(value) -> str:
     return str(value)
 
 
-def _render_rows(spec: dict, payload, time: str, out: list, warnings: set):
+def _render_rows(
+    spec: dict, payload, time: str, out: list, warnings: set, section: str
+):
     """Emit one header block (header line + data lines) for a section."""
     rows = payload if isinstance(payload, list) else [payload]
     if not rows:
@@ -342,12 +377,10 @@ def _render_rows(spec: dict, payload, time: str, out: list, warnings: set):
     if not known:
         warnings.add(f"section with unknown fields skipped: {list(first)[:4]}")
         return
+    handled = _KNOWN_FIELDS.get(section, set())
     for field in first:
-        if field not in {j for j, _ in spec["fields"]} and field not in (
-            spec.get("device", (None,))[0],
-            spec.get("device_last", (None,))[0],
-        ) and field not in spec.get("flatten", []):
-            warnings.add(f"unknown field skipped: {field}")
+        if field not in handled and field not in _IGNORED_FIELDS:
+            warnings.add(f"unknown field skipped: {section}.{field}")
 
     columns = [c for _, c in known]
     if "device" in spec:
@@ -411,16 +444,20 @@ def sadf_json_to_sar_text(content: bytes) -> tuple[str, list[str]]:
                     if spec is None:
                         warnings.add(f"unknown network section skipped: {sub}")
                         continue
-                    _render_rows(spec, sub_payload, time, out, warnings)
+                    _render_rows(
+                        spec, sub_payload, time, out, warnings, f"network.{sub}"
+                    )
                 continue
             spec = _SECTIONS.get(section)
             if spec is None:
                 warnings.add(f"unknown section skipped: {section}")
                 continue
-            _render_rows(spec, payload, time, out, warnings)
+            _render_rows(spec, payload, time, out, warnings, section)
             # memory feeds a second text section (swap utilization)
             if section == "memory":
-                _render_rows(_SECTIONS["memory-swap"], payload, time, out, warnings)
+                _render_rows(
+                    _SECTIONS["memory-swap"], payload, time, out, warnings, section
+                )
 
     for restart in host.get("restarts", []):
         boot = restart.get("boot", restart) if isinstance(restart, dict) else {}
