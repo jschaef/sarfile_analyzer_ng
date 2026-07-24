@@ -103,16 +103,18 @@ Akzeptierte Formate — die Erkennung erfolgt über den **Dateiinhalt**, nicht
 ### Wichtig: JSON richtig exportieren
 
 ```bash
-sadf -j -t <sa-datei> -- -A > report.json
+sadf -j <sa-datei> -- -A > report.json
 ```
 
-- **`-- -A`** reicht „alle Aktivitäten" an sar durch. Ohne das exportiert
-  `sadf -j` **nur die CPU-Auslastung** — im Analyzer taucht dann bloß eine
-  einzige Sektion auf.
-- **`-t`** behält die lokale Zeit der Datei. Ohne `-t` schreibt sadf **UTC**
-  (`"utc": 1` im JSON), wodurch die gesamte Zeitachse um den Zeitzonen-Offset
-  verschoben wäre. Solche Dateien werden zwar akzeptiert, erzeugen aber die
-  Warnung „timestamps are UTC" in der Upload-Antwort.
+**`-- -A`** reicht „alle Aktivitäten" an sar durch. Fehlt es, exportiert
+`sadf -j` **nur die CPU-Auslastung** — im Analyzer taucht dann bloß eine
+einzige Sektion auf. Das ist der häufigste Grund für einen scheinbar leeren
+Report.
+
+**Zeitzone:** Die Zeitstempel werden genommen, wie sie im JSON stehen. Ohne
+`-t` schreibt sadf UTC — für Hosts, die in UTC laufen, ist das genau richtig.
+`-t` ist nur nötig, wenn der Quell-Host eine lokale Zeitzone verwendet und
+diese Wanduhrzeit auf der Achse erscheinen soll.
 
 Antwort `201`:
 
