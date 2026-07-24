@@ -92,11 +92,15 @@ echo "== 4b. seed maintenance (headings the server data.db may lack) =="
 # never arrive via git pull - add them idempotently here.
 (cd "$REPO/code" && "$VENV/bin/python" - <<'PYEOF'
 import sql_stuff
+import sqlite2_polars
 sql_stuff.add_header(
     '%user %nice %system %iowait %steal %idle',
     'CPU utilization (short format, sar -u / sadf without -A)',
     'CPU', keywd='CPU')
-print("short CPU header ensured")
+# The table is served from a Redis blob; without dropping it the new row
+# stays invisible to every running process (UI included).
+sqlite2_polars.invalidate_table_cache("headingstable")
+print("short CPU header ensured (table cache invalidated)")
 PYEOF
 )
 

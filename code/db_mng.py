@@ -23,6 +23,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             d_content = mdesc_placeholder.text_area("metric description", key="d_key")
             if col.button("Submit") and (m_content or d_content):
                 sql_stuff.add_metric(m_content, d_content)
+                sqlite2_polars.invalidate_table_cache("metric")
                 m_content = metric_placeholder.text_input("metric name")
                 d_content = mdesc_placeholder.text_area("metric description")
         elif action == "Show":
@@ -43,6 +44,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             if st.button("Submit"):
                 for metric in del_list:
                     sql_stuff.delete_metric(metric)
+                    sqlite2_polars.invalidate_table_cache("metric")
                     metrics.remove(metric)
                 del_list = multid_placeholder.multiselect(
                     "Choose metrics to delete", metrics
@@ -77,6 +79,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             d_content = d_placeholder.text_area("Description", key="description")
             if st.button("Submit"):
                 sql_stuff.add_header(h_content, d_content, a_content, k_content)
+                sqlite2_polars.invalidate_table_cache("headingstable")
                 h_content = h_placeholder.text_input("Header")
                 a_content = a_placeholder.text_input("Alias")
                 k_content = k_placeholder.text_input("Keyword")
@@ -90,6 +93,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             )
             if st.button("Submit"):
                 sql_stuff.delete_header(h_content)
+                sqlite2_polars.invalidate_table_cache("headingstable")
                 h_content = h_ph.selectbox(
                     "Choose a header to delete",
                     sqlite2_polars.ret_all_headers(headings_df, "return"),
@@ -133,6 +137,7 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                     description=d_content,
                     keyword=k_content,
                 )
+                sqlite2_polars.invalidate_table_cache("headingstable")
 
         elif action == "Search":
             m_search_ph = col.empty()

@@ -55,6 +55,40 @@ def get_table_df(table_name: str):
     return df
 
 
+def invalidate_table_cache(table_name: str) -> None:
+    """Drop every cached copy of a DB table after it was written to.
+
+    A table is served from three layers: the Redis blob written by
+    get_table_df(), Streamlit's cache_data, and the per-process lru_caches.
+    Without dropping all of them a change made in SQLite (Manage Headings,
+    Manage Metrics, or the seed maintenance in deploy.sh) stays invisible
+    until every process is restarted.
+    """
+    try:
+        redis_mng.del_redis_key_property(table_name, table_name)
+    except Exception:
+        pass
+
+    _get_table_df_threadsafe.cache_clear()
+    get_header_from_alias.cache_clear()
+    get_sub_device_from_header.cache_clear()
+
+    # Streamlit cache_data wrappers; .clear() also works without a runtime.
+    for cached in (
+        get_table_df,
+        _get_metrics_dict,
+        ret_metric_description,
+        view_all_metrics,
+        _get_headings_dict,
+        get_header_prop,
+        _get_alias_to_header_dict,
+    ):
+        try:
+            cached.clear()
+        except Exception:
+            pass
+
+
 def get_exact_value_from_filter(
     df: pl.DataFrame, column: str, filter: str, return_column: str
 ) -> any:
