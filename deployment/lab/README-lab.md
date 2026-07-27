@@ -178,3 +178,30 @@ podman logs systemd-sar-caddy | tail -20
 - Bokeh-PNG/PDF braucht Firefox auf dem Host (vorhanden) — Fallback Chrome
 - `GET /mcp` antwortet absichtlich 405 (kein Idle-SSE-Stream, VPN/NAT)
 - MCP-Client-Fehler 401 → Gate-Token prüfen; 502 → `sar-mcp` down
+
+### Viele Firefox-Prozesse unter `sarfile-analyzer.service` — normal
+
+Der Bokeh-Export hält einen Pool warmer Selenium-Driver
+([`code/driver_pool.py`](../../code/driver_pool.py)): `min(CPUs/2, 4)` Instanzen,
+auf dus-lab-sar also **3** headless Firefox samt `geckodriver` und deren
+`-contentproc`-Kindern. Das ist gewollt und nach oben begrenzt — Firefox zu
+starten dauert Sekunden, deshalb bleiben sie stehen.
+
+Was **nicht** normal war: der Pool beendet seine Driver nie (`driver.quit()`
+läuft nur im Zweig „Driver bereits tot"), also killt systemd beim Stop die
+cgroup und `geckodriver` räumt sein Profilverzeichnis nicht mehr weg. Pro
+Neustart blieben so ~3 × 80 MB in `/tmp/rust_mozprofileXXXX` liegen; bis zum
+27.07.2026 hatten sich 10 Verzeichnisse / 960 MB angesammelt (ältestes vom
+21.04.). SLES putzt `/tmp` nicht automatisch.
+
+Behoben durch `PrivateTmp=true` in der Unit: der Dienst bekommt ein eigenes
+`/tmp`, das systemd bei jedem Stop verwirft — das greift auch, wenn der Prozess
+hart stirbt und kein Aufräumcode mehr liefe. Geprüft: der `screen`-Socket liegt
+in `/run/uscreens`, nicht in `/tmp`, `screen -r sar-analyzer` funktioniert
+weiterhin.
+
+Kontrolle (soll dauerhaft `0` bleiben, auch nach Neustarts):
+
+```bash
+ls -d /tmp/rust_mozprofile* 2>/dev/null | wc -l
+```

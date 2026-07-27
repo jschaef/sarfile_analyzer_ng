@@ -6,6 +6,16 @@
 # (fronted by the system nginx on :443). Survives reboot because it is enabled
 # (WantedBy=multi-user.target) and Restart=always brings it back if it dies.
 #
+# PrivateTmp gives the service its own /tmp, which systemd discards on every
+# stop. Bokeh chart export drives headless Firefox through Selenium
+# (code/driver_pool.py), and geckodriver only removes its ~80 MB
+# /tmp/rust_mozprofileXXXX directory when the driver is quit properly - which
+# never happens, because the pool holds its drivers until systemd kills the
+# cgroup. That leaked ~240 MB per restart (960 MB had piled up by 27.07.2026).
+# Safe here: the screen socket lives in /run/uscreens, not /tmp, so
+# `screen -r sar-analyzer` still works, and the temp PDFs are read back inside
+# the same process.
+#
 # Install/enable as root:
 #   sudo cp sarfile-analyzer.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now sarfile-analyzer.service
@@ -23,6 +33,8 @@ Restart=always
 RestartSec=10s
 ExecStop=/usr/bin/screen -S sar-analyzer -p 0 -X stuff "exit^M"
 SuccessExitStatus=1
+# Private /tmp - see the header comment (leaked Firefox profile directories)
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
