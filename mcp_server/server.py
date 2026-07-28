@@ -230,6 +230,38 @@ def list_users(ctx: Context) -> dict:
 
 
 @mcp.tool()
+def disk_usage(ctx: Context) -> dict:
+    """Disk usage of the server-side upload directories, per user (admin only).
+
+    Shows total/sar/pdf/tmp bytes and file counts per user, largest consumers
+    first, and flags directories of deleted accounts (orphan_user).
+    """
+    return _request("GET", "/admin/disk-usage", session_key=_session_key(ctx))
+
+
+@mcp.tool()
+def cleanup_old_files(
+    ctx: Context,
+    days: int = 30,
+    username: str | None = None,
+    dry_run: bool = True,
+) -> dict:
+    """Delete uploaded SAR files and generated PDFs older than `days` days
+    (default 30), plus orphaned upload temp files (admin only).
+
+    By default this is a DRY RUN that only previews what would be removed.
+    Review the preview, then call again with dry_run=False to really delete.
+    Optional `username` limits the cleanup to one user's directory.
+    """
+    return _request(
+        "POST",
+        "/admin/cleanup",
+        session_key=_session_key(ctx),
+        json={"days": days, "username": username, "dry_run": dry_run},
+    )
+
+
+@mcp.tool()
 def list_sar_files(ctx: Context) -> dict:
     """List the SAR files (parquet) available for analysis."""
     return _request("GET", "/files", session_key=_session_key(ctx))

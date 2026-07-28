@@ -191,6 +191,42 @@ def create_user(
 
 
 # --------------------------------------------------------------------------
+# admin / maintenance (admin only)
+# --------------------------------------------------------------------------
+class CleanupRequest(BaseModel):
+    days: int = Field(
+        default=30, ge=1, description="Delete files older than this many days"
+    )
+    username: str | None = Field(
+        default=None,
+        pattern=services.USERNAME_PATTERN,
+        description="Limit the cleanup to one user; default: all users",
+    )
+    dry_run: bool = Field(
+        default=True, description="Preview only; set false to actually delete"
+    )
+
+
+@app.get(f"{PREFIX}/admin/disk-usage")
+def admin_disk_usage(username: str = Depends(auth.get_current_user)):
+    """Disk usage per user below the upload directory, largest first."""
+    auth.require_admin(username)
+    return services.disk_usage_report()
+
+
+@app.post(f"{PREFIX}/admin/cleanup")
+def admin_cleanup(
+    request: CleanupRequest, username: str = Depends(auth.get_current_user)
+):
+    """Delete uploads older than `days` days plus orphaned temp files.
+
+    Defaults to a dry run that returns exactly what a real run would delete.
+    """
+    auth.require_admin(username)
+    return services.cleanup_old_files(request.days, request.username, request.dry_run)
+
+
+# --------------------------------------------------------------------------
 # file management
 # --------------------------------------------------------------------------
 @app.get(f"{PREFIX}/files")

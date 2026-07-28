@@ -5,9 +5,11 @@ mng_sar.py / single_file_pl.py / dia_overview_pl.py / multi_files_pl.py do in
 the UI, minus widgets and st.session_state.
 """
 
+import datetime
 import logging
 import os
 import re
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -334,3 +336,219 @@ def get_table(
         "restart_headers": pl_h2.get_restart_headers(df),
     }
     return table, meta
+
+
+# ---------------------------------------------------------------------------
+# admin / maintenance: per-user disk usage and age-based cleanup
+# ---------------------------------------------------------------------------
+# upload/config is a sibling of the user directories but holds shared state
+# (login history/counter, the headingstable/metric table caches) - it must
+# never appear in per-user reports or be touched by the cleanup.
+EXCLUDED_UPLOAD_DIRS = {"config"}
+
+
+def _existing_user_dir(username: str) -> Path:
+    """Like user_dir(), but read-only: no mkdir side effect.
+
+    user_dir() creates the directory, which is right for uploads but wrong
+    for admin scans - scanning must not litter UPLOAD_DIR with empty dirs.
+    """
+    if not _SAFE_USERNAME.match(username):
+        raise ServiceError(f"Invalid username: {username!r}")
+    directory = Path(Config.upload_dir) / username
+    if not directory.is_dir():
+        raise ServiceError(f"No upload directory for user {username!r}")
+    return directory
+
+
+def _file_age_days(path: Path, name: str, now: float) -> tuple[float, str]:
+    """Age of one file in days, preferring the upload date in the name.
+
+    Uploads are renamed to '<upload date>_<host>_<sar date>' (helpers_pl.
+    rename_sar_file), so the first 10 characters carry when the file reached
+    the server - that survives copies, unlike mtime. Files that don't follow
+    the convention fall back to st_mtime.
+    """
+    try:
+        upload_date = datetime.date.fromisoformat(name[:10])
+        return (datetime.date.today() - upload_date).days, "name"
+    except ValueError:
+        return (now - path.stat().st_mtime) / 86400, "mtime"
+
+
+def disk_usage_report() -> dict:
+    """Per-user disk usage below UPLOAD_DIR, largest consumers first."""
+    import sql_stuff
+
+    base = Path(Config.upload_dir)
+    known_users = set(sql_stuff.view_all_users(kind="list"))
+    users = []
+    for entry in sorted(base.iterdir()) if base.is_dir() else []:
+        if not entry.is_dir() or entry.name in EXCLUDED_UPLOAD_DIRS:
+            continue
+        record = {
+            "username": entry.name,
+            "total_bytes": 0,
+            "file_count": 0,
+            "sar_bytes": 0,
+            "pdf_bytes": 0,
+            "pdf_count": 0,
+            "tmp_bytes": 0,
+            "tmp_count": 0,
+            # Directory left behind by a deleted account (self_service used
+            # to keep them) - safe to clean, impossible to log into.
+            "orphan_user": entry.name not in known_users,
+        }
+        for root, _dirs, files in os.walk(entry, followlinks=False):
+            in_pdf = Path(root).name == "pdf" and Path(root) != entry
+            for file_name in files:
+                try:
+                    size = (Path(root) / file_name).stat().st_size
+                except OSError:
+                    continue  # race: deleted meanwhile, broken symlink, ...
+                record["total_bytes"] += size
+                record["file_count"] += 1
+                if in_pdf:
+                    record["pdf_bytes"] += size
+                    record["pdf_count"] += 1
+                elif file_name.startswith(".tmp_"):
+                    record["tmp_bytes"] += size
+                    record["tmp_count"] += 1
+                else:
+                    record["sar_bytes"] += size
+        users.append(record)
+
+    users.sort(key=lambda u: u["total_bytes"], reverse=True)
+    return {
+        "upload_dir": str(base.resolve()),
+        "total_bytes": sum(u["total_bytes"] for u in users),
+        "total_files": sum(u["file_count"] for u in users),
+        "users": users,
+    }
+
+
+def _collect_cleanup_candidates(directory: Path, days: int, now: float) -> list[dict]:
+    """What cleanup_old_files would remove for one user - shared by dry run
+    and real run so the preview always matches the action."""
+    candidates = []
+
+    # SAR files: raw + .parquet share a base name and form one unit - never
+    # delete one half (list_sar_files dedupes the same way).
+    entries = [e for e in directory.iterdir() if e.is_file()]
+    bases: dict[str, list[Path]] = {}
+    for entry in entries:
+        if entry.name.startswith("."):
+            continue
+        bases.setdefault(entry.name.removesuffix(".parquet"), []).append(entry)
+    for base_name, members in sorted(bases.items()):
+        age, source = _file_age_days(members[0], base_name, now)
+        if source == "mtime":
+            # Unparsable name: judge the pair by its NEWEST member so a
+            # half-fresh pair is never deleted.
+            age = min(_file_age_days(m, "", now)[0] for m in members)
+        if age > days:
+            candidates.append(
+                {
+                    "name": base_name,
+                    "kind": "sar",
+                    "size_bytes": sum(m.stat().st_size for m in members),
+                    "age_days": round(age, 1),
+                    "age_source": source,
+                }
+            )
+
+    # Generated PDFs: no naming convention, mtime is all there is.
+    pdf_dir = directory / "pdf"
+    if pdf_dir.is_dir():
+        for entry in sorted(pdf_dir.iterdir()):
+            if not entry.is_file():
+                continue
+            age = (now - entry.stat().st_mtime) / 86400
+            if age > days:
+                candidates.append(
+                    {
+                        "name": f"pdf/{entry.name}",
+                        "kind": "pdf",
+                        "size_bytes": entry.stat().st_size,
+                        "age_days": round(age, 1),
+                        "age_source": "mtime",
+                    }
+                )
+
+    # Orphaned upload temp files (crashed/aborted uploads): always. A live
+    # upload's temp file exists only for the split second before renaming.
+    for entry in sorted(entries):
+        if entry.name.startswith(".tmp_"):
+            candidates.append(
+                {
+                    "name": entry.name,
+                    "kind": "tmp",
+                    "size_bytes": entry.stat().st_size,
+                    "age_days": round((now - entry.stat().st_mtime) / 86400, 1),
+                    "age_source": "mtime",
+                }
+            )
+    return candidates
+
+
+def cleanup_old_files(
+    days: int = 30, username: str | None = None, dry_run: bool = True
+) -> dict:
+    """Delete uploads older than `days` days (plus orphaned temp files).
+
+    Age comes from the upload-date prefix in the file name where possible
+    (see _file_age_days). SAR raw/parquet pairs go through delete_sar_file so
+    the cached dataframe in Redis is dropped too - leaving it behind would
+    keep serving deleted data. dry_run returns the identical structure
+    without touching anything.
+    """
+    base = Path(Config.upload_dir)
+    if username is not None:
+        targets = [_existing_user_dir(username)]
+    else:
+        targets = [
+            e
+            for e in (sorted(base.iterdir()) if base.is_dir() else [])
+            if e.is_dir() and e.name not in EXCLUDED_UPLOAD_DIRS
+        ]
+
+    now = time.time()
+    per_user, errors = [], []
+    deleted_bytes = deleted_files = 0
+    for directory in targets:
+        user = directory.name
+        candidates = _collect_cleanup_candidates(directory, days, now)
+        if not candidates:
+            continue
+        if not dry_run:
+            for entry in candidates:
+                try:
+                    if entry["kind"] == "sar":
+                        delete_sar_file(user, entry["name"])
+                    else:  # pdf/<name> or .tmp_<name>
+                        (directory / entry["name"]).unlink(missing_ok=True)
+                    deleted_bytes += entry["size_bytes"]
+                    deleted_files += 1
+                except (ServiceError, OSError) as exc:
+                    errors.append(
+                        {"username": user, "name": entry["name"], "detail": str(exc)}
+                    )
+        per_user.append(
+            {
+                "username": user,
+                "files": candidates,
+                "bytes": sum(c["size_bytes"] for c in candidates),
+                "count": len(candidates),
+            }
+        )
+
+    return {
+        "dry_run": dry_run,
+        "days": days,
+        "users": per_user,
+        "total_bytes": sum(u["bytes"] for u in per_user),
+        "total_files": sum(u["count"] for u in per_user),
+        "deleted_bytes": deleted_bytes,
+        "deleted_files": deleted_files,
+        "errors": errors,
+    }
