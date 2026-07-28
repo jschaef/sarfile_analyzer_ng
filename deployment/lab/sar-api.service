@@ -2,6 +2,14 @@
 # Rootless REST API for the SAR file analyzer (binds 127.0.0.1 only,
 # exposed via the system nginx vhost). Boot persistence needs
 # `loginctl enable-linger <user>`.
+#
+# PrivateTmp for the same reason as the UI unit: Bokeh chart rendering drives
+# headless Firefox through the pool in api/rendering.py, and geckodriver only
+# removes its ~80 MB /tmp/rust_mozprofileXXXX directory when the driver is quit
+# properly - which never happens, so every restart orphans one per driver.
+# Safe here: rendering.py is the only /tmp user in api/, and it reads its temp
+# PNG back in the same process and unlinks it. Works for user units on this
+# host (verified: an isolated, empty /tmp inside the unit).
 [Unit]
 Description=SAR File Analyzer REST API (uvicorn, rootless)
 After=network-online.target
@@ -12,6 +20,8 @@ EnvironmentFile=%h/.config/sar-analyzer/api.env
 ExecStart=%h/data1/sarfile_analyzer_ng/code/venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8100
 Restart=always
 RestartSec=10
+# Private /tmp - see the header comment (leaked Firefox profile directories)
+PrivateTmp=true
 
 [Install]
 WantedBy=default.target
