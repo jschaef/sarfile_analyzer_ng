@@ -17,9 +17,7 @@ file_chosen = ""
 
 def show_multi(config_obj, username, selection, df, os_details):
     global file_chosen, df_complete
-    pdf_dir = f"{Config.upload_dir}/{username}/pdf"
     upload_dir = config_obj["upload_dir"]
-    pdf_name = f"{pdf_dir}/{Config.pdf_name}"
     cache_obj = ""
     description = """This page is for finding metrics which have been measured\
     on multiple devices. E.g. showing all CPU's where iowait is above 15.5 and\

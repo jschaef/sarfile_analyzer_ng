@@ -17,8 +17,6 @@ def do_metrics(
     config_dict: dict, username: str, sel_file: str, df: pl.DataFrame, os_details: str
 ) -> None:
     upload_dir = config_dict["upload_dir"]
-    pdf_dir = f"{Config.upload_dir}/{username}/pdf"
-    pdf_name = f"{pdf_dir}/{Config.pdf_name}"
     st.subheader("Compare different metrics")
     lh.make_vspace(5, st)
     sar_file = f"{upload_dir}/{sel_file}"

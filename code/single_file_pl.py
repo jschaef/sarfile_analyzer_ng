@@ -14,8 +14,6 @@ df_complete = None
 def single_f(config_obj, username, selection, df, os_details):
     perf_intensive_metrics = re.compile(r'^CPU|SOfT.*', re.IGNORECASE)
     global file_chosen, df_complete
-    pdf_dir = f'{Config.upload_dir}/{username}/pdf'
-    pdf_name = f'{pdf_dir}/{Config.pdf_name}'
     st.subheader("Show metrics for a single sar file")
     col1, col2, col3, _ = st.columns([1,1,1, 1])
     lh.make_vspace(1, col1)
