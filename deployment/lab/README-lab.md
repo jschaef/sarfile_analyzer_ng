@@ -200,6 +200,20 @@ hart stirbt und kein Aufräumcode mehr liefe. Geprüft: der `screen`-Socket lieg
 in `/run/uscreens`, nicht in `/tmp`, `screen -r sar-analyzer` funktioniert
 weiterhin.
 
+Gesetzt in **beiden** Diensten mit Driver-Pool:
+
+| Unit | Pool | `PrivateTmp` |
+|---|---|---|
+| `sarfile-analyzer.service` (System, root) | [`code/driver_pool.py`](../../code/driver_pool.py) | ja |
+| `sar-api.service` (User, rootless) | [`api/rendering.py`](../../api/rendering.py) | ja |
+| `sar-mcp.service` | keiner — ruft nur die API über HTTP | nicht nötig |
+
+Ende-zu-Ende verifiziert am 28.07.2026 gegen `sar-api` mit aktivem
+`PrivateTmp`: xz-Upload (13442 Zeilen, 31 Header, keine Warnungen) → Bokeh-PNG
+`HTTP 200`, 62 KB, 1200×400 — und während ein `geckodriver` lief, blieb das
+Host-`/tmp` bei **0** Profilverzeichnissen. Beachte: nur `/tmp` ist isoliert,
+die Prozesse bleiben in `ps` normal sichtbar.
+
 Kontrolle (soll dauerhaft `0` bleiben, auch nach Neustarts):
 
 ```bash
