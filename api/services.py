@@ -400,7 +400,9 @@ def disk_usage_report() -> dict:
             "orphan_user": entry.name not in known_users,
         }
         for root, _dirs, files in os.walk(entry, followlinks=False):
-            in_pdf = Path(root).name == "pdf" and Path(root) != entry
+            # anywhere below <user>/pdf counts as pdf - older app versions
+            # created one sub-directory per chart under pdf/
+            in_pdf = "pdf" in Path(root).relative_to(entry).parts
             for file_name in files:
                 try:
                     size = (Path(root) / file_name).stat().st_size
@@ -416,6 +418,17 @@ def disk_usage_report() -> dict:
                     record["tmp_count"] += 1
                 else:
                     record["sar_bytes"] += size
+        # Directories with no file anywhere beneath them (counted bottom-up
+        # so a dir holding only empty dirs is empty too) - legacy per-chart
+        # dirs under pdf/ show up here.
+        non_empty: set[str] = set()
+        empty_dirs = 0
+        for root, dirs, files in os.walk(entry, topdown=False, followlinks=False):
+            if files or any(os.path.join(root, d) in non_empty for d in dirs):
+                non_empty.add(root)
+            elif Path(root) != entry:
+                empty_dirs += 1
+        record["empty_dir_count"] = empty_dirs
         users.append(record)
 
     users.sort(key=lambda u: u["total_bytes"], reverse=True)
@@ -457,20 +470,37 @@ def _collect_cleanup_candidates(directory: Path, days: int, now: float) -> list[
                 }
             )
 
-    # Generated PDFs: no naming convention, mtime is all there is.
+    # Generated PDFs: no naming convention, mtime is all there is. Walk the
+    # whole pdf/ subtree - older app versions created one directory per chart.
     pdf_dir = directory / "pdf"
     if pdf_dir.is_dir():
-        for entry in sorted(pdf_dir.iterdir()):
-            if not entry.is_file():
-                continue
-            age = (now - entry.stat().st_mtime) / 86400
-            if age > days:
+        for root, _dirs, files in os.walk(pdf_dir, followlinks=False):
+            for file_name in sorted(files):
+                path = Path(root) / file_name
+                age = (now - path.stat().st_mtime) / 86400
+                if age > days:
+                    candidates.append(
+                        {
+                            "name": str(path.relative_to(directory)),
+                            "kind": "pdf",
+                            "size_bytes": path.stat().st_size,
+                            "age_days": round(age, 1),
+                            "age_source": "mtime",
+                        }
+                    )
+        # Empty directories below pdf/ are dead weight (legacy per-chart
+        # dirs); collected bottom-up so children are removed before parents.
+        non_empty: set[str] = set()
+        for root, dirs, files in os.walk(pdf_dir, topdown=False, followlinks=False):
+            if files or any(os.path.join(root, d) in non_empty for d in dirs):
+                non_empty.add(root)
+            elif Path(root) != pdf_dir:
                 candidates.append(
                     {
-                        "name": f"pdf/{entry.name}",
-                        "kind": "pdf",
-                        "size_bytes": entry.stat().st_size,
-                        "age_days": round(age, 1),
+                        "name": str(Path(root).relative_to(directory)),
+                        "kind": "emptydir",
+                        "size_bytes": 0,
+                        "age_days": round((now - Path(root).stat().st_mtime) / 86400, 1),
                         "age_source": "mtime",
                     }
                 )
@@ -525,7 +555,9 @@ def cleanup_old_files(
                 try:
                     if entry["kind"] == "sar":
                         delete_sar_file(user, entry["name"])
-                    else:  # pdf/<name> or .tmp_<name>
+                    elif entry["kind"] == "emptydir":
+                        (directory / entry["name"]).rmdir()
+                    else:  # pdf/... or .tmp_<name>
                         (directory / entry["name"]).unlink(missing_ok=True)
                     deleted_bytes += entry["size_bytes"]
                     deleted_files += 1
@@ -533,6 +565,19 @@ def cleanup_old_files(
                     errors.append(
                         {"username": user, "name": entry["name"], "detail": str(exc)}
                     )
+            # Deleting old PDFs can leave their per-chart directories empty -
+            # prune those too (bottom-up; rmdir refuses non-empty dirs, which
+            # is exactly the safety we want). pdf/ itself stays.
+            pdf_dir = directory / "pdf"
+            if pdf_dir.is_dir():
+                for root, _dirs, _files in os.walk(
+                    pdf_dir, topdown=False, followlinks=False
+                ):
+                    if Path(root) != pdf_dir:
+                        try:
+                            Path(root).rmdir()
+                        except OSError:
+                            pass
         per_user.append(
             {
                 "username": user,

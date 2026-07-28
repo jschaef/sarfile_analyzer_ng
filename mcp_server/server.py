@@ -247,7 +247,8 @@ def cleanup_old_files(
     dry_run: bool = True,
 ) -> dict:
     """Delete uploaded SAR files and generated PDFs older than `days` days
-    (default 30), plus orphaned upload temp files (admin only).
+    (default 30), plus orphaned upload temp files and empty legacy chart
+    directories (admin only).
 
     By default this is a DRY RUN that only previews what would be removed.
     Review the preview, then call again with dry_run=False to really delete.
