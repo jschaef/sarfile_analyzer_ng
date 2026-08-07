@@ -206,7 +206,7 @@ def show_multi(config_obj, username, selection, df, os_details):
                                 if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                                     ok = st_bokeh.streamlit_bokeh(
                                         bokeh_fig,
-                                        use_container_width=False,
+                                        width="content",
                                         key=f"bokeh_multi_devices_{helpers_pl.validate_convert_names(file_name)}_{helpers_pl.validate_convert_names(selected)}_{helpers_pl.validate_convert_names(metric)}",
                                     )
                                     if not ok:

@@ -161,7 +161,7 @@ def single_f(config_obj, username, selection, df, os_details):
                     if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                         ok = st_bokeh.streamlit_bokeh(
                             bokeh_fig,
-                            use_container_width=False,
+                            width="content",
                             key=f"bokeh_single_{helpers_pl.validate_convert_names(title)}_{helpers_pl.validate_convert_names(prop)}",
                         )
                         if not ok:
@@ -249,7 +249,7 @@ def single_f(config_obj, username, selection, df, os_details):
                     if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                         ok = st_bokeh.streamlit_bokeh(
                             bokeh_fig,
-                            use_container_width=False,
+                            width="content",
                             key=f"bokeh_overview_{helpers_pl.validate_convert_names(title)}",
                         )
                         if not ok:

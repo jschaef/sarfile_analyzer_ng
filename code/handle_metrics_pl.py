@@ -105,7 +105,7 @@ def do_metrics(
                 if Config.use_streamlit_bokeh_component:
                     ok = st_bokeh.streamlit_bokeh(
                         bokeh_fig,
-                        use_container_width=False,
+                        width="content",
                         key=f"compare_metrics_bokeh_{filename}",
                     )
                     if (not ok) and (not chart_html):

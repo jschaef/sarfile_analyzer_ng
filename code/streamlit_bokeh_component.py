@@ -49,12 +49,15 @@ def serialize_figure(figure) -> str:
 def streamlit_bokeh(
     figure,
     *,
-    use_container_width: bool = True,
+    width: str = "stretch",
     theme: str = "streamlit",
     key: str | None = None,
     figure_json: str | None = None,
 ) -> bool:
     """Render a Bokeh figure via the streamlit-bokeh custom component.
+
+    ``width`` follows the modern Streamlit convention: "stretch" fills the
+    container, "content" keeps the figure's own size.
 
     If ``figure_json`` is given it is used as-is and ``figure`` is not
     serialized again — let callers cache the (expensive) JSON across reruns.
@@ -66,7 +69,10 @@ def streamlit_bokeh(
         component = _get_component_callable()
         component(
             figure=figure_json if figure_json is not None else serialize_figure(figure),
-            use_container_width=use_container_width,
+            # The prop name is the contract with the streamlit-bokeh JS
+            # frontend - it must stay use_container_width even though the
+            # Python-side parameter of core Streamlit elements is deprecated.
+            use_container_width=(width == "stretch"),
             bokeh_theme=theme,
             key=key,
         )

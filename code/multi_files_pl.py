@@ -241,7 +241,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                                     ok = st_bokeh.streamlit_bokeh(
                                         bokeh_fig,
-                                        use_container_width=False,
+                                        width="content",
                                         key=f"bokeh_multi_compare_{helpers.validate_convert_names(title)}_{helpers.validate_convert_names(prop)}",
                                     )
                                     if not ok:
@@ -394,7 +394,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                     if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                                         ok = st_bokeh.streamlit_bokeh(
                                             bokeh_fig,
-                                            use_container_width=False,
+                                            width="content",
                                             key=f"bokeh_multi_overview_{helpers.validate_convert_names(key)}_{helpers.validate_convert_names(title)}",
                                         )
                                         if not ok:

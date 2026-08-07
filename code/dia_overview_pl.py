@@ -172,7 +172,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                     st.markdown(f'###### all of {device_num}')
                 if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                     ok = st_bokeh.streamlit_bokeh(
-                        bokeh_fig, use_container_width=True,
+                        bokeh_fig, width="stretch",
                         figure_json=_cached_figure_json(item_dict, bokeh_fig),
                         key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}",
                     )
@@ -241,7 +241,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                 if tab1.open:
                     if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
                         ok = st_bokeh.streamlit_bokeh(
-                            bokeh_fig, use_container_width=True,
+                            bokeh_fig, width="stretch",
                             figure_json=_cached_figure_json(subitem_dict, bokeh_fig),
                             key=f"bokeh_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}_{counter}",
                         )
