@@ -17,6 +17,10 @@ import gc
 import os
 import time
 from contextlib import contextmanager
+
+# Widget key for the metric selector - Select All/Deselect All write the
+# selection straight into session state before the widget renders.
+METRIC_PILLS_KEY = 'overview_metric_pills'
 # from wfork_streamlit_profiler import Profiler
 # example with Profiler:
 
@@ -300,48 +304,45 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
     full_alias_l = list(full_alias_d.values())
     full_alias_l.sort(reverse=True)
     sel_field = []
-    length =  len(headers)
-    boxes_per_line = 5
-    count_lines = length / boxes_per_line
-    if count_lines > 0:
-        count_lines = int(count_lines + 1)
     show_manpages = 1
     statistics = 1
 
     @st.fragment
-    def metric_expander(initial_aliases: list, full_alias_l: list,
-            count_lines: int, boxes_per_line: int, sel_field: list):
+    def metric_expander(initial_aliases: list, full_alias_l: list):
         col1, _ = st.columns([0.8, 0.2])
         col1.markdown("##### Select which metrics to display")
         h_expander = col1.expander(label='Choose SAR Metrics', expanded=True, type="compact")
+        # Ascending order: the old checkbox grid rendered - and therefore
+        # returned - the aliases this way, and the order of the result drives
+        # the order the diagrams appear in further down (sel_order_map).
+        options = sorted(full_alias_l)
+        # Seed the selection once instead of passing default=: combining a
+        # default with Select All/Deselect All (which write straight into
+        # session state) makes Streamlit log a duplicate-state warning.
+        if METRIC_PILLS_KEY not in st.session_state:
+            st.session_state[METRIC_PILLS_KEY] = [
+                a for a in options if a in initial_aliases
+            ]
         with h_expander:
-            fr_aliases = initial_aliases.copy()
-            fr_full_alias = full_alias_l.copy()
             col5, col6 = st.columns(2)
-            ph_col3 = col5.empty()
-            ph_col4 = col6.empty()
-            if ph_col3.checkbox('Select All', help="""Be cautious with this option. It will select all metrics
+            if col5.button('Select All', help="""Be cautious with this option. It will select all metrics
             and can lead to a large time delay since a lot of diagrams may be created"""):
-                fr_aliases = fr_full_alias[:]
-            elif ph_col4.checkbox('Deselect All'):
-                fr_aliases = []
+                st.session_state[METRIC_PILLS_KEY] = options[:]
+            if col6.button('Deselect All'):
+                st.session_state[METRIC_PILLS_KEY] = []
             st.markdown('***')
-            for _ in range(count_lines):
-                cols = st.columns(boxes_per_line)
-                for x in range(len(cols)):
-                    if len(fr_full_alias) > 0:
-                        label = fr_full_alias.pop()
-                        if label in fr_aliases:
-                            value = True
-                        else:
-                            value = False
-                        ph_sel = cols[x].empty()
-                        selected = ph_sel.checkbox(label, value=value)
-                        if selected:
-                            sel_field.append(label)
-        return sel_field
+            selected = st.pills(
+                'Choose SAR Metrics',
+                options,
+                selection_mode='multi',
+                label_visibility='collapsed',
+                key=METRIC_PILLS_KEY,
+            )
+        # st.pills hands back the click order - restore the stable one.
+        chosen = set(selected or [])
+        return [a for a in options if a in chosen]
 
-    sel_field = metric_expander(initial_aliases, full_alias_l, count_lines, boxes_per_line, sel_field)
+    sel_field = metric_expander(initial_aliases, full_alias_l)
 
     # pdfs,  pick time frame, diagram style
     @st.fragment
