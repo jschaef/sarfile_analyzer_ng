@@ -14,6 +14,7 @@ import help
 import info
 import handle_user_status
 import sso_login
+import validation
 
 st.set_page_config(
     page_title="Happy SAR Analyzer",
@@ -112,7 +113,12 @@ def start():
         new_user = col1.text_input("Username")
         new_password = col1.text_input("Password", type='password')
         if st.button("Signup"):
-            if sql_stuff.add_userdata(new_user,new_password):
+            if not validation.is_valid_username(new_user):
+                st.warning(
+                    "Invalid username. Use letters, digits and . _ @ + - "
+                    "and start with a letter or digit."
+                )
+            elif sql_stuff.add_userdata(new_user,new_password):
                 st.success("You have successfully created an valid Account")
                 st.info("Goto Login Menu to login")
             else:
@@ -128,7 +134,7 @@ def main_body(username: str, config_c: helpers.configuration) :
     from sqlite2_polars import get_table_df
     
     upload_dir = f'{Config.upload_dir}/{username}'
-    os.system(f'mkdir -p {upload_dir}')
+    os.makedirs(upload_dir, exist_ok=True)
     sar_files = os.listdir(upload_dir)
     st.sidebar.success(f"Logged in as {username}")
     

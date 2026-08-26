@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os
+import shutil
 import streamlit as st
 import pandas as pd
 import time
@@ -271,7 +272,7 @@ def rename_sar_file(file_path, col=None):
     rename_name = f'{today}_{hostname}_{date}'
     renamed_name = f'{dir_name}/{rename_name}'
     try:
-        os.system(f'mv {file_path} {dir_name}/{rename_name}')
+        shutil.move(file_path, f'{dir_name}/{rename_name}')
         col.info(fr'{base_name} has been renamed to {rename_name}\
             which means: <date_of_upload>\_<hostname>\_<sar file creation date>')
         return rename_name

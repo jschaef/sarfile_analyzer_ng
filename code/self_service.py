@@ -5,6 +5,7 @@ import sql_stuff
 import pandas as pd
 import visual_funcs as visf
 import handle_user_status
+import shutil
 from config import Config
 
 def self_service(username):
@@ -63,7 +64,7 @@ def admin_service():
         if st.button('Submit'):
             sql_stuff.delete_user(user)
             if user in upload_dir:
-                os.system(f'rm -rf {upload_dir}')
+                shutil.rmtree(upload_dir, ignore_errors=True)
             col1.info(f'User {user} has been deleted')
     elif choice == 'Login History':
         user_ph.empty()

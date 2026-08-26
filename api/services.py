@@ -39,12 +39,10 @@ DEFAULT_OVERVIEW_ALIASES = [
 _CPU_LIKE = re.compile(r"^CPU|SOFT.*", re.IGNORECASE)
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
-# Usernames may be plain logins or e-mail addresses. The first character must
-# be alphanumeric, which rules out '.', '..' and hidden names - important
-# because the username becomes a directory under UPLOAD_DIR. Path separators
-# are not part of the character class, so traversal is impossible.
-USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._@+-]*$"
-_SAFE_USERNAME = re.compile(USERNAME_PATTERN)
+# Username validation lives in the shared `validation` module so the UI and
+# this API enforce the exact same rule (both build directories under
+# UPLOAD_DIR from the name). Re-exported here for backwards compatibility.
+from validation import USERNAME_PATTERN, _SAFE_USERNAME  # noqa: E402
 
 
 class ServiceError(Exception):

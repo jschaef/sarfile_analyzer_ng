@@ -197,7 +197,7 @@ def parse_sar_file(file_path: str, username: str, DEBUG: bool = False) -> pl.Dat
                 )
 
     if not DEBUG:
-        os.system(f"rm -rf {real_path}")
+        Path(real_path).unlink(missing_ok=True)
 
     return df
 

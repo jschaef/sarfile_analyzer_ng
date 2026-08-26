@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import os
+from pathlib import Path
 import pandas as pd
 import streamlit as st
 from magic import Magic
@@ -102,13 +103,13 @@ def convert_openpgp_sar_file(file_content: bytes, original_filename: str) -> tup
             temp_input.write(file_content)
             temp_input_path = temp_input.name
         
-        # Run the sar conversion command
-        # Use shell=True to handle the unset LANG part properly
-        full_cmd = f"unset LANG; sar -A -t -f {temp_input_path}"
-        
+        # Run the sar conversion command without a shell. sar wants LANG
+        # unset for a C-locale numeric format; pass a scrubbed environment
+        # instead of relying on `unset LANG` in a shell string.
+        sar_env = {k: v for k, v in os.environ.items() if k != "LANG"}
         result = subprocess.run(
-            full_cmd,
-            shell=True,
+            ["sar", "-A", "-t", "-f", temp_input_path],
+            env=sar_env,
             capture_output=True,
             text=False  # We want bytes output
         )
@@ -257,8 +258,8 @@ def file_mng(upload_dir: str, username:str):
                     r_item = f'{file}_parquet'  # file already contains the basename without .parquet extension
                     df_file = f'{upload_dir}/{file}.parquet'
                     fs_file = f'{upload_dir}/{file}'
-                    os.system(f'rm -f {df_file}')
-                    os.system(f'rm -f {fs_file}')
+                    Path(df_file).unlink(missing_ok=True)
+                    Path(fs_file).unlink(missing_ok=True)
                     try:
                         rkey = f"{Config.rkey_pref}:{username}"
                         print(
