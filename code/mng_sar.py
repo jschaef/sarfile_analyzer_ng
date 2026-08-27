@@ -251,7 +251,7 @@ def file_mng(upload_dir: str, username:str):
         if sar_files:
             dfiles_ph = col1.empty()
             dfiles = dfiles_ph.multiselect(
-                'Choose your Files to delete', sar_files, wrap=False)
+                'Choose your Files to delete', sar_files)
             if col1.button('Delete selected Files'):
                 for file in dfiles:
                     # Construct Redis property key correctly: basename + "_parquet"
@@ -275,8 +275,7 @@ def file_mng(upload_dir: str, username:str):
                 sar_files_parquet = [x.replace('.parquet', '') for x in sar_files if x.endswith('.parquet')]
                 sar_files = sar_files_parquet + sar_files_uploaded
                 dfiles = dfiles_ph.multiselect(
-                    'Choose your Files to delete', sar_files, default=None,
-                    wrap=False)
+                    'Choose your Files to delete', sar_files, default=None)
         else:
             col1.write("You currently have no sar files")
 
