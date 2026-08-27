@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 # DB Management
+import logging
 import os
+
+import validation
 from sqlalchemy import create_engine
 from sqlalchemy import inspect
 from sqlalchemy.orm import declarative_base
@@ -110,6 +113,15 @@ def login_user(username, password):
         return False
 
 def add_userdata(username, password, role='user'):
+    # Last line of defence: every caller validates already, but the username
+    # becomes a directory under UPLOAD_DIR, so the one function that writes it
+    # to the database refuses anything unsafe - including the empty name that
+    # produced a junk account and a stray upload in the upload root.
+    if not validation.is_valid_username(username):
+        logging.getLogger(__name__).warning(
+            "rejected invalid username %r", username
+        )
+        return False
     query = session.query(User.username).filter(User.username == username)
     role_id = session.query(Role.id).filter(Role.role == role)
     if query.first():
