@@ -249,10 +249,15 @@ def file_mng(upload_dir: str, username:str):
                                 
     elif managef_options == 'Delete Sar Files':
         if sar_files:
-            dfiles_ph = col1.empty()
+            # Own, wider column instead of the narrow page column: the file
+            # names are long (<upload date>_<host>_<sar date>), and at a
+            # quarter of the page the selected chips are cut down to
+            # '2026...', so you cannot tell which file you picked.
+            del_col, _ = st.columns([0.5, 0.5])
+            dfiles_ph = del_col.empty()
             dfiles = dfiles_ph.multiselect(
                 'Choose your Files to delete', sar_files)
-            if col1.button('Delete selected Files'):
+            if del_col.button('Delete selected Files'):
                 for file in dfiles:
                     # Construct Redis property key correctly: basename + "_parquet"
                     r_item = f'{file}_parquet'  # file already contains the basename without .parquet extension
