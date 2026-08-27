@@ -5,5 +5,9 @@
 #
 # Minimum Python: 3.10 (mcp SDK requirement + PEP 604 "X | None" syntax used in
 # the code). Tested on 3.12.
-mcp>=1.26
+# Upper bound is deliberate: mcp 2.x restructured the package and dropped
+# mcp.server.fastmcp, which server.py imports. An unpinned install pulled 2.1.0
+# onto dus-lab-sar and the service only fell over at its next restart, long
+# after the upgrade. Porting to the 2.x API is a separate piece of work.
+mcp>=1.26,<2
 httpx>=0.27

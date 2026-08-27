@@ -44,7 +44,7 @@ and its requirements:
 ```
 mcp_server/__init__.py
 mcp_server/server.py
-mcp_server/requirements.txt   # only: mcp>=1.26, httpx>=0.27
+mcp_server/requirements.txt   # only: mcp>=1.26,<2 and httpx>=0.27
 ```
 
 plus the root CA file for `SSL_CERT_FILE`. Then:
