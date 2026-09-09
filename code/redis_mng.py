@@ -77,7 +77,9 @@ def delete_redis_keys():
     cols = visf.create_columns(4,[0,1,1,1])
     col1 = cols[0]
     hash = col1.selectbox('Select hash', show_keys())
-    hash_keys = col1.multiselect('Select n keys', show_hash_keys(hash))
+    # wrap=True: since Streamlit 1.63 a widget placed directly in a column no
+    # longer wraps its chips, and the single scrolling row hides the selection.
+    hash_keys = col1.multiselect('Select n keys', show_hash_keys(hash), wrap=True)
     if st_button('Submit'):
         try:
             for hkey in hash_keys:

@@ -255,8 +255,12 @@ def file_mng(upload_dir: str, username:str):
             # '2026...', so you cannot tell which file you picked.
             del_col, _ = st.columns([0.5, 0.5])
             dfiles_ph = del_col.empty()
+            # wrap=True: since Streamlit 1.63 a widget placed directly in a
+            # column no longer wraps its chips. Without it the row scrolls to
+            # its end and only the last file stays readable - see the revert in
+            # 17b521c: seeing the whole selection is what this workflow needs.
             dfiles = dfiles_ph.multiselect(
-                'Choose your Files to delete', sar_files)
+                'Choose your Files to delete', sar_files, wrap=True)
             if del_col.button('Delete selected Files'):
                 for file in dfiles:
                     # Construct Redis property key correctly: basename + "_parquet"
@@ -280,7 +284,8 @@ def file_mng(upload_dir: str, username:str):
                 sar_files_parquet = [x.replace('.parquet', '') for x in sar_files if x.endswith('.parquet')]
                 sar_files = sar_files_parquet + sar_files_uploaded
                 dfiles = dfiles_ph.multiselect(
-                    'Choose your Files to delete', sar_files, default=None)
+                    'Choose your Files to delete', sar_files, default=None,
+                    wrap=True)
         else:
             col1.write("You currently have no sar files")
 

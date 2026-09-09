@@ -38,8 +38,11 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
             metrics = sqlite2_polars.view_all_metrics()
             metrics = [x[0] for x in metrics]
             multid_placeholder = col.empty()
+            # wrap=True: since Streamlit 1.63 a widget placed directly in a
+            # column no longer wraps its chips, and the single scrolling row
+            # hides part of the selection.
             del_list = multid_placeholder.multiselect(
-                "Choose metrics to delete", metrics, key="d_multi"
+                "Choose metrics to delete", metrics, key="d_multi", wrap=True
             )
             if st.button("Submit"):
                 for metric in del_list:
@@ -47,13 +50,13 @@ def db_mgmt(headings_df: pl.DataFrame, metrics_df: pl.DataFrame):
                     sqlite2_polars.invalidate_table_cache("metric")
                     metrics.remove(metric)
                 del_list = multid_placeholder.multiselect(
-                    "Choose metrics to delete", metrics
+                    "Choose metrics to delete", metrics, wrap=True
                 )
         elif action == "Search":
             metrics = sqlite2_polars.view_all_metrics()
             metrics = [x[0] for x in metrics]
             search_list = col.multiselect(
-                "Choose metrics to display", metrics, key="s_metric", 
+                "Choose metrics to display", metrics, key="s_metric", wrap=True
             )
 
             if search_list:

@@ -158,7 +158,9 @@ def show_multi(config_obj, username, selection, df, os_details):
             res_devlist = pl_h2.dataframe_editor(
                 sub_devs_df, ph_col2, 1, "Select for diagram"
             )
-            if col3.checkbox("select all"):
+            # wrap=True: since Streamlit 1.63 a control in a column ellipsizes
+            # its label instead of wrapping it, and this column is 5% wide.
+            if col3.checkbox("select all", wrap=True):
                 res_devlist = pl_h2.dataframe_editor(
                     sub_devs_df, ph_col2, 1, "Select for diagram", True
                 )

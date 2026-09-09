@@ -60,7 +60,10 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
     col4.write("")
     ph_show = col1.empty()
     ph_choose = col3.empty()
-    dia_type = ph_choose.toggle("Horizontal view for consecutive days",)
+    # wrap=True: since Streamlit 1.63 a control placed directly in a column
+    # ellipsizes its label instead of wrapping it, and a quarter of the page
+    # is not enough for this one.
+    dia_type = ph_choose.toggle("Horizontal view for consecutive days", wrap=True)
     if ph_show.checkbox("***show***", key="Show"):
         df_all = []
         all_headers = []

@@ -356,9 +356,10 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         create_multi_pdf = 0
         create_csv = 0
         toggle_col1, toggle_col2 = this_container.columns(2)
-        if toggle_col1.toggle('Create PDF from all diagrams', help='Create a PDF from all diagrams'):
+        if toggle_col1.toggle('Create PDF from all diagrams', wrap=True,
+                help='Create a PDF from all diagrams'):
             create_multi_pdf = 1
-        if toggle_col2.toggle('Generate csv for all statistical data',
+        if toggle_col2.toggle('Generate csv for all statistical data', wrap=True,
                 help='Generate a CSV containing the statistics of every displayed data set'):
             create_csv = 1
         this_container.markdown("###### Set time frame")
@@ -424,6 +425,7 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
             'Profile run',
             value=st.session_state[perf_toggle_key],
             help='Collects a timing breakdown for the diagram calculation/rendering.',
+            wrap=True,
         )
     else:
         st.session_state[perf_toggle_key] = False
@@ -441,10 +443,13 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
         unsafe_allow_html=True
     )
 
-    submitted = col1.button('Show Diagrams')
+    # wrap=True: since Streamlit 1.63 a control placed directly in a column
+    # no longer wraps its label but ellipsizes it - 'Show Diagrams' turned
+    # into 'Show Diagr...' in this 15%-wide column.
+    submitted = col1.button('Show Diagrams', wrap=True)
     if submitted:
         st.session_state[show_state_key] = True
-    if col2.button('Clear'):
+    if col2.button('Clear', wrap=True):
         st.session_state[show_state_key] = False
         st.session_state.pop(perf_result_key, None)
         st.rerun()
