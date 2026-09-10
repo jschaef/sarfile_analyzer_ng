@@ -1,8 +1,10 @@
 /* streamlit secondary background color #E0E0EF */
-body {
-    color: #fff;
-    background-color: #4F8BF9;
-}
+/* No body rule any more. The old `body { color: #fff }` was invisible for
+   years because Streamlit paints its own text colour inside .stApp - but
+   popovers are portaled directly under <body>, and the calendar of
+   st.date_input (redesigned in 1.62) inherits its day colour from there:
+   every day of the current month rendered white on white, only the grey
+   neighbouring-month days stayed readable. */
 
 /* .stButton>button {
     color: #4F8BF9;
