@@ -31,44 +31,10 @@
     font-size: 16px;
 }
 
-ul[data-baseweb="accordion"]>li>div[role="button"] {
-    background-color: #e5e2ed;
-    /* background-color: #f3e3c5 !important; */
-    font-size: 16px;
-}
-
-div[data-baseweb="select"]>div {
-    background-color: #c5d9f3 !important;
-    font-family:Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
-    /*font-family: "Courier New", Courier, "Lucida Sans Typewriter", "Lucida Typewriter", monospace;*/
-    font-style: normal;
-    font-variant: normal;
-    font-size: 16px;
-    /* background-color: #91cfec !important; */
-}
-
-label[data-baseweb="checkbox"]>span>option:checked {
-    --hover-color:  rgb(26 124 120);
-    /* background-color: #91cfec !important; */
-}
-
-div[data-baseweb="notification"] {
-    background-color: #c5d9f3 !important;
-    /* background-color: #91cfec !important; */
-}
-
-button[kind="formSubmit"] {
-    background-color: #f3e3c5 !important;
-}
-
-/* Not working */
-div[data-baseweb="select"]>div:hover> {
-    background-color: #f3e3c5 !important;
-}
-
-div[data-testid="stExpander"]>class>div {
-    background-color: #c5d9f3 !important;
-    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
-    font-size: 16px;
-    /* background-color: #91cfec !important; */
-}
+/* The Baseweb-era rules that used to sit here (data-baseweb="select",
+   "accordion", "notification", the checkbox option hover, the formSubmit
+   button, a broken :hover> selector and a `>class>div` expander selector)
+   were removed on 10.09.2026: measured across every page, none of their
+   selectors matched a single element any more - Streamlit no longer emits
+   data-baseweb attributes, and the app has no st.form. The current look is
+   already the look without them. */
