@@ -40,6 +40,64 @@ Das Skript: `git pull` → pip-Deps → Secrets/Env-Dateien (nur falls fehlend)
 → `mcp-agent` anlegen → user-Units `sar-api`/`sar-mcp` → Caddy-Quadlet →
 Linger → Health-Check. Am Ende gibt es das MCP-Gate-Token aus.
 
+### Lokal geschützte Dateien (skip-worktree)
+
+Zwei getrackte Dateien weichen auf dem Server absichtlich vom Repo ab und sind
+mit dem skip-worktree-Bit vor `git pull` geschützt:
+
+| Datei | Lokale Abweichung |
+|---|---|
+| `code/data.db` | produktive DB mit den echten Benutzern (im Repo nur der Seed) |
+| `code/config.py` | gepatchter Default für `admin_email` — die Kontaktadresse, die `help.py` und `info.py` den Benutzern anzeigen. Repo-Default ist `admin@example-org.com`; die Unit setzt kein `ADMIN_EMAIL`, also gilt der Wert aus der Datei |
+
+Welche Dateien geschützt sind (`S` = skip-worktree):
+
+```bash
+cd ~/data1/sarfile_analyzer_ng
+git ls-files -v | grep '^S'
+```
+
+`git status` und `git diff` zeigen geschützte Dateien **nicht** an. Die lokale
+Abweichung sieht man nur direkt gegen den Commit:
+
+```bash
+git show HEAD:code/config.py | diff - code/config.py
+```
+
+Vor einem Update prüfen, ob die neuen Commits eine geschützte Datei berühren.
+`git status` meldet „up to date" nur gegen den zuletzt geholten Stand, deshalb
+zuerst `fetch`:
+
+```bash
+git fetch
+git diff --name-only HEAD origin/main
+```
+
+Taucht dort eine geschützte Datei auf, verweigert `git pull` den Merge, obwohl
+`git status` sauber aussieht. Dann die Datei **zuerst sichern**, erst danach den
+Schutz aufheben:
+
+```bash
+cp code/config.py ~/config.py.lokal
+git update-index --no-skip-worktree code/config.py
+git checkout code/config.py
+git pull
+# Patch aus ~/config.py.lokal wieder einarbeiten - nicht blind zurückkopieren,
+# sonst geht die Remote-Änderung an der Datei verloren
+git update-index --skip-worktree code/config.py
+```
+
+Bei `code/data.db` ist es umgekehrt: nach dem Pull die gesicherte Kopie
+**unverändert** zurückspielen, die Server-DB ist maßgeblich. Neue Seed-Zeilen aus
+dem Repo ergänzt `deploy.sh` (Schritt 4b) idempotent, dafür muss der Repo-Seed
+nie auf den Server. Niemals `git checkout code/data.db` ohne vorherige Sicherung —
+das ersetzt die echten Benutzer durch den Seed.
+
+Das Bit ist rein lokal: es wird weder gepusht noch geklont und muss nach jedem
+Neuaufbau neu gesetzt werden (siehe Desaster-Recovery, Schritt 4).
+`--assume-unchanged` ist dafür **nicht** geeignet — das ist nur ein
+Performance-Hinweis, den Git selbst wieder verwerfen kann.
+
 ## Einmalige Root-Schritte
 
 Caddy braucht ein eigenes Server-Zertifikat unter
@@ -117,11 +175,17 @@ Benutzer** und ist mit `git update-index --skip-worktree code/data.db`
 geschützt, damit `git pull` sie nie überschreibt — diese produktive `data.db`
 gehört ins Backup (das Repo-Seed reicht dafür nicht).
 
+Ebenfalls lokal abweichend und skip-worktree-geschützt: `code/config.py` mit dem
+gepatchten `admin_email`-Default (siehe „Lokal geschützte Dateien"). Kein
+Datenverlust-Risiko, aber ohne gesicherten Wert zeigen Hilfe- und Info-Seite nach
+einem Neuaufbau wieder `admin@example-org.com` als Kontaktadresse an.
+
 Was ins Backup gehört (nicht bzw. nur als Seed in Git):
 
 | Pfad | Inhalt | Im DR ohne Backup |
 |---|---|---|
 | `~/data1/sarfile_analyzer_ng/code/data.db` | **echte Analyzer-Benutzer** (userstable) | Repo-Checkout liefert nur `admin` + Metadaten; `deploy.sh` ergänzt `mcp-agent` — alle anderen Benutzer wären weg |
+| `~/data1/sarfile_analyzer_ng/code/config.py` | lokal gepatchter `admin_email`-Default (Kontaktadresse auf Hilfe-/Info-Seite) | Checkout liefert `admin@example-org.com` — Benutzer bekommen eine falsche Kontaktadresse angezeigt |
 | `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
 | `~/sar-analyzer/certs/server.{crt,key}.pem` | TLS-Cert/Key (root-signiert) | neu von der Root-CA ausstellen (Rezept: `sar-cert-root-signiert`) |
 | `~/data1/sarfile_analyzer_ng/code/upload/<user>/` | hochgeladene SAR-Dateien + Parquet | Nutzerdaten, erneut hochladbar |
@@ -153,7 +217,12 @@ claude mcp add --transport http sar-analyzer https://dus-lab-sar.lab.dus.suse.co
 3. `cd ~/data1/sarfile_analyzer_ng/code && python3.12 -m venv venv && venv/bin/pip install -r requirements.txt`
 4. `data.db`: der Checkout bringt den Seed (admin + Headings + Metrics) mit.
    Für die echten Benutzer die produktive `data.db` aus dem Backup einspielen und
-   auf dem Server `git update-index --skip-worktree code/data.db` setzen
+   auf dem Server `git update-index --skip-worktree code/data.db` setzen.
+   `config.py`: den Default von `admin_email` wieder auf die echte Kontaktadresse
+   patchen (Wert aus dem Backup von `code/config.py`) und
+   `git update-index --skip-worktree code/config.py` setzen — sonst zeigen Hilfe-
+   und Info-Seite `admin@example-org.com` an. Kontrolle:
+   `git ls-files -v | grep '^S'` muss beide Dateien zeigen
 5. Streamlit-UI (unabhängig von API/MCP): System-Unit + nginx-Vhost als root
    installieren — `sudo cp deployment/lab/sarfile-analyzer.service /etc/systemd/system/`,
    `sudo cp deployment/lab/nginx-sarfile-analyzer-ui.conf /etc/nginx/conf.d/sarfile-analyzer.conf`,
