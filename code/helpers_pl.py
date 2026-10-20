@@ -1,15 +1,15 @@
 #!/usr/bin/python3
 
 import os
-import shutil
-import streamlit as st
-import pandas as pd
-import time
 import re
+import shutil
+from datetime import datetime
+
 import dataframe_funcs_pl as dff
 import layout_helper_pl as lh
+import pandas as pd
 import sqlite2_polars
-from datetime import datetime
+import streamlit as st
 from config import Config
 
 reg_linux_restart = re.compile('LINUX RESTART', re.IGNORECASE)

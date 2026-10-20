@@ -133,10 +133,9 @@ def clean_header(df: pl.DataFrame, column_name: str, timeformat: str) -> pl.Data
 def df_clean_spaces(df: pl.DataFrame, column_name: str) -> pl.DataFrame:
     df = df.with_columns(
         pl.col(column_name)
-        .str.replace(r"\s+", " ")
+        .str.replace_all(r"\s+", " ")
         .str.strip_chars()
-        .str.replace(r"\s+", " ")
-   )
+    )
     return df
 
 
@@ -148,7 +147,9 @@ def get_metrics_from_df(df: pl.DataFrame, header: str, alias: str, sub_device_ke
     else:
         sub_device = sub_device_key
 
-    df = df.with_columns(pl.col(header).str.split(" ").alias(header))
+    df = df.with_columns(
+        pl.col(header).str.replace_all(r"\s+", " ").str.strip_chars().str.split(" ").alias(header)
+    )
     if sub_device:
         df = df.with_columns(
             pl.col(header).list.get(0).alias("sub_device"),
