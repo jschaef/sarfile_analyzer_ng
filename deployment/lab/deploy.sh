@@ -112,6 +112,9 @@ systemctl --user enable sar-api.service sar-mcp.service >/dev/null 2>&1 || true
 systemctl --user restart sar-api.service
 sleep 2
 systemctl --user restart sar-mcp.service
+# sar-web-api (backend of the web frontend, sarfile_analyzer_web) imports
+# this code; only restarted when it is installed and running
+systemctl --user try-restart sar-web-api.service 2>/dev/null || true
 
 echo "== 6. Caddy (rootless podman quadlet) =="
 cp "$REPO/deployment/lab/Caddyfile" "$CADDY_DIR/Caddyfile"

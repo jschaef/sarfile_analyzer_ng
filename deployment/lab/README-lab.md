@@ -12,10 +12,17 @@ Client (VPN) ── https://dus-lab-sar.lab.dus.suse.com
    :443  nginx (root, unverändert)  → 127.0.0.1:8501  Streamlit-UI
    :8443 caddy (rootless podman)    → 127.0.0.1:8100  REST-API (eigene Token-Auth)
    :9443 caddy (rootless podman)    → 127.0.0.1:8200  MCP (statisches Bearer-Gate)
+   :8444 nginx (root)               → 127.0.0.1:3100  Web-Frontend (Next.js → sar-web-api :8300)
 ```
 
 MCP → API läuft lokal über `127.0.0.1:8100` mit dem Service-Account
 `mcp-agent` (admin, wird vom Deploy-Skript angelegt).
+
+Das Web-Frontend (Repo sarfile_analyzer_web, `~/data1/sarfile_analyzer_web`)
+hat ein eigenes Deployment: `deployment/lab/README.md` und `deploy.sh` dort.
+Es nutzt dieselbe `data.db`, dasselbe `code/upload` und dasselbe venv wie
+dieses Repo; `deploy.sh` hier startet dessen Backend `sar-web-api` mit neu,
+damit es den aktuellen Code lädt.
 
 ### System-nginx (Web-UI, root-verwaltet, unabhängig von diesem Deploy)
 
@@ -104,8 +111,10 @@ Performance-Hinweis, den Git selbst wieder verwerfen kann.
 ### Laufzeit-Einstellungen (Kontaktadresse, Limits, Redis)
 
 Kontakt (`admin_email`, `admin_communication`), Limits (`max_header_count`,
-`cols_per_line`) und die Redis-Verbindung (`redis_enabled`, `redis_host`,
-`redis_port`, `redis_user`, `redis_password`) liegen in
+`cols_per_line`), die Redis-Verbindung (`redis_enabled`, `redis_host`,
+`redis_port`, `redis_user`, `redis_password`) und der Link auf das
+Web-Frontend in der Streamlit-Sidebar (`web_frontend_url`, leer = kein Link)
+liegen in
 `~/data1/sarfile_analyzer_ng/code/upload/config/settings.json`. Die Werte
 haben Vorrang vor den Umgebungsvariablen und gelten ohne Neustart für
 Streamlit, API und sar-web-api: `config.py` prüft bei jedem Zugriff die
@@ -223,7 +232,7 @@ Was ins Backup gehört (nicht bzw. nur als Seed in Git):
 |---|---|---|
 | `~/data1/sarfile_analyzer_ng/code/data.db` | **echte Analyzer-Benutzer** (userstable) | Repo-Checkout liefert nur `admin` + Metadaten; `deploy.sh` ergänzt `mcp-agent` — alle anderen Benutzer wären weg |
 | `~/data1/sarfile_analyzer_ng/code/upload/config/settings.json` | Laufzeit-Einstellungen: Kontaktadresse, Limits, ggf. Redis-Zugang (`0600`) | Default `admin@example-org.com` — Benutzer bekommen eine falsche Kontaktadresse angezeigt; Werte neu setzen |
-| `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
+| `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token; `web.env`: Session-Secret des Web-Frontends) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
 | `~/sar-analyzer/certs/server.{crt,key}.pem` | TLS-Cert/Key (root-signiert) | neu von der Root-CA ausstellen (Rezept: `sar-cert-root-signiert`) |
 | `~/data1/sarfile_analyzer_ng/code/upload/<user>/` | hochgeladene SAR-Dateien + Parquet | Nutzerdaten, erneut hochladbar |
 
