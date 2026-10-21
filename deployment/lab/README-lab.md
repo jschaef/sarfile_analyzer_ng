@@ -112,17 +112,22 @@ Performance-Hinweis, den Git selbst wieder verwerfen kann.
 
 Kontakt (`admin_email`, `admin_communication`), Limits (`max_header_count`,
 `cols_per_line`), die Redis-Verbindung (`redis_enabled`, `redis_host`,
-`redis_port`, `redis_user`, `redis_password`) und der Link auf das
-Web-Frontend in der Streamlit-Sidebar (`web_frontend_url`, leer = kein Link)
-liegen in
+`redis_port`, `redis_user`, `redis_password`) und die Links zwischen den
+Oberflächen (`web_frontend_url` in der Streamlit-Sidebar, `streamlit_url` im
+Header des Web-Frontends; leer = kein Link) liegen in
 `~/data1/sarfile_analyzer_ng/code/upload/config/settings.json`. Die Werte
 haben Vorrang vor den Umgebungsvariablen und gelten ohne Neustart für
 Streamlit, API und sar-web-api: `config.py` prüft bei jedem Zugriff die
 Änderungszeit der Datei. Die Datei ist nur für `jschaef` lesbar (`0600`),
 weil sie das Redis-Passwort enthalten kann.
 
-Auf dus-lab-sar gesetzt (21.10.2026): `admin_email` =
-`jochen.schaefer@suse.com`.
+Auf dus-lab-sar gesetzt (21.10.2026):
+
+| Setting | Wert |
+|---|---|
+| `admin_email` | `jochen.schaefer@suse.com` |
+| `web_frontend_url` | `https://dus-lab-sar.lab.dus.suse.com:8444` |
+| `streamlit_url` | `https://dus-lab-sar.lab.dus.suse.com` |
 
 Im Web-Frontend (sarfile_analyzer_web) setzt ein Admin die Werte unter
 *Admin › Settings*. Solange es auf dem Server nicht läuft, per

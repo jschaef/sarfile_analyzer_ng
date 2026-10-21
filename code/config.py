@@ -27,7 +27,10 @@ EDITABLE_SETTINGS = {
     # the new web frontend (sarfile_analyzer_web); Streamlit links to it in
     # the sidebar, empty = no link
     "web_frontend_url": (str, "WEB_FRONTEND_URL", 0, 300),
+    # and back: the web frontend links to this Streamlit app in its header
+    "streamlit_url": (str, "STREAMLIT_URL", 0, 300),
 }
+URL_SETTINGS = {"web_frontend_url", "streamlit_url"}
 SECRET_SETTINGS = {"redis_password"}
 
 _cache = {}  # settings path -> ((mtime_ns, size), values)
@@ -84,9 +87,9 @@ def validate_setting(name: str, value):
         raise ValueError("admin_email: not an e-mail address")
     if name == "redis_host" and any(c.isspace() for c in value):
         raise ValueError("redis_host: no spaces allowed")
-    if name == "web_frontend_url" and value:
+    if name in URL_SETTINGS and value:
         if not value.startswith(("https://", "http://")) or any(c.isspace() for c in value):
-            raise ValueError("web_frontend_url: an http(s) URL is expected")
+            raise ValueError(f"{name}: an http(s) URL is expected")
     return value
 
 
@@ -153,6 +156,7 @@ class Config(object, metaclass=_ConfigMeta):
     file_type = os.getenv("FILE_TYPE", "parquet")
     admin_communication = os.getenv("ADMIN_COMMUNICATION", "slack")
     web_frontend_url = os.getenv("WEB_FRONTEND_URL", "")
+    streamlit_url = os.getenv("STREAMLIT_URL", "")
     debug = os.getenv("DEBUG", "True").lower() in ("true", "1", "t")
     use_streamlit_bokeh_component = os.getenv("USE_STREAMLIT_BOKEH_COMPONENT", "True").lower() in (
         "true",
