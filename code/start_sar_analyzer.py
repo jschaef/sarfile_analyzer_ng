@@ -62,6 +62,10 @@ def start():
             "nav-link-selected": {"background-color": "#1a7c78"},
         }
         )
+        # set by an admin (web frontend: Admin > Settings), empty = no link
+        if Config.web_frontend_url:
+            st.link_button("New web frontend", Config.web_frontend_url, icon=":material/open_in_new:",
+                           width="stretch")
     
         
     cached_obj = "sql_connection_obj"
