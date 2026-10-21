@@ -40,74 +40,100 @@ Das Skript: `git pull` → pip-Deps → Secrets/Env-Dateien (nur falls fehlend)
 → `mcp-agent` anlegen → user-Units `sar-api`/`sar-mcp` → Caddy-Quadlet →
 Linger → Health-Check. Am Ende gibt es das MCP-Gate-Token aus.
 
-### Lokal geschützte Dateien (skip-worktree)
+### Lokal geschützte Datei (skip-worktree)
 
-Zwei getrackte Dateien weichen auf dem Server absichtlich vom Repo ab und sind
-mit dem skip-worktree-Bit vor `git pull` geschützt:
+Eine getrackte Datei weicht auf dem Server absichtlich vom Repo ab und ist mit
+dem skip-worktree-Bit vor `git pull` geschützt: **`code/data.db`**, die
+produktive DB mit den echten Benutzern (im Repo nur der Seed).
 
-| Datei | Lokale Abweichung |
-|---|---|
-| `code/data.db` | produktive DB mit den echten Benutzern (im Repo nur der Seed) |
-| `code/config.py` | gepatchter Default für `admin_email` — die Kontaktadresse, die `help.py` und `info.py` den Benutzern anzeigen. Repo-Default ist `admin@example-org.com`; die Unit setzt kein `ADMIN_EMAIL`, also gilt der Wert aus der Datei |
+`code/config.py` war bis zum 21.10.2026 ebenfalls geschützt (gepatchter
+Default für `admin_email`). Das ist nicht mehr nötig, das Bit ist entfernt:
+die Kontaktadresse steht jetzt in den Laufzeit-Einstellungen (nächster
+Abschnitt). `config.py` **nicht** wieder patchen oder schützen.
 
-**`code/config.py` braucht diesen Patch nicht mehr:** Kontakt (`admin_email`,
-`admin_communication`), Limits (`max_header_count`, `cols_per_line`) und die
-Redis-Verbindung setzt ein Admin im Web-Frontend unter *Admin › Settings*. Die
-Werte liegen in `$UPLOAD_DIR/config/settings.json` (nur für den Besitzer
-lesbar, kann das Redis-Passwort enthalten), haben Vorrang vor den
-Umgebungsvariablen und gelten ohne Neustart für Streamlit, API und
-sar-web-api. Beim ersten Pull, der `config.py` ändert, wie unten beschrieben
-sichern und den Schutz aufheben, den Patch aber **nicht** wieder einarbeiten:
-stattdessen die Adresse einmal im Web-Frontend setzen und `config.py` danach
-ungeschützt lassen (`git update-index --no-skip-worktree code/config.py`).
-
-Welche Dateien geschützt sind (`S` = skip-worktree):
+Kontrolle (`S` = skip-worktree, erwartet nur `code/data.db`):
 
 ```bash
 cd ~/data1/sarfile_analyzer_ng
 git ls-files -v | grep '^S'
 ```
 
-`git status` und `git diff` zeigen geschützte Dateien **nicht** an. Die lokale
-Abweichung sieht man nur direkt gegen den Commit:
+`git status` und `git diff` zeigen geschützte Dateien **nicht** an. Ob die
+Server-DB vom Seed abweicht (erwartet: ja), sieht man nur direkt gegen den
+Commit:
 
 ```bash
-git show HEAD:code/config.py | diff - code/config.py
+git show HEAD:code/data.db | cmp -s - code/data.db || echo "data.db weicht vom Seed ab"
 ```
 
-Vor einem Update prüfen, ob die neuen Commits eine geschützte Datei berühren.
+Vor einem Update prüfen, ob die neuen Commits die geschützte Datei berühren.
 `git status` meldet „up to date" nur gegen den zuletzt geholten Stand, deshalb
 zuerst `fetch`:
 
 ```bash
 git fetch
-git diff --name-only HEAD origin/main
+git diff --name-only HEAD origin/main | grep code/data.db
 ```
 
-Taucht dort eine geschützte Datei auf, verweigert `git pull` den Merge, obwohl
-`git status` sauber aussieht. Dann die Datei **zuerst sichern**, erst danach den
-Schutz aufheben:
+Taucht `code/data.db` dort auf, verweigert `git pull` (und damit `deploy.sh`)
+den Merge, obwohl `git status` sauber aussieht. Dann die DB **zuerst sichern**,
+erst danach den Schutz aufheben, und nach dem Pull die Sicherung
+**unverändert** zurückspielen — die Server-DB ist maßgeblich. Zwischen
+`checkout` und Zurückkopieren sehen laufende Dienste die Seed-DB, also zügig
+arbeiten oder Streamlit und `sar-api` vorher stoppen:
 
 ```bash
-cp code/config.py ~/config.py.lokal
-git update-index --no-skip-worktree code/config.py
-git checkout code/config.py
+cp code/data.db ~/data.db.lokal
+git update-index --no-skip-worktree code/data.db
+git checkout code/data.db
 git pull
-# Patch aus ~/config.py.lokal wieder einarbeiten - nicht blind zurückkopieren,
-# sonst geht die Remote-Änderung an der Datei verloren
-git update-index --skip-worktree code/config.py
+cp ~/data.db.lokal code/data.db
+git update-index --skip-worktree code/data.db
 ```
 
-Bei `code/data.db` ist es umgekehrt: nach dem Pull die gesicherte Kopie
-**unverändert** zurückspielen, die Server-DB ist maßgeblich. Neue Seed-Zeilen aus
-dem Repo ergänzt `deploy.sh` (Schritt 4b) idempotent, dafür muss der Repo-Seed
-nie auf den Server. Niemals `git checkout code/data.db` ohne vorherige Sicherung —
-das ersetzt die echten Benutzer durch den Seed.
+Neue Seed-Zeilen aus dem Repo ergänzt `deploy.sh` (Schritt 4b) idempotent,
+dafür muss der Repo-Seed nie auf den Server. Niemals `git checkout
+code/data.db` ohne vorherige Sicherung — das ersetzt die echten Benutzer durch
+den Seed.
 
 Das Bit ist rein lokal: es wird weder gepusht noch geklont und muss nach jedem
 Neuaufbau neu gesetzt werden (siehe Desaster-Recovery, Schritt 4).
 `--assume-unchanged` ist dafür **nicht** geeignet — das ist nur ein
 Performance-Hinweis, den Git selbst wieder verwerfen kann.
+
+### Laufzeit-Einstellungen (Kontaktadresse, Limits, Redis)
+
+Kontakt (`admin_email`, `admin_communication`), Limits (`max_header_count`,
+`cols_per_line`) und die Redis-Verbindung (`redis_enabled`, `redis_host`,
+`redis_port`, `redis_user`, `redis_password`) liegen in
+`~/data1/sarfile_analyzer_ng/code/upload/config/settings.json`. Die Werte
+haben Vorrang vor den Umgebungsvariablen und gelten ohne Neustart für
+Streamlit, API und sar-web-api: `config.py` prüft bei jedem Zugriff die
+Änderungszeit der Datei. Die Datei ist nur für `jschaef` lesbar (`0600`),
+weil sie das Redis-Passwort enthalten kann.
+
+Auf dus-lab-sar gesetzt (21.10.2026): `admin_email` =
+`jochen.schaefer@suse.com`.
+
+Im Web-Frontend (sarfile_analyzer_web) setzt ein Admin die Werte unter
+*Admin › Settings*. Solange es auf dem Server nicht läuft, per
+Kommandozeile — `UPLOAD_DIR` muss auf dasselbe Verzeichnis zeigen wie bei
+Streamlit (`code/upload`) und API (`api.env`):
+
+```bash
+cd ~/data1/sarfile_analyzer_ng/code
+# setzen (validiert, schreibt atomar mit 0600)
+UPLOAD_DIR=$PWD/upload venv/bin/python -c 'import config; print(config.update_settings({"admin_email": "jochen.schaefer@suse.com"}))'
+# entfernen: zurück auf Umgebungsvariable bzw. Default
+UPLOAD_DIR=$PWD/upload venv/bin/python -c 'import config; print(config.update_settings({"admin_email": None}))'
+# anzeigen
+cat upload/config/settings.json
+```
+
+Mehrere Werte gehen in einem Aufruf, z. B.
+`{"max_header_count": 8, "cols_per_line": 3}`. Ungültige Werte (falscher Typ,
+außerhalb der Grenzen, keine E-Mail-Adresse) lehnt `update_settings` mit
+einem `ValueError` ab, ohne etwas zu schreiben.
 
 ## Einmalige Root-Schritte
 
@@ -186,9 +212,9 @@ Benutzer** und ist mit `git update-index --skip-worktree code/data.db`
 geschützt, damit `git pull` sie nie überschreibt — diese produktive `data.db`
 gehört ins Backup (das Repo-Seed reicht dafür nicht).
 
-Ebenfalls lokal abweichend und skip-worktree-geschützt: `code/config.py` mit dem
-gepatchten `admin_email`-Default (siehe „Lokal geschützte Dateien"). Kein
-Datenverlust-Risiko, aber ohne gesicherten Wert zeigen Hilfe- und Info-Seite nach
+Ebenfalls nicht in Git: die Laufzeit-Einstellungen in
+`code/upload/config/settings.json` (siehe „Laufzeit-Einstellungen"). Kein
+Datenverlust-Risiko, aber ohne gesicherte Datei zeigen Hilfe- und Info-Seite nach
 einem Neuaufbau wieder `admin@example-org.com` als Kontaktadresse an.
 
 Was ins Backup gehört (nicht bzw. nur als Seed in Git):
@@ -196,7 +222,7 @@ Was ins Backup gehört (nicht bzw. nur als Seed in Git):
 | Pfad | Inhalt | Im DR ohne Backup |
 |---|---|---|
 | `~/data1/sarfile_analyzer_ng/code/data.db` | **echte Analyzer-Benutzer** (userstable) | Repo-Checkout liefert nur `admin` + Metadaten; `deploy.sh` ergänzt `mcp-agent` — alle anderen Benutzer wären weg |
-| `~/data1/sarfile_analyzer_ng/code/config.py` | lokal gepatchter `admin_email`-Default (Kontaktadresse auf Hilfe-/Info-Seite) | Checkout liefert `admin@example-org.com` — Benutzer bekommen eine falsche Kontaktadresse angezeigt |
+| `~/data1/sarfile_analyzer_ng/code/upload/config/settings.json` | Laufzeit-Einstellungen: Kontaktadresse, Limits, ggf. Redis-Zugang (`0600`) | Default `admin@example-org.com` — Benutzer bekommen eine falsche Kontaktadresse angezeigt; Werte neu setzen |
 | `~/.config/sar-analyzer/*.env` | Secrets (API-HMAC, mcp-agent-Pw, Gate-Token) | `deploy.sh` erzeugt neue → alle Client-Tokens neu verteilen |
 | `~/sar-analyzer/certs/server.{crt,key}.pem` | TLS-Cert/Key (root-signiert) | neu von der Root-CA ausstellen (Rezept: `sar-cert-root-signiert`) |
 | `~/data1/sarfile_analyzer_ng/code/upload/<user>/` | hochgeladene SAR-Dateien + Parquet | Nutzerdaten, erneut hochladbar |
@@ -229,11 +255,11 @@ claude mcp add --transport http sar-analyzer https://dus-lab-sar.lab.dus.suse.co
 4. `data.db`: der Checkout bringt den Seed (admin + Headings + Metrics) mit.
    Für die echten Benutzer die produktive `data.db` aus dem Backup einspielen und
    auf dem Server `git update-index --skip-worktree code/data.db` setzen.
-   `config.py`: den Default von `admin_email` wieder auf die echte Kontaktadresse
-   patchen (Wert aus dem Backup von `code/config.py`) und
-   `git update-index --skip-worktree code/config.py` setzen — sonst zeigen Hilfe-
-   und Info-Seite `admin@example-org.com` an. Kontrolle:
-   `git ls-files -v | grep '^S'` muss beide Dateien zeigen
+   Kontrolle: `git ls-files -v | grep '^S'` zeigt `code/data.db`.
+   Laufzeit-Einstellungen: `code/upload/config/settings.json` aus dem Backup
+   zurückspielen (`chmod 600`) oder die Werte neu setzen (siehe
+   „Laufzeit-Einstellungen") — sonst zeigen Hilfe- und Info-Seite
+   `admin@example-org.com` an. `config.py` bleibt unverändert und ungeschützt
 5. Streamlit-UI (unabhängig von API/MCP): System-Unit + nginx-Vhost als root
    installieren — `sudo cp deployment/lab/sarfile-analyzer.service /etc/systemd/system/`,
    `sudo cp deployment/lab/nginx-sarfile-analyzer-ui.conf /etc/nginx/conf.d/sarfile-analyzer.conf`,
