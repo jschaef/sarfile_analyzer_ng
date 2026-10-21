@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "cloud-memory": {
-      "type": "http",
-      "url": "https://cloud-memory.tail77713.ts.net/mcp"
-    }
-  }
-}
