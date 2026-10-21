@@ -16,7 +16,18 @@ import re
 USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._@+-]*$"
 _SAFE_USERNAME = re.compile(USERNAME_PATTERN)
 
+# Directories in UPLOAD_DIR that are not user directories: "config" holds the
+# shared state (login history/counter, table caches). A user of that name
+# would upload into it, and deleting that user would remove it. Compared
+# case-insensitively: on a case-insensitive file system (macOS) "Config" is
+# the same directory.
+RESERVED_USERNAMES = frozenset({"config"})
+
 
 def is_valid_username(username: str) -> bool:
     """True if the username is safe to use as a path component."""
-    return bool(username) and _SAFE_USERNAME.match(username) is not None
+    return (
+        bool(username)
+        and _SAFE_USERNAME.match(username) is not None
+        and username.casefold() not in RESERVED_USERNAMES
+    )

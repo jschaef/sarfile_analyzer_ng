@@ -6,6 +6,7 @@ import pandas as pd
 import visual_funcs as visf
 import handle_user_status
 import shutil
+import validation
 from config import Config
 
 def self_service(username):
@@ -63,7 +64,9 @@ def admin_service():
         col1.subheader(f'Delete User {user}')
         if st.button('Submit'):
             sql_stuff.delete_user(user)
-            if user in upload_dir:
+            # only a real user directory - never the shared config directory
+            # (or anything else a legacy, unvalidated name could point to)
+            if validation.is_valid_username(user):
                 shutil.rmtree(upload_dir, ignore_errors=True)
             col1.info(f'User {user} has been deleted')
     elif choice == 'Login History':

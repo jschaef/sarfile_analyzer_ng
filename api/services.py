@@ -42,7 +42,12 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 # Username validation lives in the shared `validation` module so the UI and
 # this API enforce the exact same rule (both build directories under
 # UPLOAD_DIR from the name). Re-exported here for backwards compatibility.
-from validation import USERNAME_PATTERN, _SAFE_USERNAME  # noqa: E402
+from validation import (  # noqa: E402
+    RESERVED_USERNAMES,
+    USERNAME_PATTERN,
+    _SAFE_USERNAME,
+    is_valid_username,
+)
 
 
 class ServiceError(Exception):
@@ -62,7 +67,7 @@ class _LogCol:
 def user_dir(username: str) -> Path:
     # Defense in depth: usernames reach this from signed tokens, but the
     # directory is built from them, so validate here as well.
-    if not _SAFE_USERNAME.match(username):
+    if not is_valid_username(username):
         raise ServiceError(f"Invalid username: {username!r}")
     directory = Path(Config.upload_dir) / username
     directory.mkdir(parents=True, exist_ok=True)
@@ -342,7 +347,7 @@ def get_table(
 # upload/config is a sibling of the user directories but holds shared state
 # (login history/counter, the headingstable/metric table caches) - it must
 # never appear in per-user reports or be touched by the cleanup.
-EXCLUDED_UPLOAD_DIRS = {"config"}
+EXCLUDED_UPLOAD_DIRS = set(RESERVED_USERNAMES)
 
 
 def _existing_user_dir(username: str) -> Path:
@@ -351,7 +356,7 @@ def _existing_user_dir(username: str) -> Path:
     user_dir() creates the directory, which is right for uploads but wrong
     for admin scans - scanning must not litter UPLOAD_DIR with empty dirs.
     """
-    if not _SAFE_USERNAME.match(username):
+    if not is_valid_username(username):
         raise ServiceError(f"Invalid username: {username!r}")
     directory = Path(Config.upload_dir) / username
     if not directory.is_dir():
