@@ -5,44 +5,57 @@ import visual_funcs as visf
 from config import Config
 import logging
 
-# Module-level cache for Redis connections and status
+# Module-level cache for Redis connections and status. Both are keyed by the
+# connection settings: an admin can change them at runtime (config.py), and a
+# new host/port/user/password gets a new connection and a new probe.
 _redis_cache = {}
-_redis_disabled = False
+_redis_failed_for = None
+
+def _connection_settings():
+    return (Config.redis_host, Config.redis_port, Config.redis_user, Config.redis_password)
 
 def get_redis_conn(decode=True):
-    global _redis_disabled
+    global _redis_failed_for
 
-    if _redis_disabled or not Config.redis_enabled:
+    if not Config.redis_enabled:
+        return None
+    settings = _connection_settings()
+    if _redis_failed_for == settings:
         return None
 
-    cache_key = f"conn_{decode}"
+    cache_key = (decode, settings)
     if cache_key in _redis_cache:
         return _redis_cache[cache_key]
+    # connections for settings that are no longer current
+    for stale in [key for key in _redis_cache if key[1] != settings]:
+        _redis_cache.pop(stale, None)
 
+    host, port, user, password = settings
     connection_params = {
-        "host": Config.redis_host,
-        "port": Config.redis_port,
+        "host": host,
+        "port": port,
         "encoding": "utf-8",
         "decode_responses": decode,
         "socket_timeout": 1.0,           # Fast failure if Redis is down
         "socket_connect_timeout": 1.0,   # Fast failure if Redis is down
         "retry_on_timeout": False,
     }
-    if Config.redis_user:
-        connection_params["username"] = Config.redis_user
-    if Config.redis_password:
-        connection_params["password"] = Config.redis_password
+    if user:
+        connection_params["username"] = user
+    if password:
+        connection_params["password"] = password
 
     try:
         rs = redis.StrictRedis(**connection_params)
-        # Probe reachability exactly once. The 1s connect timeout applies only
-        # to this ping; on failure we disable Redis for the whole process so no
-        # later operation pays the timeout again (and callers fall back cleanly).
+        # Probe reachability exactly once per settings. The 1s connect timeout
+        # applies only to this ping; on failure we disable Redis for these
+        # settings so no later operation pays the timeout again (and callers
+        # fall back cleanly) - until an admin changes them.
         rs.ping()
         _redis_cache[cache_key] = rs
         return rs
     except Exception:
-        _redis_disabled = True
+        _redis_failed_for = settings
         return None
 
 # for pickled connections we need connect with decode False

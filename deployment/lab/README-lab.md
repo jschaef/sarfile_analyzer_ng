@@ -50,6 +50,17 @@ mit dem skip-worktree-Bit vor `git pull` geschützt:
 | `code/data.db` | produktive DB mit den echten Benutzern (im Repo nur der Seed) |
 | `code/config.py` | gepatchter Default für `admin_email` — die Kontaktadresse, die `help.py` und `info.py` den Benutzern anzeigen. Repo-Default ist `admin@example-org.com`; die Unit setzt kein `ADMIN_EMAIL`, also gilt der Wert aus der Datei |
 
+**`code/config.py` braucht diesen Patch nicht mehr:** Kontakt (`admin_email`,
+`admin_communication`), Limits (`max_header_count`, `cols_per_line`) und die
+Redis-Verbindung setzt ein Admin im Web-Frontend unter *Admin › Settings*. Die
+Werte liegen in `$UPLOAD_DIR/config/settings.json` (nur für den Besitzer
+lesbar, kann das Redis-Passwort enthalten), haben Vorrang vor den
+Umgebungsvariablen und gelten ohne Neustart für Streamlit, API und
+sar-web-api. Beim ersten Pull, der `config.py` ändert, wie unten beschrieben
+sichern und den Schutz aufheben, den Patch aber **nicht** wieder einarbeiten:
+stattdessen die Adresse einmal im Web-Frontend setzen und `config.py` danach
+ungeschützt lassen (`git update-index --no-skip-worktree code/config.py`).
+
 Welche Dateien geschützt sind (`S` = skip-worktree):
 
 ```bash

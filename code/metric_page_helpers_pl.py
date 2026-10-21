@@ -25,7 +25,7 @@ def build_diff_metrics_menu(headers: list, sub_device_dict, df_complete: pl.Data
     index = int(max_cols/2)
     # if we have only a few headers to show
     
-    col1.write('Choose until 6 different metrics below to compare')
+    col1.write(f'Choose up to {max_cols} different metrics below to compare')
     header_count = col2.selectbox(f'How many header to compare? Max \
         {max_cols} of {len(headers_dict_alias)}', [ x for x in range(1, max_cols + 1)],
         index=index)
