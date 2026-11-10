@@ -67,7 +67,14 @@ Web-Frontends sarfile_analyzer_web und beim Lab-Deployment. Jeder
   - `self_service.py` – Passwort ändern; `admin_service()` = User Management
     (Benutzer, Passwörter, Rollen, Löschen, Login-Historie)
   - `info.py`, `help.py`, `todo.py` (statisch)
-- Diagramme: `bokeh_charts.py` (Bokeh, Restart-Marker), `alt.py` (Altair),
+- Diagramme: `echarts_charts.py` (ECharts über `st.echarts_chart`,
+  Standard in der Auswahl „Chart Library: ECharts / Bokeh / Altair“ von
+  Detailed Metrics, Compare Metrics, Multiple Sar Files und Metrics on many
+  devices; im Browser gezeichnet, LTTB-Sampling, Zoom-Regler, ein Dataset pro
+  Linie; Restart-Linien rot bzw. in Multiple Sar Files in der Dateifarbe;
+  kein PDF-Export – der läuft über Bokeh/Altair; nur JSON-Optionen, keine
+  JS-Formatter), `bokeh_charts.py` (Bokeh, Restart-Marker, weiter Standard der
+  Graphical Overview), `alt.py` (Altair),
   `streamlit_bokeh_component.py` (registriert streamlit-bokeh als
   Components-**v1**-Komponente, weil streamlit-bokeh ab Streamlit 1.51 sonst
   Components v2 nutzt), `multi_pdf.py` (paralleler PDF-Export),
@@ -280,8 +287,10 @@ sar-web-api importiert aus diesem Repo und verlässt sich auf:
 - Streamlit 1.67: `server.enableAgentApi` (App als MCP-Server unter
   `/_stcore/agent/mcp`) bewusst nicht genutzt – Agenten-Sitzungen sind ohne
   `trustedUserHeaders` anonym, die API wäre hinter nginx ohne Gate erreichbar,
-  und `mcp_server/` bietet fachliche Tools. `st.echarts_chart` (1.64) wäre ein
-  möglicher Ersatz für Bokeh im Browser (nicht für den PDF-Export).
+  und `mcp_server/` bietet fachliche Tools. `st.echarts_chart` (1.64) wird
+  seit 10.11.2026 genutzt (`echarts_charts.py`). Eine feste Streamlit-Fußleiste
+  (`st.bottom`) kann den Zoom-Regler eines Diagramms ganz unten im Fenster
+  verdecken.
 - Streamlit-Updates brechen gern Styling/Komponenten: `style.css` enthält
   Kommentare zu 1.62/1.63, Multiselects nutzen `wrap=True`; nach einem Pull
   ggf. `pip install -U streamlit`.
