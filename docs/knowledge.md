@@ -78,6 +78,15 @@ Web-Frontends sarfile_analyzer_web und beim Lab-Deployment. Jeder
   `visual_funcs.py`.
 - Vermutlich ungenutzt/Altlast: `tmpapp.py`, `user_info.py` (laut Docstring
   deprecated), `import_metrics.py` (Einmal-Skript), `requirements.txt-org`.
+- Raster (Auswahlfelder in Compare Metrics, Daten-/Statistik-Karten in
+  Compare Metrics und Multiple Sar Files): `st.grid(cols_per_line)` in
+  `metric_page_helpers_pl.py` und `layout_helper_pl.arrange_grid_entries`
+  – bricht auf schmalen Fenstern um, behält die Reihenfolge. Ersetzt seit
+  10.11.2026 die handgebauten `st.columns`-Raster (die drehten die Reihenfolge
+  der letzten Zeile um bzw. ließen Karten weg).
+- Multiselects haben seit Streamlit 1.63 von selbst „Select all“ /
+  „Select X matches“ (`select_all`, Default bis 1000 Optionen), z. B. beim
+  Löschen von Dateien.
 - Streamlit führt das Hauptskript bei jedem Rerun neu aus → „einmal pro
   Prozess“-Logik gehört in importierte Module (z. B.
   `sqlite2_polars.refresh_all_tables_once`).
@@ -261,10 +270,18 @@ sar-web-api importiert aus diesem Repo und verlässt sich auf:
 ## 11. Abhängigkeiten und Versionen
 
 - `code/requirements.txt`: gepinnt altair 6.0.0, bokeh 3.8.2, connectorx
-  0.4.5, redis 7.1.0, geckodriver-autoinstaller 0.1.0; **ungepinnt**
-  streamlit, polars, pandas, selenium, SQLAlchemy, streamlit-bokeh,
+  0.4.5, redis 7.1.0, geckodriver-autoinstaller 0.1.0, **`streamlit>=1.67`**
+  (für `st.grid`); **ungepinnt** polars, pandas, selenium, SQLAlchemy, streamlit-bokeh,
   streamlit-option-menu, vl-convert-python, pypdf, python-magic u. a.
 - Python ≥ 3.10 (`X | None`); Lab 3.12, Docker 3.12, Devcontainer 3.11.
+- `deploy.sh` installiert `code/requirements.txt` nicht – Streamlit auf dem
+  Lab-Server von Hand aktualisieren (`code/venv/bin/pip install -U -r
+  code/requirements.txt`, dann `sudo systemctl restart sarfile-analyzer`).
+- Streamlit 1.67: `server.enableAgentApi` (App als MCP-Server unter
+  `/_stcore/agent/mcp`) bewusst nicht genutzt – Agenten-Sitzungen sind ohne
+  `trustedUserHeaders` anonym, die API wäre hinter nginx ohne Gate erreichbar,
+  und `mcp_server/` bietet fachliche Tools. `st.echarts_chart` (1.64) wäre ein
+  möglicher Ersatz für Bokeh im Browser (nicht für den PDF-Export).
 - Streamlit-Updates brechen gern Styling/Komponenten: `style.css` enthält
   Kommentare zu 1.62/1.63, Multiselects nutzen `wrap=True`; nach einem Pull
   ggf. `pip install -U streamlit`.
