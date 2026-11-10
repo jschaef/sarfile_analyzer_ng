@@ -3,6 +3,7 @@
 import streamlit as st
 import alt
 import bokeh_charts
+import echarts_charts
 import streamlit_bokeh_component as st_bokeh
 import polars as pl
 import pl_helpers2 as pl_helpers
@@ -55,7 +56,7 @@ def do_metrics(
     tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
     with tab1:
         chart_placeholder = st.empty()
-        cols = st.columns(8)
+        cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
         metrics_string = ""
         width, hight = helpers.diagram_expander(
             "Diagram Width", "Diagram Hight", cols[0]
@@ -66,13 +67,20 @@ def do_metrics(
 
         chart_lib = cols[2].radio(
             "Chart Library",
-            ["Bokeh", "Altair"],
+            ["ECharts", "Bokeh", "Altair"],
             index=0,
             key="compare_metrics_chart_lib",
             horizontal=True,
         )
 
-        if chart_lib == "Bokeh":
+        if chart_lib == "ECharts":
+            with chart_placeholder:
+                echarts_charts.show(
+                    echarts_charts.compare(chart_field, reboot_headers, os_details,
+                        title="Compare different metrics", font_size=font_size),
+                    hight, width, key=f"compare_metrics_echarts_{filename}",
+                )
+        elif chart_lib == "Bokeh":
             # Convert chart_field (list of [df_part, metric_name]) into one long dataframe:
             # columns: date, metrics, y
             import pandas as pd
@@ -130,7 +138,7 @@ def do_metrics(
 
         if chart_lib == "Bokeh":
             lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=f"pdf_{download_name}")
-        else:
+        elif chart_lib == "Altair":
             lh.pdf_download_direct(chart, download_name, key=f"pdf_{download_name}")
     with tab2:
         mph.display_stats_data(collect_field)

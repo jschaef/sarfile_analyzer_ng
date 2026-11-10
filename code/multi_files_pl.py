@@ -2,6 +2,7 @@
 # compare same metric on multiple sar files
 import alt
 import bokeh_charts
+import echarts_charts
 import streamlit as st
 import streamlit_bokeh_component as st_bokeh
 import helpers_pl as helpers
@@ -207,18 +208,26 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                     else:
                         tab1, tab2, = st.tabs( ["📈 Chart",  " 📔 man page"])
                     with tab1:
-                        cols = st.columns(8)
+                        cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
                         font_size = helpers.font_expander(
                             12, "Change Axis Font Size", "font size", cols[1]
                         )
                         width, hight = helpers.diagram_expander(
                             "Diagram Width", "Diagram Hight", col=cols[0]
                         )
-                        chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="multi_compare_lib", horizontal=True)
+                        chart_lib = cols[2].radio("Chart Library", ["ECharts", "Bokeh", "Altair"], index=0, key="multi_compare_lib", horizontal=True)
                         
                         chart_placeholder = st.empty()
                         
-                        if chart_lib == "Bokeh":
+                        if chart_lib == "ECharts":
+                            build = echarts_charts.files_consecutive if dia_type else echarts_charts.files_overlay
+                            with chart_placeholder:
+                                echarts_charts.show(
+                                    build(chart_field, reboot_headers, title=title, font_size=font_size),
+                                    hight, width,
+                                    key=f"echarts_multi_compare_{helpers.validate_convert_names(title)}_{helpers.validate_convert_names(prop)}",
+                                )
+                        elif chart_lib == "Bokeh":
                             if dia_type:
                                 chart_html, bokeh_fig = bokeh_charts.overview_v3(
                                     chart_field,
@@ -285,7 +294,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                             
                             if chart_lib == "Bokeh":
                                 lh.pdf_download_bokeh_direct(bokeh_fig, download_name, key=download_name)
-                            else:
+                            elif chart_lib == "Altair":
                                 lh.pdf_download_direct(img, download_name, key=download_name)
                     if not dia_type:
                         with tab2:
@@ -369,7 +378,7 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
                         with tab1:
                             chart_placeholder = st.empty()
-                            cols = st.columns(8)
+                            cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
                             width, height = helpers.diagram_expander(
                                 "Diagram Width", "Diagram Hight", col=cols[0], key=key
                             )
@@ -380,9 +389,16 @@ def single_multi(config_dict: dict, username: str, ph_list: list):
                                 cols[1],
                                 key=f"slider_{key}",
                             )
-                            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key=f"multi_overview_{key}", horizontal=True)
+                            chart_lib = cols[2].radio("Chart Library", ["ECharts", "Bokeh", "Altair"], index=0, key=f"multi_overview_{key}", horizontal=True)
                             
-                            if chart_lib == "Bokeh":
+                            if chart_lib == "ECharts":
+                                with chart_placeholder:
+                                    echarts_charts.show(
+                                        echarts_charts.metrics(df, restart_headers, os_details, title=title, font_size=font_size),
+                                        height, width,
+                                        key=f"echarts_multi_overview_{helpers.validate_convert_names(key)}_{helpers.validate_convert_names(title)}",
+                                    )
+                            elif chart_lib == "Bokeh":
                                 chart_html, bokeh_fig = bokeh_charts.overview_v1(
                                     df,
                                     restart_headers,

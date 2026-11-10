@@ -4,6 +4,7 @@ import polars as pl
 import helpers_pl
 import alt
 import bokeh_charts
+import echarts_charts
 import streamlit_bokeh_component as st_bokeh
 import pl_helpers2 as pl_h2
 import sqlite2_polars as s2p
@@ -173,7 +174,7 @@ def show_multi(config_obj, username, selection, df, os_details):
                     tab1, tab2 = st.tabs(["📈 Chart", " 📔 man page"])
                     with tab1:
                         chart_placeholder = st.empty()
-                        cols = st.columns(8)
+                        cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
                         width, hight = helpers_pl.diagram_expander(
                             "Diagram Width", "Diagram Hight", cols[0]
                         )
@@ -182,13 +183,21 @@ def show_multi(config_obj, username, selection, df, os_details):
                         )
                         chart_lib = cols[2].radio(
                             "Chart Library",
-                            ["Bokeh", "Altair"],
+                            ["ECharts", "Bokeh", "Altair"],
                             index=0,
                             key="multi_device_chart_lib",
                             horizontal=True,
                         )
 
-                        if chart_lib == "Bokeh":
+                        if chart_lib == "ECharts":
+                            with chart_placeholder:
+                                echarts_charts.show(
+                                    echarts_charts.devices(filtered_df, metric, restart_headers, os_details,
+                                        title=f"{selected} {metric}", font_size=font_size),
+                                    hight, width,
+                                    key=f"echarts_multi_devices_{helpers_pl.validate_convert_names(file_name)}_{helpers_pl.validate_convert_names(selected)}_{helpers_pl.validate_convert_names(metric)}",
+                                )
+                        elif chart_lib == "Bokeh":
                             # Bokeh expects pandas for dt access + ColumnDataSource
                             b_df = filtered_df.to_pandas()
                             chart_html, bokeh_fig = bokeh_charts.overview_v5(

@@ -3,6 +3,7 @@ import layout_helper_pl as lh
 import helpers_pl
 import alt
 import bokeh_charts
+import echarts_charts
 import streamlit_bokeh_component as st_bokeh
 import re
 import pl_helpers2 as pl_h2
@@ -140,12 +141,19 @@ def single_f(config_obj, username, selection, df, os_details):
         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
         with tab1:
             chart_placeholder = st.empty()
-            cols = st.columns(8)
+            cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
             width, hight = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
-            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="single_chart_lib", horizontal=True)
+            chart_lib = cols[2].radio("Chart Library", ["ECharts", "Bokeh", "Altair"], index=0, key="single_chart_lib", horizontal=True)
             
-            if chart_lib == "Bokeh":
+            if chart_lib == "ECharts":
+                with chart_placeholder.container():
+                    echarts_charts.show(
+                        echarts_charts.single(df_part, prop, restart_headers, os_details, title=title, font_size=font_size),
+                        hight, width,
+                        key=f"echarts_single_{helpers_pl.validate_convert_names(title)}_{helpers_pl.validate_convert_names(prop)}",
+                    )
+            elif chart_lib == "Bokeh":
                 chart_html, bokeh_fig = bokeh_charts.draw_single_chart_v1(
                     df_part,
                     prop,
@@ -229,12 +237,19 @@ def single_f(config_obj, username, selection, df, os_details):
         tab1, tab2, tab3 = st.tabs(["📈 Chart", "🗃 Data", " 📔 man page"])
         with tab1:
             chart_placeholder = st.empty()
-            cols = st.columns(8)
+            cols = st.columns([1, 1, 3, 3])  # wide enough for the three chart libraries in one row
             width, height = helpers_pl.diagram_expander('Diagram Width', 'Diagram Hight', cols[0])
             font_size = helpers_pl.font_expander(12, "Change Axis Font Size", "font size", cols[1])
-            chart_lib = cols[2].radio("Chart Library", ["Bokeh", "Altair"], index=0, key="overview_chart_lib", horizontal=True)
+            chart_lib = cols[2].radio("Chart Library", ["ECharts", "Bokeh", "Altair"], index=0, key="overview_chart_lib", horizontal=True)
             
-            if chart_lib == "Bokeh":
+            if chart_lib == "ECharts":
+                with chart_placeholder.container():
+                    echarts_charts.show(
+                        echarts_charts.metrics(df, restart_headers, os_details, title=title, font_size=font_size),
+                        height, width,
+                        key=f"echarts_overview_{helpers_pl.validate_convert_names(title)}",
+                    )
+            elif chart_lib == "Bokeh":
                 chart_html, bokeh_fig = bokeh_charts.overview_v1(
                     df,
                     restart_headers,
