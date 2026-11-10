@@ -135,9 +135,14 @@ def single(df, prop, restart_headers, os_details, title=None, font_size=None) ->
     )
 
 
-def metrics(df_long, restart_headers, os_details, title=None, font_size=None) -> dict:
-    """Several metrics of one file (long format: date, metrics, y)."""
-    lines = [_line(name, part["date"], part["y"]) for name, part in df_long.groupby("metrics", sort=False)]
+def metrics(df, restart_headers, os_details, title=None, font_size=None) -> dict:
+    """Several metrics of one file: long (date, metrics, y) or wide (date
+    column or index plus one column per metric) format."""
+    if "metrics" in df.columns and "y" in df.columns:
+        lines = [_line(name, part["date"], part["y"]) for name, part in df.groupby("metrics", sort=False)]
+    else:
+        dates = df["date"] if "date" in df.columns else df.index
+        lines = [_line(column, dates, df[column]) for column in df.columns if column != "date"]
     return build_option(
         lines,
         [(parse_restart_times(restart_headers, os_details), RESTART_COLOR)],

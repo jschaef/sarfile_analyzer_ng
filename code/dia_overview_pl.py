@@ -10,6 +10,7 @@ import dia_compute_pl as dia_compute
 import multi_pdf as mpdf
 import layout_helper_pl as lh
 import bokeh_charts
+import echarts_charts
 import streamlit_bokeh_component as st_bokeh
 from config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -115,6 +116,28 @@ def build_overview_stats_csv(filtered_collect_list):
     return ("\n\n".join(blocks) + "\n").encode('utf-8')
 
 
+def _bokeh_chart(item_dict, restart_headers, os_details, font_size, width, height, title):
+    """(html, figure) of an item: the one computed with the results when Bokeh
+    is the chart library, else built now - for the Bokeh view or a PDF - and
+    kept on the item dict, which lives in st.session_state across reruns."""
+    precomputed = item_dict.get('precomputed_chart')
+    if not precomputed:
+        precomputed = bokeh_charts.overview_v1(
+            item_dict['df'], restart_headers, os_details,
+            font_size=font_size, width=width, height=height, title=title,
+            embed_html=not getattr(Config, 'use_streamlit_bokeh_component', False),
+        )
+        item_dict['precomputed_chart'] = precomputed
+    return precomputed
+
+
+def _show_echarts(item_dict, restart_headers, os_details, font_size, height, title, key):
+    echarts_charts.show(
+        echarts_charts.metrics(item_dict['df'], restart_headers, os_details, title=title, font_size=font_size),
+        height, key=key,
+    )
+
+
 def _cached_figure_json(item_dict, bokeh_fig):
     """Serialize a Bokeh figure to JSON once and cache it on the item dict.
 
@@ -132,7 +155,7 @@ def _cached_figure_json(item_dict, bokeh_fig):
 
 def render_metric_section_fragment(header, metric_items, sar_file_name, restart_headers,
                                  os_details, font_size, width, height, statistics,
-                                 show_manpages, create_multi_pdf):
+                                 show_manpages, create_multi_pdf, chart_lib="ECharts"):
     """
     Isolate each metric group in a fragment. 
     When a tab is switched, Streamlit only reruns this specific function, 
@@ -153,16 +176,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
         metrics = item_dict['metrics']
         restart_index = item_dict.get('restart_index', [])
         
-        # Pre-extract chart data (already computed in background thread)
-        precomputed = item_dict.get('precomputed_chart')
-        if precomputed:
-            chart_html, bokeh_fig = precomputed
-        else:
-            chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                df_chart, restart_headers, os_details,
-                font_size=font_size, width=width, height=height,
-                title=f"{header}",
-            )
+        chart_title = f"{header}"
 
         tabs_key = f"tabs_{sar_file_name}_{helpers_pl.validate_convert_names(header)}"
         tab1, tab2, tab3, tab4 = st.tabs(
@@ -174,7 +188,12 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
             if tab1.open:
                 if sub_title == 'all':
                     st.markdown(f'###### all of {device_num}')
-                if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                if chart_lib == "ECharts":
+                    _show_echarts(item_dict, restart_headers, os_details, font_size, height, chart_title,
+                        key=f"echarts_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}")
+                elif (chart := _bokeh_chart(item_dict, restart_headers, os_details, font_size, width, height, chart_title)) and \
+                        getattr(Config, 'use_streamlit_bokeh_component', False) and chart[1] is not None:
+                    chart_html, bokeh_fig = chart
                     ok = st_bokeh.streamlit_bokeh(
                         bokeh_fig, width="stretch",
                         figure_json=_cached_figure_json(item_dict, bokeh_fig),
@@ -185,6 +204,9 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                             chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
                         st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                 else:
+                    chart_html, bokeh_fig = chart
+                    if not chart_html:
+                        chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
                     st.components.v1.html(chart_html, height=height + 100, scrolling=True)
         
         with tab2:
@@ -208,6 +230,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                 else:
                     pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(header)}.pdf"
                     pdf_key = f"pdf_{sar_file_name}_{helpers_pl.validate_convert_names(header)}"
+                    bokeh_fig = _bokeh_chart(item_dict, restart_headers, os_details, font_size, width, height, chart_title)[1]
                     lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
 
     else:
@@ -225,15 +248,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
             metrics = subitem_dict['metrics']
             restart_index = subitem_dict.get('restart_index', [])
 
-            precomputed = subitem_dict.get('precomputed_chart')
-            if precomputed:
-                chart_html, bokeh_fig = precomputed
-            else:
-                chart_html, bokeh_fig = bokeh_charts.overview_v1(
-                    df_chart, restart_headers, os_details,
-                    font_size=font_size, width=width, height=height,
-                    title=f"{header} {sub_title}" if sub_title else f"{header}",
-                )
+            chart_title = f"{header} {sub_title}" if sub_title else f"{header}"
 
             tabs_key = f"tabs_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}"
             tab1, tab2, tab3, tab4 = st.tabs(
@@ -243,7 +258,12 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
             
             with tab1:
                 if tab1.open:
-                    if getattr(Config, 'use_streamlit_bokeh_component', False) and bokeh_fig is not None:
+                    if chart_lib == "ECharts":
+                        _show_echarts(subitem_dict, restart_headers, os_details, font_size, height, chart_title,
+                            key=f"echarts_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}_{counter}")
+                    elif (chart := _bokeh_chart(subitem_dict, restart_headers, os_details, font_size, width, height, chart_title)) and \
+                            getattr(Config, 'use_streamlit_bokeh_component', False) and chart[1] is not None:
+                        chart_html, bokeh_fig = chart
                         ok = st_bokeh.streamlit_bokeh(
                             bokeh_fig, width="stretch",
                             figure_json=_cached_figure_json(subitem_dict, bokeh_fig),
@@ -254,6 +274,9 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                                 chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
                             st.components.v1.html(chart_html, height=height + 100, scrolling=True)
                     else:
+                        chart_html, bokeh_fig = chart
+                        if not chart_html:
+                            chart_html = bokeh_charts.embed_figure_html(bokeh_fig)
                         st.components.v1.html(chart_html, height=height + 100, scrolling=True)
             
             with tab2:
@@ -277,6 +300,7 @@ def render_metric_section_fragment(header, metric_items, sar_file_name, restart_
                     else:
                         pdf_name = f"{sar_file_name}_{helpers_pl.validate_convert_names(f'{header}_{sub_title}')}.pdf"
                         pdf_key = f"pdf_{sar_file_name}_{helpers_pl.validate_convert_names(header)}_{helpers_pl.validate_convert_names(str(sub_title))}"
+                        bokeh_fig = _bokeh_chart(subitem_dict, restart_headers, os_details, font_size, width, height, chart_title)[1]
                         lh.pdf_download_bokeh(bokeh_fig, pdf_name, key=pdf_key)
 
 def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGenerator,
@@ -403,7 +427,11 @@ def show_dia_overview(username: str, sar_file_col: st.delta_generator.DeltaGener
 
     this_container = st.container(border=False)
     this_container.space("small")
-    col1, col2, col3, col4, *_ = this_container.columns([0.15, 0.1, 0.15, 0.15, 0.45])
+    col1, col2, col3, col4, col5 = this_container.columns([0.15, 0.1, 0.15, 0.15, 0.45])
+    # outside the fragment above: a change has to redraw all diagrams.
+    # ECharts draws in the browser; Bokeh figures are then built only for PDFs.
+    chart_lib = col5.radio("Chart Library", ["ECharts", "Bokeh"], index=0,
+        key="dia_overview_chart_lib", horizontal=True)
     st.markdown('<div id="show-diagrams-section"></div>', unsafe_allow_html=True)
     show_state_key = f"dia_overview_show_{sar_file_name}"
     perf_toggle_key = f"dia_overview_perf_{sar_file_name}"
@@ -594,7 +622,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             device_num,
                                             sub_title,
                                             stats_pl=stats_pl,
-                                            precompute_chart=True
+                                            precompute_chart=chart_lib == "Bokeh"
                                         )
                                         collect_results(results)
                                         perf.add('final_results (per-task compute)', elapsed)
@@ -614,7 +642,7 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                                             device_num,
                                             sub_title,
                                             stats_pl=stats_pl,
-                                            precompute_chart=True
+                                            precompute_chart=chart_lib == "Bokeh"
                                         )
                                         collect_results(results)
                     filtered_collect_list = [x for x in collect_list if x[0]['title'] not in remove_set]
@@ -642,15 +670,8 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             render_metric_section_fragment(
                                 key, items, sar_file_name, restart_headers, os_details, 
                                 font_size, width, height, statistics, show_manpages, 
-                                create_multi_pdf
+                                create_multi_pdf, chart_lib
                             )
-                            
-                            # For Multi-PDF, we still need to collect all bokeh figures in the main run
-                            if create_multi_pdf:
-                                for subitem in items:
-                                    precomputed = subitem[0].get('precomputed_chart')
-                                    if precomputed and precomputed[1]:
-                                        multi_pdf_chart_field.append(precomputed[1])
 
 
                     st.session_state[f'{sar_file_name}_collect_list_pandas'] = collect_list_pandas
@@ -684,6 +705,16 @@ Please reduce your selection to {MAX_CHARTS} or fewer metrics to prevent browser
                             # Create a progress bar for the export process
                             progress_bar = st.progress(0, text="Initializing PDF export...")
                             try:
+                                # the Bokeh figures of all diagrams, built now if ECharts drew them
+                                for pdf_header, pdf_items in sorted_df_dict.items():
+                                    for pdf_item in pdf_items:
+                                        item_dict = pdf_item[0]
+                                        pdf_sub = item_dict.get('sub_title')
+                                        pdf_title = f"{pdf_header} {pdf_sub}" if len(pdf_items) > 1 and pdf_sub else f"{pdf_header}"
+                                        figure = _bokeh_chart(item_dict, restart_headers, os_details,
+                                            font_size, width, height, pdf_title)[1]
+                                        if figure is not None:
+                                            multi_pdf_chart_field.append(figure)
                                 temp_pdf = mpdf.create_multi_pdf_from_bokeh_figures(multi_pdf_chart_field, st_progress_bar=progress_bar)
                                 progress_bar.empty() # Remove progress bar when done
                                 
