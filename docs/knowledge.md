@@ -1,6 +1,6 @@
 # Wissen zu sarfile_analyzer_ng
 
-Gesammelte Erkenntnisse (Stand 21.10.2026), entstanden beim Bau des
+Gesammelte Erkenntnisse (Stand 10.11.2026), entstanden beim Bau des
 Web-Frontends sarfile_analyzer_web und beim Lab-Deployment. Jeder
 `##`-Abschnitt steht für sich und kann einzeln in eine Wissens-Collection
 (z. B. cloud-memory) übernommen werden. Kurzfassung für Agenten:
@@ -301,7 +301,7 @@ sar-web-api importiert aus diesem Repo und verlässt sich auf:
 - `code/.streamlit/config.toml`: u. a. `maxUploadSize 600`; hinter einem
   Proxy WebSocket-Upgrade und großes `client_max_body_size` nötig.
 
-## 12. Verlauf (Auszug Oktober 2026)
+## 12. Verlauf (Oktober/November 2026)
 
 - `7886b88` Benutzername `config` reserviert.
 - `a5775fd` Laufzeit-Settings (`settings.json`, Metaklasse, Redis-Reconnect).
@@ -309,5 +309,15 @@ sar-web-api importiert aus diesem Repo und verlässt sich auf:
   mehr geschützt.
 - `5c5d1ca` Sidebar-Link zum Web-Frontend; `b89b968` `deploy.sh` startet
   sar-web-api mit; `036efd8` `streamlit_url`.
-- `.mcp.json` mit cloud-memory wurde wieder entfernt – die Cloud-Umgebung
-  stellt den Server selbst bereit.
+- `.mcp.json` mit cloud-memory wurde wieder entfernt (`e791496`) – die
+  Cloud-Umgebung stellt den Server selbst bereit.
+- `596dfb4` `CLAUDE.md` und dieses Wissensdokument.
+- `998d42b` (10.11.2026) `st.grid` statt handgebauter `st.columns`-Raster in
+  Compare Metrics und Multiple Sar Files; `streamlit>=1.67` gepinnt; auf dem
+  Lab-Server Streamlit von Hand auf 1.67 aktualisiert.
+- `556e26e` (10.11.2026) ECharts (`echarts_charts.py`, `st.echarts_chart`) als
+  vorausgewählte Chart Library in Detailed Metrics, Compare Metrics, Multiple
+  Sar Files und Metrics on many devices; Auswahl in einer Zeile.
+- `4ab93ab` (10.11.2026) Graphical Overview mit ECharts; Bokeh-Figuren nur noch
+  für Bokeh-Ansicht, PDF-Tab und Multi-PDF.
+- Doku dazu: `9b765d2`, `f7addf7`, `71018dc`. Alles auf dus-lab-sar deployed.
