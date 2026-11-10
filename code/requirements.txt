@@ -13,7 +13,7 @@ pytz
 redis==7.1.0
 selenium
 SQLAlchemy
-streamlit
+streamlit>=1.67  # st.grid; select_all in st.multiselect since 1.63
 streamlit-bokeh
 streamlit-option-menu
 vegafusion[embed]

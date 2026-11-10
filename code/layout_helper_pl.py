@@ -162,75 +162,18 @@ def create_columns(number: int, write_field: list | None = None) -> list:
 
 
 def arrange_grid_entries(object_field, cols_per_line):
-    # check if there are selectboxes < cols_per_line left
-    total_columns = len(object_field)
-    even_lines = int(total_columns / cols_per_line)
-    remaining_cols = total_columns % cols_per_line
-    rcols = remaining_cols
-    empty_cols = cols_per_line - rcols
-    if even_lines == 0:
-        even_lines = 1
-        remaining_cols = 0
+    """Cards of [table, statistics, header] in a grid of up to cols_per_line
+    columns; it wraps on narrow windows and keeps the order of object_field."""
     st.markdown("######")
-    pcols = st.columns(cols_per_line)
-
-    for _ in range(even_lines):
-        collect_field = []
-        # more than cols_per_line found
-        if total_columns >= cols_per_line:
-            for index in range(cols_per_line):
-                if object_field:
-                    object = object_field.pop(0)
-                    collect_field.append(object)
-            for index in range(len(collect_field)):
-                object = collect_field[index][0]
-                stats = collect_field[index][1]
-                header = collect_field[index][2]
-                if header:
-                    pcols[index].markdown(f"###### {header}")
-                pcols[index].write(object)
-                pcols[index].markdown("###")
-                pcols[index].markdown("###### statistics")
-                pcols[index].write(stats)
-
-        # less than cols_per_line found
-        else:
-            for index in range(cols_per_line):
-                if object_field:
-                    object = object_field.pop(0)
-                    collect_field.append(object)
-            for index in range(len(collect_field)):
-                object = collect_field[index][0]
-                stats = collect_field[index][1]
-                header = collect_field[index][2]
-                if header:
-                    pcols[index].markdown(f"###### {header}")
-                    for nindex in range(1, empty_cols + 1):
-                        nindex = cols_per_line - nindex
-                        pcols[nindex].write("")
-                pcols[index].write(object)
-                pcols[index].markdown("###")
-                pcols[index].markdown("###### statistics")
-                pcols[index].write(stats)
-
-    # remaining tables
-    if remaining_cols:
-        collect_field = []
-        for index in range(remaining_cols):
-            if object_field:
-                object = object_field.pop()
-                collect_field.append(object)
-        for index in range(len(collect_field)):
-            object = collect_field[index][0]
-            stats = collect_field[index][1]
-            header = collect_field[index][2]
+    grid = st.grid(cols_per_line)
+    for table, stats, header in object_field:
+        with grid.cell():
             if header:
-                pcols[index].markdown("###")
-                pcols[index].markdown(f"###### {header}")
-            pcols[index].write(object)
-            pcols[index].markdown("###")
-            pcols[index].markdown("###### statistics")
-            pcols[index].write(stats)
+                st.markdown(f"###### {header}")
+            st.write(table)
+            st.markdown("###")
+            st.markdown("###### statistics")
+            st.write(stats)
 
 
 def display_averages(dia_field, prop, main_title, sub_item):

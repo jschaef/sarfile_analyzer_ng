@@ -31,62 +31,27 @@ def build_diff_metrics_menu(headers: list, sub_device_dict, df_complete: pl.Data
         index=index)
     header_cols = header_count
 
-    # check if there are selectboxes < cols_per_line left
-    even_lines = int(header_cols/cols_per_line)
-    remaining_cols = header_cols % cols_per_line
-    rcols = remaining_cols
-    empty_cols = cols_per_line - rcols
-    if even_lines == 0:
-        even_lines = 1
-        remaining_cols = 0
-
-    pcols = st.columns(cols_per_line)
-    for _ in range(even_lines):
-        prop_item_dict = {}
-        if header_cols >= cols_per_line:
-            for col in range(len(pcols)):
-                df, prop = display_diff_sboxes(col, 
-                    pcols, counter, headers_dict_alias, sub_device_dict, prop_item_dict,
-                    df_complete, key_pref, filename)
-                collect_field, chart_field = build_metric_dataframes(df, prop, 
-                    filename, chart_field, collect_field, col=pcols[col], 
-                    os_details=os_details, restart_headers=reboot_headers)
-                counter += 1
-        elif header_cols < cols_per_line:
-            for col in range(header_cols):
-                df, prop = display_diff_sboxes(col, 
-                    pcols, counter, headers_dict_alias, sub_device_dict, prop_item_dict,
-                    df_complete, key_pref, filename)
-                for nindex in range(1, empty_cols +1):
-                    nindex = cols_per_line - nindex
-                    pcols[nindex].write('')
-                collect_field, chart_field = build_metric_dataframes(df, prop, 
-                    filename, chart_field, collect_field, col=pcols[col], 
-                    os_details=os_details, restart_headers=reboot_headers)
-                counter += 1
-
-    if remaining_cols:
-        pcols = st.columns(cols_per_line)
-        for col in range(remaining_cols):
-            pcols[col].markdown('___')
-            df, prop = display_diff_sboxes(col, 
-                pcols, counter, headers_dict_alias, sub_device_dict, prop_item_dict,
-                df_complete, key_pref, filename)
-            for nindex in range(1, empty_cols + 1):
-                nindex = cols_per_line - nindex
-                pcols[nindex].write('')
-            collect_field, chart_field = build_metric_dataframes(df, prop, 
-                filename, chart_field, collect_field, col=pcols[col], 
-                os_details=os_details, restart_headers=reboot_headers)
-            counter += 1
+    grid = st.grid(cols_per_line)
+    full_lines = header_cols // cols_per_line
+    prop_item_dict = {}
+    for counter in range(header_cols):
+        # a device offers each metric once per line of cols_per_line boxes;
+        # an incomplete last line continues the line before it
+        if counter % cols_per_line == 0 and counter // cols_per_line < full_lines:
+            prop_item_dict = {}
+        cell = grid.cell()
+        df, prop = display_diff_sboxes(cell, counter, headers_dict_alias, sub_device_dict,
+            prop_item_dict, df_complete, key_pref, filename)
+        collect_field, chart_field = build_metric_dataframes(df, prop,
+            filename, chart_field, collect_field, col=cell,
+            os_details=os_details, restart_headers=reboot_headers)
     return collect_field, chart_field
 
 
-def display_diff_sboxes(col: int, pcols: st.columns, counter: int, alias_dict: dict,
+def display_diff_sboxes(r_col: DeltaGenerator, counter: int, alias_dict: dict,
         sub_item_dict: dict, prop_item_dict: dict, df_complete: pl.DataFrame, 
         key_pref: str, filename: str) -> tuple:
     sub_item = 0
-    r_col = pcols[col]
     s_header = r_col.selectbox('Choose Header', sorted(alias_dict.keys()), 
         key=f'{key_pref}{counter}')
     s_header_pure = alias_dict[s_header]
@@ -167,47 +132,13 @@ def build_metric_dataframes(df, prop, file, chart_field,
     return collect_field, chart_field
 
 def display_stats_data(collect_field):
-    cols_per_line = Config.cols_per_line
-    cols = st.columns(cols_per_line)
-    even_lines = int(len(collect_field)/cols_per_line)
-    remaining_cols = len(collect_field) % cols_per_line
-    empty_cols = cols_per_line - remaining_cols
-    f_index = 0
-    for _ in range(even_lines):
-        for col in cols:
-            if len(collect_field[0]) >=4:
-                header_part = collect_field[f_index][3]
-            else:
-                header_part = ''
-            col.markdown(f'###### data for {header_part} {collect_field[f_index][2]}')
-            col.write(collect_field[f_index][0])
-            col.markdown(f'###### statistics for {header_part} {collect_field[f_index][2]}')
-            col.write(collect_field[f_index][1])
-            f_index +=1
-    if remaining_cols and not even_lines:
-        for index in range(remaining_cols):
-            if len(collect_field[0]) >=4:
-                header_part = collect_field[index][3]
-            else:
-                header_part = ''
-            col = cols[index]
-            col.markdown(f'###### data for {header_part} {collect_field[index][2]}')
-            col.write(collect_field[index][0])
-            for nindex in range(1, empty_cols + 1):
-                nindex = cols_per_line - nindex
-                cols[nindex].write('')
-            col.markdown(f'###### data for {header_part} {collect_field[index][2]}')
-            col.write(collect_field[index][1])
-    elif remaining_cols and even_lines:
-        for index in range(1, remaining_cols + 1):
-            if len(collect_field[0]) >=4:
-                header_part = collect_field[f_index][3]
-            else:
-                header_part = ''
-            col = cols[index - 1]
-            col.markdown(f'___ ')
-            f_index = len(collect_field) - index
-            col.markdown(f'###### data for {header_part} {collect_field[f_index][2]}')
-            col.write(collect_field[f_index][0])
-            col.markdown(f'###### statistics for {header_part} {collect_field[f_index][2]}')
-            col.write(collect_field[f_index][1])
+    """Data and statistics of each compared metric in a grid of up to
+    cols_per_line columns, in the order of collect_field."""
+    grid = st.grid(Config.cols_per_line)
+    for entry in collect_field:
+        header_part = entry[3] if len(entry) >= 4 else ''
+        with grid.cell():
+            st.markdown(f'###### data for {header_part} {entry[2]}')
+            st.write(entry[0])
+            st.markdown(f'###### statistics for {header_part} {entry[2]}')
+            st.write(entry[1])
