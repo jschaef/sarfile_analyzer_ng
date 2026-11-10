@@ -73,8 +73,12 @@ Web-Frontends sarfile_analyzer_web und beim Lab-Deployment. Jeder
   devices; im Browser gezeichnet, LTTB-Sampling, Zoom-Regler, ein Dataset pro
   Linie; Restart-Linien rot bzw. in Multiple Sar Files in der Dateifarbe;
   kein PDF-Export – der läuft über Bokeh/Altair; nur JSON-Optionen, keine
-  JS-Formatter), `bokeh_charts.py` (Bokeh, Restart-Marker, weiter Standard der
-  Graphical Overview), `alt.py` (Altair),
+  JS-Formatter; auch Standard der Graphical Overview, dort mit Auswahl
+  ECharts/Bokeh neben „Show Diagrams“ – außerhalb des Fragments, damit ein
+  Wechsel alle Diagramme neu zeichnet; Bokeh-Figuren entstehen dann erst für
+  den PDF-Tab bzw. „Prepare Multi-PDF“ und werden am Eintrag in
+  `st.session_state` gecacht), `bokeh_charts.py` (Bokeh, Restart-Marker),
+  `alt.py` (Altair),
   `streamlit_bokeh_component.py` (registriert streamlit-bokeh als
   Components-**v1**-Komponente, weil streamlit-bokeh ab Streamlit 1.51 sonst
   Components v2 nutzt), `multi_pdf.py` (paralleler PDF-Export),
