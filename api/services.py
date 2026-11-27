@@ -342,6 +342,163 @@ def get_table(
 
 
 # ---------------------------------------------------------------------------
+# metric range: which devices hit a value band, and when
+# ---------------------------------------------------------------------------
+def header_wide(username: str, name: str, header_name: str) -> tuple[pl.DataFrame, dict]:
+    """One wide frame for a header: date, [sub_device], one Float64 column per
+    metric.
+
+    Unlike prepare_header_frames this keeps EVERY device - CPU-like headers do
+    not collapse to the 'all' aggregate, which is the whole point of a search
+    across devices.
+    """
+    df = load_df(username, name)
+    header, alias = resolve_header(df, header_name)
+    df_h = pl_h2.get_data_frames_from__headers([header], df, "header")[0]
+    # parse_into_polars collapses only the first whitespace run per line, so
+    # get_metrics_from_df otherwise splits sar's column padding into several
+    # times more (empty) tokens than values and spends most of its time casting
+    # them. Collapsing first gives identical output much faster.
+    df_h = df_h.with_columns(pl.col(header).str.replace_all(r"\s+", " ").str.strip_chars())
+    parsed = pl_h2.get_metrics_from_df(
+        df_h, header, alias, sub_device_key=pl_h2.get_sub_device_from_header(header)
+    )
+    metrics = header.split()
+    columns = [pl.col("date")]
+    if "sub_device" in parsed.columns:
+        columns.append(pl.col("sub_device").cast(pl.String))
+    columns += [
+        pl.col(header).list.get(i, null_on_oob=True).cast(pl.Float64).round(2).alias(metric)
+        for i, metric in enumerate(metrics)
+    ]
+    wide = parsed.select(columns).sort("date", maintain_order=True)
+    return wide, {"header": header, "alias": alias, "metrics": metrics}
+
+
+def _natural_device(device: str | None) -> tuple:
+    """'all' first, then numbers numerically (CPU 2 before CPU 10), then names."""
+    if device is None:
+        return (-1, 0, "")
+    if device == "all":
+        return (0, 0, "")
+    return (1, int(device), "") if device.isdigit() else (2, 0, device)
+
+
+def _filter_dates(frame: pl.DataFrame, start: str | None, end: str | None) -> pl.DataFrame:
+    """filter_time_range for a polars frame with a 'date' column."""
+    if not start and not end:
+        return frame
+    # _parse_bound resolves a bare 'HH:MM' against the day of the data and
+    # needs a pandas Timestamp; polars hands out plain datetimes
+    reference = pd.Timestamp(frame["date"].min())
+    start_ts = _parse_bound(start, reference)
+    end_ts = _parse_bound(end, reference)
+    if start_ts is not None:
+        frame = frame.filter(pl.col("date") >= start_ts.to_pydatetime())
+    if end_ts is not None:
+        frame = frame.filter(pl.col("date") <= end_ts.to_pydatetime())
+    if frame.height == 0:
+        raise ServiceError("Time range selection produced an empty data set")
+    return frame
+
+
+def metric_range(
+    wide: pl.DataFrame,
+    metric: str,
+    low: float | None = None,
+    high: float | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 500,
+) -> dict:
+    """Where does `metric` lie between low and high, and on which devices.
+
+    Pure: takes the wide frame of header_wide() so a caller that already holds
+    one (sar-web-api caches it per file and header) does not parse twice.
+    Without low and high only the value range is returned - what a caller needs
+    to pick sensible bounds in the first place. Headers without sub-devices are
+    allowed: their single series is reported with device null.
+    """
+    if metric not in wide.columns:
+        available = [c for c in wide.columns if c not in ("date", "sub_device")]
+        raise ServiceError(f"Unknown metric {metric!r}; available: {available}")
+    has_devices = "sub_device" in wide.columns
+    device = pl.col("sub_device").alias("device") if has_devices else pl.lit(None, pl.String).alias("device")
+    values = wide.select(pl.col("date"), device, pl.col(metric).alias("value")).drop_nulls("value")
+    if values.height == 0:
+        raise ServiceError(f"Metric {metric!r} has no values")
+    result: dict = {
+        "metric": metric,
+        "value_min": values["value"].min(),
+        "value_max": values["value"].max(),
+        "start": str(values["date"].min()),
+        "end": str(values["date"].max()),
+    }
+    if low is None and high is None:
+        return result
+
+    # time window first: a window without any samples is an error, a window
+    # without matching samples is just matches = 0
+    hits = _filter_dates(values, start, end)
+    if low is not None:
+        hits = hits.filter(pl.col("value") >= low)
+    if high is not None:
+        hits = hits.filter(pl.col("value") <= high)
+    per_device = (
+        hits.group_by("device")
+        .agg(
+            pl.len().alias("count"),
+            pl.col("date").min().alias("first"),
+            pl.col("date").max().alias("last"),
+            pl.col("value").max().alias("peak"),
+        )
+        .with_columns(pl.col("first").dt.epoch("ms"), pl.col("last").dt.epoch("ms"))
+    )
+    # by time, and within one timestamp in the natural device order, so the
+    # returned sample of the matches is deterministic
+    hits = hits.sort(
+        [
+            pl.col("date"),
+            pl.when(pl.col("device") == "all")
+            .then(0)
+            .when(pl.col("device").str.contains(r"^\d+$"))
+            .then(1)
+            .otherwise(2),
+            pl.col("device").cast(pl.Int64, strict=False),
+            pl.col("device"),
+        ],
+        nulls_last=True,
+        maintain_order=True,
+    )
+    shown = hits.head(limit).with_columns(pl.col("date").dt.epoch("ms").alias("time"))
+    result.update(
+        {
+            "matches": hits.height,
+            "devices": sorted(per_device.to_dicts(), key=lambda d: _natural_device(d["device"])),
+            "rows": shown.select("time", "device", "value").to_dicts(),
+            "rows_returned": shown.height,
+        }
+    )
+    return result
+
+
+def threshold(
+    username: str,
+    name: str,
+    header_name: str,
+    metric: str,
+    low: float | None = None,
+    high: float | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 500,
+) -> dict:
+    """metric_range() for one file and header, frame built here."""
+    wide, meta = header_wide(username, name, header_name)
+    return {**meta, **metric_range(wide, metric, low, high, start, end, limit)}
+
+
+# ---------------------------------------------------------------------------
 # admin / maintenance: per-user disk usage and age-based cleanup
 # ---------------------------------------------------------------------------
 # upload/config is a sibling of the user directories but holds shared state

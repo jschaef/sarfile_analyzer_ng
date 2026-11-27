@@ -47,6 +47,7 @@ like in the web UI.
 | GET | `/files/{name}/headers/{header}` | metrics, sub-devices, time range for one header (alias or raw header) |
 | GET | `/files/{name}/data` | time series as JSON/CSV (`header`, optional `metric`, `device`, `start`, `end`, `format`) |
 | GET | `/files/{name}/statistics` | describe() statistics as JSON/CSV |
+| GET | `/files/{name}/threshold` | where a metric lies between `min` and `max`, per device (`header`, `metric`, optional `min`, `max`, `start`, `end`, `limit`); without bounds only the value range |
 | POST | `/charts/single` | one header: single-metric detail chart or all-metrics overview → PNG/PDF |
 | POST | `/charts/overview` | several headers (default: CPU, Kernel tables, Load, Memory utilization, Swap utilization) → multi-page PDF or PNG zip |
 | POST | `/charts/multi` | one metric across several files; `mode=overlay` (days on one 24h axis) or `sequential` → PNG/PDF |
