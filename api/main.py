@@ -331,6 +331,27 @@ def get_statistics(
     }
 
 
+@app.get(f"{PREFIX}/files/{{name}}/threshold")
+def get_threshold(
+    name: str,
+    header: str,
+    metric: str,
+    min: float | None = None,
+    max: float | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 500,
+    username: str = Depends(auth.get_current_user),
+):
+    """Where a metric lies between min and max, and on which devices.
+
+    Without min/max only the value range is returned - what a caller needs to
+    pick bounds in the first place. Headers without sub-devices (Load, Swap
+    ...) are supported; their single series is reported with device null.
+    """
+    return services.threshold(username, name, header, metric, min, max, start, end, limit)
+
+
 # --------------------------------------------------------------------------
 # charts
 # --------------------------------------------------------------------------

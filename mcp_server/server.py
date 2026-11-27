@@ -352,6 +352,48 @@ def get_statistics(
 
 
 @mcp.tool()
+def find_metric_range(
+    name: str,
+    header: str,
+    metric: str,
+    ctx: Context,
+    min: float | None = None,
+    max: float | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = 500,
+) -> dict:
+    """Where a metric lies between min and max, and on which devices.
+
+    Call it WITHOUT min/max first: that returns only the value range
+    (value_min/value_max) plus the covered time span, which is what you need to
+    pick sensible bounds. With bounds it returns the number of matches, a
+    summary per device (count, first, last, peak) and up to `limit` matching
+    samples.
+
+    Works for headers with sub-devices (every CPU, every interface - not just
+    the 'all' aggregate) and for headers without them, such as Load; those
+    report device null. start/end accept 'HH:MM[:SS]' or ISO timestamps.
+    """
+    params = {
+        k: v
+        for k, v in {
+            "header": header,
+            "metric": metric,
+            "min": min,
+            "max": max,
+            "start": start,
+            "end": end,
+            "limit": limit,
+        }.items()
+        if v is not None
+    }
+    return _request(
+        "GET", f"/files/{name}/threshold", session_key=_session_key(ctx), params=params
+    )
+
+
+@mcp.tool()
 def get_data(
     name: str,
     header: str,
