@@ -222,6 +222,11 @@ def resolve_header(df: pl.DataFrame, name: str) -> tuple[str, str]:
 def header_details(username: str, name: str, header_name: str) -> dict:
     df = load_df(username, name)
     header, alias = resolve_header(df, header_name)
+    return _wide_from_df(df, header, alias), {"header": header, "alias": alias, "metrics": header.split()}
+
+
+def _wide_from_df(df: pl.DataFrame, header: str, alias: str) -> pl.DataFrame:
+    """The frame itself, for callers that already hold the parsed file."""
     df_h = pl_h2.get_data_frames_from__headers([header], df, "header")[0]
     devices = dia_compute.get_device_list(df_h)
     return {
@@ -346,7 +351,7 @@ def get_table(
 # ---------------------------------------------------------------------------
 def header_wide(username: str, name: str, header_name: str) -> tuple[pl.DataFrame, dict]:
     """One wide frame for a header: date, [sub_device], one Float64 column per
-    metric.
+    metric, plus header/alias/metrics.
 
     Unlike prepare_header_frames this keeps EVERY device - CPU-like headers do
     not collapse to the 'all' aggregate, which is the whole point of a search
@@ -354,6 +359,13 @@ def header_wide(username: str, name: str, header_name: str) -> tuple[pl.DataFram
     """
     df = load_df(username, name)
     header, alias = resolve_header(df, header_name)
+    meta = {"header": header, "alias": alias, "metrics": header.split()}
+    return _wide_from_df(df, header, alias), meta
+
+
+def _wide_from_df(df: pl.DataFrame, header: str, alias: str) -> pl.DataFrame:
+    """The frame itself, for callers that already hold the parsed file -
+    find_anomalies walks every header and must not load it again per header."""
     df_h = pl_h2.get_data_frames_from__headers([header], df, "header")[0]
     # parse_into_polars collapses only the first whitespace run per line, so
     # get_metrics_from_df otherwise splits sar's column padding into several
@@ -363,16 +375,14 @@ def header_wide(username: str, name: str, header_name: str) -> tuple[pl.DataFram
     parsed = pl_h2.get_metrics_from_df(
         df_h, header, alias, sub_device_key=pl_h2.get_sub_device_from_header(header)
     )
-    metrics = header.split()
     columns = [pl.col("date")]
     if "sub_device" in parsed.columns:
         columns.append(pl.col("sub_device").cast(pl.String))
     columns += [
         pl.col(header).list.get(i, null_on_oob=True).cast(pl.Float64).round(2).alias(metric)
-        for i, metric in enumerate(metrics)
+        for i, metric in enumerate(header.split())
     ]
-    wide = parsed.select(columns).sort("date", maintain_order=True)
-    return wide, {"header": header, "alias": alias, "metrics": metrics}
+    return parsed.select(columns).sort("date", maintain_order=True)
 
 
 def _natural_device(device: str | None) -> tuple:
@@ -496,6 +506,135 @@ def threshold(
     """metric_range() for one file and header, frame built here."""
     wide, meta = header_wide(username, name, header_name)
     return {**meta, **metric_range(wide, metric, low, high, start, end, limit)}
+
+
+# ---------------------------------------------------------------------------
+# anomalies: what stands out in a file, without being told what to look for
+# ---------------------------------------------------------------------------
+# A metric whose name starts with '%' is bounded by 100, so "sits high" means
+# something. For %idle it means the opposite (idle is good), so it is left out
+# of that criterion - not of the spike criterion.
+_INVERTED = {"%idle"}
+
+
+def find_anomalies(
+    username: str,
+    name: str,
+    headers: list[str] | None = None,
+    metrics: list[str] | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    top: int = 20,
+    spike_iqr: float = 3.0,
+    min_ratio: float = 2.0,
+    high_percent: float = 80.0,
+    high_share: float = 0.1,
+) -> dict:
+    """What stands out in a file, without being told what to look for.
+
+    Two criteria, both reported with the numbers behind them so the caller can
+    judge rather than trust:
+    - "spike": the maximum lies more than `spike_iqr` interquartile ranges
+      above the upper quartile AND is at least `min_ratio` times the median.
+      The second half matters: a nearly constant series has an interquartile
+      range near zero, so without it every twitch scores in the hundreds.
+    - "elevated": a percent metric spends at least `high_share` of its samples
+      at or above `high_percent` - a state, not a spike. %idle is excluded,
+      where high means the opposite.
+
+    `headers` and `metrics` narrow the search (both match aliases as well);
+    empty means everything. Findings come back strongest first, cut to `top`.
+
+    ON THE DEFAULTS, and what is measured about them (27.11.2026): 1.5 - the
+    common box-plot fence - flagged 70% of all series of a real file and still
+    5% of a synthetic file on which nothing happens. At 3.0 the quiet file
+    falls silent (0 of 112 series), which is why 3.0 is the default; the real
+    file keeps 60 of 162, and that is the machine being busy, not the fence
+    being wrong - read the ranking, not the count. What is NOT measured is
+    whether the findings are the RIGHT ones: that needs a file where it is
+    known what really happened. 80 percent for a tenth of the samples is a
+    guess and was not measured at all.
+    """
+    df = load_df(username, name)
+    all_headers = pl_h2.get_headers(df)
+    aliases = helpers.translate_headers(all_headers)
+    wanted = {h.lower() for h in headers} if headers else None
+    wanted_metrics = {m.lower() for m in metrics} if metrics else None
+
+    findings: list[dict] = []
+    series_seen = 0
+    for header in all_headers:
+        alias = aliases.get(header, header)
+        if wanted and header.lower() not in wanted and alias.lower() not in wanted:
+            continue
+        try:
+            wide = _wide_from_df(df, header, alias)
+            wide = _filter_dates(wide, start, end)
+        except Exception:  # a header that will not parse must not kill the run
+            continue
+        has_devices = "sub_device" in wide.columns
+        groups = (
+            [(str(d), wide.filter(pl.col("sub_device") == d)) for d in wide["sub_device"].unique()]
+            if has_devices
+            else [(None, wide)]
+        )
+        for metric in header.split():
+            if wanted_metrics and metric.lower() not in wanted_metrics:
+                continue
+            percent = metric.startswith("%")
+            for device, frame in groups:
+                values = frame[metric].drop_nulls()
+                if values.len() < 8 or values.min() == values.max():
+                    continue
+                series_seen += 1
+                q1, q3 = values.quantile(0.25), values.quantile(0.75)
+                median, highest, iqr = values.median(), values.max(), None
+                iqr = q3 - q1
+                where = dict(header=header, alias=alias, device=device, metric=metric)
+                big_enough = median == 0 or highest >= min_ratio * abs(median)
+                if iqr > 0 and highest > q3 + spike_iqr * iqr and big_enough:
+                    at = frame["date"][int(values.arg_max())]
+                    findings.append(
+                        {
+                            **where,
+                            "kind": "spike",
+                            "score": round((highest - q3) / iqr, 2),
+                            "value": highest,
+                            "time": str(at),
+                            "median": median,
+                            "q3": q3,
+                            "samples": values.len(),
+                        }
+                    )
+                if percent and metric not in _INVERTED:
+                    share = (values >= high_percent).sum() / values.len()
+                    if share >= high_share:
+                        findings.append(
+                            {
+                                **where,
+                                "kind": "elevated",
+                                "score": round(share, 3),
+                                "value": highest,
+                                "median": median,
+                                "threshold": high_percent,
+                                "samples": values.len(),
+                            }
+                        )
+
+    findings.sort(key=lambda f: (f["kind"] != "elevated", -f["score"]))
+    return {
+        "file": name,
+        "series_checked": series_seen,
+        "found": len(findings),
+        "criteria": {
+            "spike_iqr": spike_iqr,
+            "min_ratio": min_ratio,
+            "high_percent": high_percent,
+            "high_share": high_share,
+            "note": "thresholds tuned for selectivity, not against known incidents",
+        },
+        "anomalies": findings[:top],
+    }
 
 
 # ---------------------------------------------------------------------------
