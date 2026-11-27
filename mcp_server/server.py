@@ -352,6 +352,46 @@ def get_statistics(
 
 
 @mcp.tool()
+def find_anomalies(
+    name: str,
+    ctx: Context,
+    headers: str | None = None,
+    metrics: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    top: int = 20,
+) -> dict:
+    """What stands out in a sar file, without being told what to look for.
+
+    Use this to answer "is there anything odd in this file". Two criteria:
+    "spike" (the maximum sits far above the upper quartile AND well above the
+    median) and "elevated" (a percent metric spends a tenth of its samples at
+    or above 80). Every finding carries its numbers - median, quartile, peak,
+    sample count - so you can judge it instead of trusting the label.
+
+    Findings come back strongest first; READ THE RANKING, NOT THE COUNT. A busy
+    machine produces many, a quiet one almost none. `headers` and `metrics` are
+    comma separated and narrow the search (aliases work too), e.g.
+    metrics="ldavg-1,%iowait". For a specific value band use
+    find_metric_range instead.
+    """
+    params = {
+        k: v
+        for k, v in {
+            "headers": headers,
+            "metrics": metrics,
+            "start": start,
+            "end": end,
+            "top": top,
+        }.items()
+        if v is not None
+    }
+    return _request(
+        "GET", f"/files/{name}/anomalies", session_key=_session_key(ctx), params=params
+    )
+
+
+@mcp.tool()
 def find_metric_range(
     name: str,
     header: str,

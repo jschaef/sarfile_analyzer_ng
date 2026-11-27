@@ -352,6 +352,42 @@ def get_threshold(
     return services.threshold(username, name, header, metric, min, max, start, end, limit)
 
 
+@app.get(f"{PREFIX}/files/{{name}}/anomalies")
+def get_anomalies(
+    name: str,
+    headers: str | None = None,
+    metrics: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    top: int = 20,
+    spike_iqr: float = 3.0,
+    min_ratio: float = 2.0,
+    high_percent: float = 80.0,
+    high_share: float = 0.1,
+    username: str = Depends(auth.get_current_user),
+):
+    """What stands out in a file, without being told what to look for.
+
+    `headers` and `metrics` are comma separated and narrow the search (both
+    match aliases too). Findings come back strongest first; read the ranking
+    rather than the count, and the thresholds are tunable for a reason - see
+    services.find_anomalies.
+    """
+    return services.find_anomalies(
+        username,
+        name,
+        [h.strip() for h in headers.split(",")] if headers else None,
+        [m.strip() for m in metrics.split(",")] if metrics else None,
+        start,
+        end,
+        top,
+        spike_iqr,
+        min_ratio,
+        high_percent,
+        high_share,
+    )
+
+
 # --------------------------------------------------------------------------
 # charts
 # --------------------------------------------------------------------------

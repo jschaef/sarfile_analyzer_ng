@@ -129,6 +129,7 @@ Notes for stdio against the remote API:
 - `get_header_details(name, header)` — metrics, devices, time range
 - `get_statistics(name, header, metric?, device?, start?, end?)`
 - `get_data(...)` — raw time series (truncated to `max_rows`)
+- `find_anomalies(name, headers?, metrics?, start?, end?, top?)` — what stands out in a file, ranked; "spike" (maximum far above the upper quartile and the median) and "elevated" (a percent metric sitting high). Every finding carries its numbers. Read the ranking, not the count
 - `find_metric_range(name, header, metric, min?, max?, start?, end?, limit?)` — which devices hit a value band, and when; without `min`/`max` only the value range, so an agent can pick bounds first. Also works for headers without sub-devices (Load, Swap), which report device `null`
 - `generate_chart(file, header, metric?, device?, ..., backend, format)` — PNG/PDF, saved to the output dir; small PNGs also returned inline
 - `generate_overview(file, aliases?, format)` — multi-page PDF or PNG zip
